@@ -1,0 +1,92 @@
+[
+ {
+  "slug": "ats-resume",
+  "name": "ATS & Resume Optimisation",
+  "short_name": "ATS",
+  "description": "How applicant tracking systems read your resume, and how to get past them.",
+  "seo_title": "ATS & Resume Optimisation Guides for Indian Job Seekers",
+  "seo_description": "How ATS software actually reads your resume, what a good ATS score is, and how to fix formatting so a human finally sees your application.",
+  "sort_order": 0
+ },
+ {
+  "slug": "resume-builder",
+  "name": "Resume Builders & Makers",
+  "short_name": "Builders",
+  "description": "Choosing and using resume builders that produce ATS-safe output.",
+  "seo_title": "Resume Builders & Makers — Honest Guides for India",
+  "seo_description": "Which resume builders actually produce ATS-safe files, which ones paywall the download, and how to build a fresher resume without paying anything.",
+  "sort_order": 1
+ },
+ {
+  "slug": "resume-format",
+  "name": "Resume Formats & Examples",
+  "short_name": "Formats",
+  "description": "Role-by-role resume formats and examples for the Indian market.",
+  "seo_title": "Resume Formats & Examples by Role — India",
+  "seo_description": "Resume formats and real examples for every role, tuned for Indian recruiters, Naukri and campus placements. Free templates, no signup.",
+  "sort_order": 2
+ },
+ {
+  "slug": "cover-letter",
+  "name": "Cover Letters",
+  "short_name": "Cover Letters",
+  "description": "Cover letters that get read, for freshers and early-career applicants.",
+  "seo_title": "Cover Letter Guides & Examples for Indian Freshers",
+  "seo_description": "Cover letter formats, examples and templates for Indian job seekers — including when a cover letter actually matters and when it is ignored.",
+  "sort_order": 3
+ },
+ {
+  "slug": "ai-job-search",
+  "name": "AI Job Search & Auto-Apply",
+  "short_name": "AI Search",
+  "description": "Auto-apply tools, AI job matching, and applying faster without spamming.",
+  "seo_title": "AI Job Search & Auto-Apply Tools — What Works in India",
+  "seo_description": "Honest guides to auto-apply tools, AI job matching and applying faster — what genuinely helps and what just burns your reputation with recruiters.",
+  "sort_order": 4
+ },
+ {
+  "slug": "mentorship",
+  "name": "Career Mentorship",
+  "short_name": "Mentorship",
+  "description": "Finding and using mentors who are actually ahead of you.",
+  "seo_title": "Career Mentorship in India — Finding Someone Ahead of You",
+  "seo_description": "How to find a mentor, what to ask, and which mentorship platforms are worth it for Indian students and early-career professionals.",
+  "sort_order": 5
+ },
+ {
+  "slug": "interview-prep",
+  "name": "Interview Preparation",
+  "short_name": "Interviews",
+  "description": "Company-wise and round-wise interview preparation for Indian hiring.",
+  "seo_title": "Interview Preparation Guides — Company-Wise, India",
+  "seo_description": "Company-wise interview questions, HR round answers and preparation guides for TCS, Infosys, Amazon India and more. Updated for 2026 hiring.",
+  "sort_order": 6
+ },
+ {
+  "slug": "salary",
+  "name": "Salary & Negotiation",
+  "short_name": "Salary",
+  "description": "CTC, take-home, negotiation and everything nobody explained to you.",
+  "seo_title": "Salary, CTC & Negotiation Guides for India",
+  "seo_description": "What your CTC actually becomes in hand, how to negotiate as a fresher, notice period and gratuity rules — explained with real Indian numbers.",
+  "sort_order": 7
+ },
+ {
+  "slug": "linkedin",
+  "name": "LinkedIn Optimisation",
+  "short_name": "LinkedIn",
+  "description": "Making LinkedIn work for you instead of being a dead profile.",
+  "seo_title": "LinkedIn Optimisation for Indian Job Seekers",
+  "seo_description": "Headlines, About sections and profile fixes that get Indian recruiters to actually open your LinkedIn profile.",
+  "sort_order": 8
+ },
+ {
+  "slug": "job-search",
+  "name": "Job Search for Freshers",
+  "short_name": "Job Search",
+  "description": "The practical mechanics of finding your first job in India.",
+  "seo_title": "Job Search Guides for Freshers in India",
+  "seo_description": "Off-campus drives, job portals, referrals and application strategy — the practical mechanics of landing a first job in India.",
+  "sort_order": 9
+ }
+]
