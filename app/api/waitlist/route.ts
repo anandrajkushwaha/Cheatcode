@@ -50,11 +50,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error } = await supabase
-    .from("waitlist")
-    .insert({ email, source })
-    .select("id")
-    .single();
+  // No .select() here on purpose. Chaining it would ask PostgREST to read the
+  // row back, and this table deliberately has no SELECT grant for the public
+  // key — so the read-back would fail and roll the whole insert back.
+  const { error } = await supabase.from("waitlist").insert({ email, source });
 
   if (error) {
     // 23505 = unique violation. Already on the list is a success, not an error.
