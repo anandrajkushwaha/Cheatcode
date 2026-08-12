@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAdminStats, getPublishLog } from "@/lib/queries/admin";
+import { SeedButton } from "@/components/admin/SeedButton";
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -45,6 +46,10 @@ export default async function AdminOverview() {
           value={`${s.avgWords.toLocaleString("en-IN")} w`}
           hint={`quality score ${s.avgQuality}/100`}
         />
+      </div>
+
+      <div className="mt-6">
+        <SeedButton hasPosts={s.posts > 0} />
       </div>
 
       {s.queueFailed > 0 && (
