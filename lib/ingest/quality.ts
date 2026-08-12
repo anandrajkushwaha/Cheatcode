@@ -12,7 +12,8 @@ export type Draft = {
   seo_description: string;
   excerpt: string;
   content_html: string;
-  faq?: { q: string; a: string }[];
+  /** Either shape is accepted; normaliseFaq() converts to {q,a}. */
+  faq?: { q?: string; a?: string; question?: string; answer?: string }[];
   entity_type?: string | null;
   entity_slug?: string | null;
   entity_name?: string | null;
@@ -25,6 +26,19 @@ const ALLOWED_TAGS = new Set([
 
 const DATA_RE =
   /(₹|\bLPA\b|\bCTC\b|Naukri|TCS|Infosys|Wipro|Accenture|Cognizant|Capgemini|EPFO?|LinkedIn|\bFY\s?20\d\d|\d+\s?%)/gi;
+
+/**
+ * Writers produce {q,a} or {question,answer}. Normalise once, here, so a key
+ * mismatch can never reach the database and render an empty FAQ block.
+ */
+export function normaliseFaq(items: Draft["faq"]): { q: string; a: string }[] {
+  return (items ?? [])
+    .map((it) => ({
+      q: (it.q ?? it.question ?? "").trim(),
+      a: (it.a ?? it.answer ?? "").trim(),
+    }))
+    .filter((it) => it.q && it.a);
+}
 
 export function textOf(html: string) {
   return html
@@ -86,7 +100,12 @@ export function runQualityGate(draft: Draft, knownSlugs: Set<string>): GateResul
   }
   if (!draft.title.toLowerCase().includes(kw)) reasons.push("focus keyword missing from title");
   if (!m.first120.includes(kw)) reasons.push("focus keyword missing from the first 120 words");
-  if (!draft.faq || draft.faq.length < 4) reasons.push("fewer than 4 FAQ items");
+  const faq = normaliseFaq(draft.faq);
+  if (faq.length < 4) {
+    reasons.push(
+      `fewer than 4 usable FAQ items (got ${faq.length}; each needs a question and an answer)`,
+    );
+  }
 
   const dead = m.blogLinks
     .map((l) => l.replace("/blog/", ""))

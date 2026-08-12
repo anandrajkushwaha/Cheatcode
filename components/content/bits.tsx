@@ -86,15 +86,30 @@ export function Toc({ items }: { items: TocItem[] }) {
   );
 }
 
+/**
+ * Accepts either {q,a} or {question,answer}. Different writers produce
+ * different shapes; normalising here means one malformed key can never
+ * render an empty FAQ block again.
+ */
+function normaliseFaq(items: FaqItem[]) {
+  return (items ?? [])
+    .map((it) => {
+      const raw = it as unknown as Record<string, string | undefined>;
+      return { q: (raw.q ?? raw.question ?? "").trim(), a: (raw.a ?? raw.answer ?? "").trim() };
+    })
+    .filter((it) => it.q && it.a);
+}
+
 export function FaqBlock({ items }: { items: FaqItem[] }) {
-  if (!items?.length) return null;
+  const faq = normaliseFaq(items);
+  if (!faq.length) return null;
   return (
     <section className="mt-16 border-t border-ink-08 pt-12">
       <h2 className="text-[1.65rem] font-semibold tracking-[-0.03em]">
         Frequently asked questions
       </h2>
       <div className="mt-6 divide-y divide-ink-08 border-t border-ink-08">
-        {items.map((item, i) => (
+        {faq.map((item, i) => (
           <details key={i} className="group py-5">
             <summary className="flex cursor-pointer list-none items-start justify-between gap-6 text-[1rem] font-medium leading-snug [&::-webkit-details-marker]:hidden">
               {item.q}

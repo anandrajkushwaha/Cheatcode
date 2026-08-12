@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireIngestSecret } from "@/lib/ingest/auth";
-import { runQualityGate, type Draft } from "@/lib/ingest/quality";
+import { runQualityGate, normaliseFaq, type Draft } from "@/lib/ingest/quality";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       seo_description: draft.seo_description,
       focus_keyword: draft.focus_keyword,
       secondary_keywords: draft.secondary_keywords ?? [],
-      faq: draft.faq ?? [],
+      faq: normaliseFaq(draft.faq),
       entity_type: draft.entity_type ?? null,
       entity_slug: draft.entity_slug ?? null,
       entity_name: draft.entity_name ?? null,

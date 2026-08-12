@@ -76,13 +76,16 @@ export default async function ArticlePage({ params }: Props) {
           ]}
         />
 
-        <header className="mt-7 max-w-[24ch]">
-          <h1 className="text-[clamp(2rem,4.5vw,3.25rem)] font-semibold leading-[1.05]">
+        {/* No ch-based cap here: long headlines were being squeezed into a
+            narrow column. leading is >1.1 with a little bottom padding so
+            descenders never clip against the tight tracking. */}
+        <header className="mt-7 max-w-[46rem]">
+          <h1 className="pb-1 text-[clamp(1.9rem,3.9vw,3rem)] font-semibold leading-[1.14] tracking-[-0.03em]">
             {post.h1 ?? post.title}
           </h1>
         </header>
 
-        <p className="mt-6 max-w-[62ch] text-lg leading-relaxed text-ink-70">
+        <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-ink-70">
           {post.excerpt}
         </p>
 
