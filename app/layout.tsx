@@ -26,12 +26,22 @@ const inter = localFont({
   ],
 });
 
-export const metadata: Metadata = buildMetadata({
-  title: "Cheatcode — Talk to someone who's already done it",
-  description:
-    "Some people have a cousin at Google. Now you have Cheatcode. Get 1-on-1 time with people 5–10 years ahead of you — real answers on resumes, interviews, salary and first jobs.",
-  path: "/",
-});
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "Cheatcode — Talk to someone who's already done it",
+    description:
+      "Some people have a cousin at Google. Now you have Cheatcode. Get 1-on-1 time with people 5–10 years ahead of you — real answers on resumes, interviews, salary and first jobs.",
+    path: "/",
+  }),
+  // Search engine ownership verification. Set these in Vercel and redeploy —
+  // no code change needed to verify a new property.
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+    other: process.env.BING_SITE_VERIFICATION
+      ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION }
+      : undefined,
+  },
+};
 
 export const viewport: Viewport = {
   themeColor: "#ffffff",
