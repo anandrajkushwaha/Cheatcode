@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 const LINKS = [
   { href: "#how", label: "How it works" },
   { href: "#mentors", label: "Mentors" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/blog", label: "Guides" },
+  { href: "/tools/in-hand-salary-calculator", label: "Salary calculator" },
 ];
 
 export function Nav() {

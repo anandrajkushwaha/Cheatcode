@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@/components/Analytics";
 import localFont from "next/font/local";
 import "./globals.css";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -49,6 +51,9 @@ export default function RootLayout({
           Skip to content
         </a>
         {children}
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
         <JsonLd data={organizationJsonLd()} />
         <JsonLd data={websiteJsonLd()} />
       </body>

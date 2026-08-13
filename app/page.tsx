@@ -5,9 +5,13 @@ import { HowItWorks } from "@/components/site/HowItWorks";
 import { Mentors } from "@/components/site/Mentors";
 import { Questions } from "@/components/site/Questions";
 import { Difference } from "@/components/site/Difference";
+import { LatestGuides } from "@/components/site/LatestGuides";
 import { Faq } from "@/components/site/Faq";
 import { FinalCta } from "@/components/site/FinalCta";
 import { Footer } from "@/components/site/Footer";
+
+// Regenerated every 5 minutes so newly published guides appear here on their own.
+export const revalidate = 300;
 
 export default function HomePage() {
   return (
@@ -20,6 +24,7 @@ export default function HomePage() {
         <Questions />
         <Mentors />
         <Difference />
+        <LatestGuides />
         <Faq />
         <FinalCta />
       </main>

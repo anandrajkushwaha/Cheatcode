@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAdminStats, getPublishLog } from "@/lib/queries/admin";
+import { getAdminStats, getPublishLog, getAnalytics, getScheduledPosts } from "@/lib/queries/admin";
 import { SeedButton } from "@/components/admin/SeedButton";
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
@@ -13,7 +13,12 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 }
 
 export default async function AdminOverview() {
-  const [s, log] = await Promise.all([getAdminStats(), getPublishLog(8)]);
+  const [s, log, traffic, scheduled] = await Promise.all([
+    getAdminStats(),
+    getPublishLog(8),
+    getAnalytics(7),
+    getScheduledPosts(3),
+  ]);
 
   if (!s.configured) {
     return (
@@ -34,13 +39,39 @@ export default async function AdminOverview() {
       <h1 className="text-2xl font-semibold tracking-[-0.03em]">Overview</h1>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Articles live" value={s.posts} hint={`${s.postsLast7} in the last 7 days`} />
+        <Stat
+          label="Articles live"
+          value={s.postsLive}
+          hint={`${s.postsLast7} published in the last 7 days`}
+        />
+        <Stat
+          label="Scheduled ahead"
+          value={s.postsScheduled}
+          hint={
+            scheduled[0]
+              ? `next: ${new Intl.DateTimeFormat("en-IN", {
+                  day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+                  hour12: true, timeZone: "Asia/Kolkata",
+                }).format(new Date(scheduled[0].published_at as string))} IST`
+              : "nothing waiting"
+          }
+        />
+        <Stat
+          label="Visitors (7d)"
+          value={traffic.error ? "—" : traffic.visitors}
+          hint={traffic.error ? "tracking not set up" : `${traffic.views.toLocaleString("en-IN")} page views`}
+        />
         <Stat
           label="Queue remaining"
           value={s.queuePending}
           hint={`≈ ${daysLeft} days at 6/day`}
         />
         <Stat label="Waitlist signups" value={s.waitlist} />
+        <Stat
+          label="Articles written"
+          value={s.posts}
+          hint={`${s.postsLive} live · ${s.postsScheduled} waiting`}
+        />
         <Stat
           label="Avg article"
           value={`${s.avgWords.toLocaleString("en-IN")} w`}

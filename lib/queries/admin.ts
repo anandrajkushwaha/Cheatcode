@@ -5,6 +5,8 @@ import type { QueueStatus } from "@/types/db";
 export type AdminStats = {
   configured: boolean;
   posts: number;
+  postsLive: number;
+  postsScheduled: number;
   postsLast7: number;
   queuePending: number;
   queueDone: number;
@@ -18,16 +20,18 @@ export type AdminStats = {
 export async function getAdminStats(): Promise<AdminStats> {
   const db = createAdminClient();
   const empty: AdminStats = {
-    configured: false, posts: 0, postsLast7: 0, queuePending: 0, queueDone: 0,
+    configured: false, posts: 0, postsLive: 0, postsScheduled: 0, postsLast7: 0, queuePending: 0, queueDone: 0,
     queueFailed: 0, waitlist: 0, avgWords: 0, avgQuality: 0, byCategory: [],
   };
   if (!db) return empty;
 
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const nowIso = new Date().toISOString();
 
   const [posts, recent, cats, waitlist, queue] = await Promise.all([
-    db.from("posts").select("id,word_count,quality_score,category_id"),
-    db.from("posts").select("id", { count: "exact", head: true }).gte("published_at", weekAgo),
+    db.from("posts").select("id,word_count,quality_score,category_id,published_at"),
+    db.from("posts").select("id", { count: "exact", head: true })
+      .gte("published_at", weekAgo).lte("published_at", nowIso),
     db.from("categories").select("id,slug,name").order("sort_order"),
     db.from("waitlist").select("id", { count: "exact", head: true }),
     db.from("keyword_queue").select("status"),
@@ -47,6 +51,8 @@ export async function getAdminStats(): Promise<AdminStats> {
   return {
     configured: true,
     posts: rows.length,
+    postsLive: rows.filter((r) => (r as { published_at: string }).published_at <= nowIso).length,
+    postsScheduled: rows.filter((r) => (r as { published_at: string }).published_at > nowIso).length,
     postsLast7: recent.count ?? 0,
     queuePending: countBy("pending"),
     queueDone: countBy("done"),
@@ -101,6 +107,67 @@ export async function getWaitlist(limit = 200) {
     .from("waitlist")
     .select("id,email,source,created_at")
     .order("created_at", { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+// ---------------------------------------------------------------- analytics
+
+export type Analytics = {
+  configured: boolean;
+  days: number;
+  views: number;
+  visitors: number;
+  views_today: number;
+  visitors_today: number;
+  views_all_time: number;
+  daily: { day: string; views: number; visitors: number }[];
+  top_pages: { path: string; views: number }[];
+  top_sources: { source: string; views: number }[];
+  top_countries: { country: string; views: number }[];
+  devices: { device: string; views: number }[];
+};
+
+const EMPTY_ANALYTICS: Analytics = {
+  configured: false, days: 7, views: 0, visitors: 0, views_today: 0,
+  visitors_today: 0, views_all_time: 0, daily: [], top_pages: [],
+  top_sources: [], top_countries: [], devices: [],
+};
+
+export async function getAnalytics(days = 7): Promise<Analytics & { error?: string }> {
+  const db = createAdminClient();
+  if (!db) return EMPTY_ANALYTICS;
+
+  const { data, error } = await db.rpc("analytics_summary", { p_days: days });
+  if (error) {
+    // Most likely cause: 05_analytics.sql hasn't been run yet.
+    return { ...EMPTY_ANALYTICS, days, error: error.message };
+  }
+  return { ...EMPTY_ANALYTICS, ...(data as object), configured: true, days };
+}
+
+// ---------------------------------------------------------------- schedule
+
+export async function getScheduledPosts(limit = 200) {
+  const db = createAdminClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("posts")
+    .select("id,slug,title,post_type,published_at,word_count,quality_score,category:categories(name)")
+    .gt("published_at", new Date().toISOString())
+    .order("published_at", { ascending: true })
+    .limit(limit);
+  return data ?? [];
+}
+
+export async function getRecentlyPublished(limit = 10) {
+  const db = createAdminClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("posts")
+    .select("id,slug,title,published_at")
+    .lte("published_at", new Date().toISOString())
+    .order("published_at", { ascending: false })
     .limit(limit);
   return data ?? [];
 }
