@@ -12,6 +12,48 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
   );
 }
 
+
+function MiniBars({
+  title, rows, empty, href,
+}: {
+  title: string;
+  rows: { label: string; value: number }[];
+  empty: string;
+  href: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+          {title}
+        </h2>
+        <Link href={href} className="text-[0.75rem] text-ink-30 underline-offset-4 hover:text-ink hover:underline">
+          all
+        </Link>
+      </div>
+      {rows.length === 0 ? (
+        <p className="mt-4 text-[0.85rem] text-ink-30">{empty}</p>
+      ) : (
+        <ul className="mt-5 space-y-2.5">
+          {rows.map((r) => (
+            <li key={r.label} className="flex items-center gap-3">
+              <span className="w-[52%] shrink-0 truncate text-[0.85rem]">{r.label}</span>
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-08">
+                <span className="block h-full rounded-full bg-ink"
+                  style={{ width: `${(r.value / max) * 100}%` }} />
+              </span>
+              <span className="w-8 shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
+                {r.value}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default async function AdminOverview() {
   const [s, log, traffic, scheduled] = await Promise.all([
     getAdminStats(),
@@ -99,7 +141,24 @@ export default async function AdminOverview() {
         </div>
       )}
 
-      <section className="mt-12 grid gap-10 lg:grid-cols-2">
+      {!traffic.error && (
+        <section className="mt-14 grid gap-10 lg:grid-cols-2">
+          <MiniBars
+            title="Most visited pages (7d)"
+            href="/admin/analytics"
+            rows={traffic.top_pages.slice(0, 6).map((p) => ({ label: p.path, value: p.views }))}
+            empty="No page views recorded yet."
+          />
+          <MiniBars
+            title="Where visitors came from (7d)"
+            href="/admin/analytics"
+            rows={traffic.top_sources.slice(0, 6).map((x) => ({ label: x.source, value: x.views }))}
+            empty="No traffic recorded yet."
+          />
+        </section>
+      )}
+
+      <section className="mt-14 grid gap-10 lg:grid-cols-2">
         <div>
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             Articles by topic

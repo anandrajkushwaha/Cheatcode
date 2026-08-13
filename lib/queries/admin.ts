@@ -125,13 +125,14 @@ export type Analytics = {
   top_pages: { path: string; views: number }[];
   top_sources: { source: string; views: number }[];
   top_countries: { country: string; views: number }[];
+  top_cities: { city: string; country: string; views: number }[];
   devices: { device: string; views: number }[];
 };
 
 const EMPTY_ANALYTICS: Analytics = {
   configured: false, days: 7, views: 0, visitors: 0, views_today: 0,
   visitors_today: 0, views_all_time: 0, daily: [], top_pages: [],
-  top_sources: [], top_countries: [], devices: [],
+  top_sources: [], top_countries: [], top_cities: [], devices: [],
 };
 
 export async function getAnalytics(days = 7): Promise<Analytics & { error?: string }> {

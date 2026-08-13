@@ -155,6 +155,14 @@ export default async function AdminAnalytics({
           emptyNote="No page views recorded yet."
         />
         <BarList
+          title="Cities"
+          rows={a.top_cities.map((c) => ({
+            label: c.country ? `${c.city} · ${c.country}` : c.city,
+            value: c.views,
+          }))}
+          emptyNote="City data appears once the site is visited through Vercel."
+        />
+        <BarList
           title="Countries"
           rows={a.top_countries.map((c) => ({ label: c.country, value: c.views }))}
           emptyNote="Country data appears once the site is visited through Vercel."

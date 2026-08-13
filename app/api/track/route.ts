@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
+import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +38,16 @@ export async function POST(request: Request) {
   const path = typeof body.path === "string" ? body.path.slice(0, 300) : null;
   if (!path || !path.startsWith("/")) return new Response(null, { status: 204 });
 
-  // Never record admin traffic — it would drown out real numbers.
+  // Never record admin pages themselves.
   if (path.startsWith("/admin")) return new Response(null, { status: 204 });
+
+  // Never record your own browsing. If a valid admin session cookie is present,
+  // this is you looking at your own site — counting it would drown out the
+  // handful of real visitors a new site gets.
+  const store = await cookies();
+  if (verifySessionToken(store.get(ADMIN_COOKIE)?.value)) {
+    return new Response(null, { status: 204 });
+  }
 
   let referrerHost: string | null = null;
   const referrer = typeof body.referrer === "string" ? body.referrer.slice(0, 500) : "";
@@ -52,8 +62,19 @@ export async function POST(request: Request) {
   const ua = request.headers.get("user-agent") ?? "";
   const device = /Mobi|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
 
-  // Vercel adds this at the edge; absent in local dev.
+  // Vercel adds these at the edge; absent in local dev.
+  // City and region arrive percent-encoded ("New%20Delhi").
   const country = request.headers.get("x-vercel-ip-country");
+  const decode = (v: string | null) => {
+    if (!v) return null;
+    try {
+      return decodeURIComponent(v).slice(0, 80);
+    } catch {
+      return v.slice(0, 80);
+    }
+  };
+  const city = decode(request.headers.get("x-vercel-ip-city"));
+  const region = decode(request.headers.get("x-vercel-ip-country-region"));
 
   const src = sourceOf(referrerHost);
   if (src === "internal") {
@@ -67,6 +88,8 @@ export async function POST(request: Request) {
     referrer_host: referrerHost,
     source: src === "internal" ? "direct" : src,
     country: country || null,
+    city,
+    region,
     device,
     session_id: typeof body.sessionId === "string" ? body.sessionId.slice(0, 64) : null,
   });
