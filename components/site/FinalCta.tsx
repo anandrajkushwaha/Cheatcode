@@ -16,8 +16,9 @@ export function FinalCta() {
 
         <Reveal delay={80}>
           <p className="mx-auto mt-6 max-w-[48ch] text-lg leading-relaxed text-white/55">
-            We&apos;re letting people in slowly, in batches, as mentors come on
-            board. Get on the list and you&apos;ll be in the first one.
+            One list, both things — the mentor sessions and the resume tool.
+            We&apos;re letting people in slowly, in batches. Get on it and
+            you&apos;ll be in the first one.
           </p>
         </Reveal>
 

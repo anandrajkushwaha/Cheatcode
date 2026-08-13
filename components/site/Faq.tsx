@@ -4,6 +4,14 @@ import { faqJsonLd } from "@/lib/seo/jsonld";
 
 export const FAQ_ITEMS = [
   {
+    q: "What is Cheatcode building, exactly?",
+    a: "Two things that solve two halves of the same problem. Mentor sessions — 30 minutes with someone 5–10 years ahead of you. And a resume tool that scores what you're already sending, rewrites the lines that are costing you, builds one from scratch if you don't have it, and reshapes it for a specific job description. The resume gets you into the room; the mentor is what happens once you're in.",
+  },
+  {
+    q: "Will the resume tool be free?",
+    a: "Free while we're in early access. After that it moves to a subscription — we'd rather say that now than surprise you later. Mentor sessions are priced separately. You'll know the numbers before you're ever asked for a card.",
+  },
+  {
     q: "Who is Cheatcode actually for?",
     a: "Final-year students and people in their first two years of work. If you're figuring out placements, your first switch, or whether the job you took was a mistake — that's exactly the window we're built for.",
   },

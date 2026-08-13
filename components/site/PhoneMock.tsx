@@ -164,6 +164,52 @@ export function PhoneScreenBooking() {
   );
 }
 
+
+/** Screen 4 — resume score / fix view. */
+export function PhoneScreenResume() {
+  return (
+    <div className="flex h-full flex-col gap-4 px-4 pb-4 pt-11">
+      <div className="flex flex-col items-center gap-2 rounded-3xl bg-paper p-5">
+        {/* text-ink is explicit: this screen also renders inside dark sections
+            that set text-paper, and the score would otherwise be invisible. */}
+        <div className="flex size-16 items-center justify-center rounded-full border-[3px] border-ink text-[1.1rem] font-semibold tracking-tight text-ink">
+          61
+        </div>
+        <Bar w="52%" dark />
+        <Bar w="70%" />
+      </div>
+
+      <div className="flex-1 space-y-2">
+        {[
+          { w: "82%", fixed: false },
+          { w: "68%", fixed: false },
+          { w: "74%", fixed: true },
+          { w: "60%", fixed: true },
+          { w: "78%", fixed: true },
+        ].map((row, i) => (
+          <div key={i} className="flex items-center gap-2.5 rounded-xl bg-paper p-2.5">
+            <span
+              className={`flex size-4 shrink-0 items-center justify-center rounded-full ${
+                row.fixed ? "bg-ink" : "border border-ink-15"
+              }`}
+            >
+              {row.fixed && (
+                <svg viewBox="0 0 20 20" className="size-2.5 text-paper" fill="none">
+                  <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="3"
+                    strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            <Bar w={row.w} />
+          </div>
+        ))}
+      </div>
+
+      <div className="h-10 rounded-full bg-ink" />
+    </div>
+  );
+}
+
 /** Hero arrangement: three staggered devices. */
 export function PhoneCluster() {
   return (
@@ -193,7 +239,7 @@ export function SinglePhone({
   screen = "discover",
   className = "",
 }: {
-  screen?: "discover" | "chat" | "booking";
+  screen?: "discover" | "chat" | "booking" | "resume";
   className?: string;
 }) {
   return (
@@ -201,6 +247,7 @@ export function SinglePhone({
       {screen === "chat" && <PhoneScreenChat />}
       {screen === "booking" && <PhoneScreenBooking />}
       {screen === "discover" && <PhoneScreenDiscover />}
+      {screen === "resume" && <PhoneScreenResume />}
     </PhoneFrame>
   );
 }

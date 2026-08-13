@@ -5,6 +5,7 @@ import { HowItWorks } from "@/components/site/HowItWorks";
 import { Mentors } from "@/components/site/Mentors";
 import { Questions } from "@/components/site/Questions";
 import { Difference } from "@/components/site/Difference";
+import { ResumeTool } from "@/components/site/ResumeTool";
 import { LatestGuides } from "@/components/site/LatestGuides";
 import { Faq } from "@/components/site/Faq";
 import { FinalCta } from "@/components/site/FinalCta";
@@ -24,6 +25,7 @@ export default function HomePage() {
         <Questions />
         <Mentors />
         <Difference />
+        <ResumeTool />
         <LatestGuides />
         <Faq />
         <FinalCta />

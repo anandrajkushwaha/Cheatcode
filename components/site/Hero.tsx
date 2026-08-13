@@ -15,13 +15,6 @@ export function Hero() {
       />
 
       <div className="container-page text-center">
-        <Reveal>
-          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.7rem] font-medium tracking-wide text-ink-50 uppercase">
-            <span className="size-1.5 rounded-full bg-ink" />
-            Now taking early access signups
-          </p>
-        </Reveal>
-
         <Reveal delay={60}>
           <h1 className="mx-auto max-w-[15ch] text-[length:var(--text-hero)] font-semibold leading-[0.95]">
             Someone&apos;s cousin works at Google.
