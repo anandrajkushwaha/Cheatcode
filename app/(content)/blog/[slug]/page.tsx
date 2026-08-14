@@ -7,10 +7,10 @@ import { buildMetadata } from "@/lib/seo/metadata";
 import { SITE } from "@/lib/seo/constants";
 import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
+import { FaqBlock } from "@/components/content/FaqBlock";
 import {
   Breadcrumbs,
   Toc,
-  FaqBlock,
   ArticleCard,
   formatDate,
 } from "@/components/content/bits";
@@ -135,6 +135,9 @@ export default async function ArticlePage({ params }: Props) {
                 </p>
                 <Link
                   href="/tools/in-hand-salary-calculator"
+                  data-ev="cta_click"
+                  data-ev-location="article-tool-block"
+                  data-ev-label="Open the calculator"
                   className="mt-6 inline-block rounded-full bg-paper px-5 py-2.5 text-[0.85rem] font-medium text-ink"
                 >
                   Open the calculator
@@ -155,6 +158,9 @@ export default async function ArticlePage({ params }: Props) {
               </p>
               <Link
                 href="/#waitlist"
+                data-ev="cta_click"
+                data-ev-location="article-mentor-block"
+                data-ev-label="Get early access"
                 className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
               >
                 Get early access

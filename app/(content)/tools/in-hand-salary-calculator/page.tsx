@@ -5,7 +5,8 @@ import { buildMetadata } from "@/lib/seo/metadata";
 import { SITE } from "@/lib/seo/constants";
 import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
-import { Breadcrumbs, FaqBlock } from "@/components/content/bits";
+import { FaqBlock } from "@/components/content/FaqBlock";
+import { Breadcrumbs } from "@/components/content/bits";
 import { RATES_AS_OF } from "@/lib/tools/salary";
 
 export const revalidate = 86400;
