@@ -118,21 +118,29 @@ export type Analytics = {
   days: number;
   views: number;
   visitors: number;
+  unique_users: number;
   views_today: number;
   visitors_today: number;
+  users_today: number;
   views_all_time: number;
-  daily: { day: string; views: number; visitors: number }[];
+  users_all_time: number;
+  bots_blocked: number;
+  daily: { day: string; views: number; visitors: number; users: number }[];
   top_pages: { path: string; views: number }[];
   top_sources: { source: string; views: number }[];
   top_countries: { country: string; views: number }[];
   top_cities: { city: string; country: string; views: number }[];
   devices: { device: string; views: number }[];
+  top_os: { os: string; views: number; users: number }[];
+  top_browsers: { browser: string; views: number; users: number }[];
 };
 
 const EMPTY_ANALYTICS: Analytics = {
-  configured: false, days: 7, views: 0, visitors: 0, views_today: 0,
-  visitors_today: 0, views_all_time: 0, daily: [], top_pages: [],
+  configured: false, days: 7, views: 0, visitors: 0, unique_users: 0,
+  views_today: 0, visitors_today: 0, users_today: 0, views_all_time: 0,
+  users_all_time: 0, bots_blocked: 0, daily: [], top_pages: [],
   top_sources: [], top_countries: [], top_cities: [], devices: [],
+  top_os: [], top_browsers: [],
 };
 
 export async function getAnalytics(days = 7): Promise<Analytics & { error?: string }> {

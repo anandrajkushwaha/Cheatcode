@@ -118,9 +118,27 @@ export default async function AdminAnalytics({
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Visitors" value={a.visitors} hint={`last ${days === 1 ? "24 hours" : `${days} days`}`} />
-        <Stat label="Page views" value={a.views} hint={`last ${days === 1 ? "24 hours" : `${days} days`}`} />
-        <Stat label="Today" value={a.visitors_today} hint={`${a.views_today.toLocaleString("en-IN")} views · IST day`} />
+        <Stat
+          label="Unique users"
+          value={a.unique_users}
+          hint="distinct people, across sessions"
+        />
+        <Stat
+          label="Sessions"
+          value={a.visitors}
+          hint={`last ${days === 1 ? "24 hours" : `${days} days`}`}
+        />
+        <Stat
+          label="Page views"
+          value={a.views}
+          hint={`${a.visitors > 0 ? (a.views / a.visitors).toFixed(1) : "0"} per session`}
+        />
+        <Stat
+          label="Today"
+          value={a.users_today}
+          hint={`${a.visitors_today} sessions · ${a.views_today.toLocaleString("en-IN")} views · IST`}
+        />
+        <Stat label="All time users" value={a.users_all_time} />
         <Stat label="All time views" value={a.views_all_time} />
       </div>
 
@@ -136,7 +154,7 @@ export default async function AdminAnalytics({
                   <div
                     className="w-full rounded-t bg-ink transition-opacity group-hover:opacity-70"
                     style={{ height: `${Math.max(2, (d.views / maxDaily) * 100)}%` }}
-                    title={`${d.day}: ${d.views} views, ${d.visitors} visitors`}
+                    title={`${d.day}: ${d.users} users · ${d.visitors} sessions · ${d.views} views`}
                   />
                 </div>
                 <span className="text-[0.62rem] text-ink-30">{d.day.slice(8)}</span>
@@ -171,7 +189,23 @@ export default async function AdminAnalytics({
           emptyNote="Country data appears once the site is visited through Vercel."
         />
         <BarList
-          title="Device"
+          title="Platform"
+          rows={a.top_os.map((o) => ({
+            label: `${o.os}${o.users ? ` · ${o.users} user${o.users === 1 ? "" : "s"}` : ""}`,
+            value: o.views,
+          }))}
+          emptyNote="No data yet."
+        />
+        <BarList
+          title="Browser"
+          rows={a.top_browsers.map((b) => ({
+            label: `${b.browser}${b.users ? ` · ${b.users} user${b.users === 1 ? "" : "s"}` : ""}`,
+            value: b.views,
+          }))}
+          emptyNote="No data yet."
+        />
+        <BarList
+          title="Device type"
           rows={a.devices.map((d) => ({ label: d.device, value: d.views }))}
           emptyNote="No data yet."
         />

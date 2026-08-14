@@ -25,6 +25,41 @@ function sourceOf(host: string | null): string {
   return h;
 }
 
+/** OS from client hints when available, user agent otherwise. */
+function osOf(request: Request, ua: string): string {
+  const hint = request.headers.get("sec-ch-ua-platform")?.replace(/"/g, "").trim();
+  if (hint && hint !== "Unknown") return hint === "macOS" ? "macOS" : hint;
+
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+  if (/Android/i.test(ua)) return "Android";
+  if (/Windows NT/i.test(ua)) return "Windows";
+  if (/Mac OS X/i.test(ua)) return "macOS";
+  if (/CrOS/i.test(ua)) return "Chrome OS";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "unknown";
+}
+
+/** Order matters: several browsers include "Chrome" or "Safari" in their UA. */
+function browserOf(ua: string): string {
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/OPR\/|Opera/i.test(ua)) return "Opera";
+  if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
+  if (/UCBrowser/i.test(ua)) return "UC Browser";
+  if (/Firefox\/|FxiOS/i.test(ua)) return "Firefox";
+  if (/CriOS/i.test(ua)) return "Chrome";
+  if (/Chrome\//i.test(ua)) return "Chrome";
+  if (/Safari\//i.test(ua)) return "Safari";
+  return "unknown";
+}
+
+function deviceOf(request: Request, ua: string): string {
+  if (/iPad/i.test(ua)) return "tablet";
+  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return "tablet";
+  if (request.headers.get("sec-ch-ua-mobile") === "?1") return "mobile";
+  if (/Mobi|Android|iPhone|iPod/i.test(ua)) return "mobile";
+  return "desktop";
+}
+
 type Body = {
   kind?: "pageview" | "event";
   path?: string;
@@ -35,6 +70,7 @@ type Body = {
   params?: Record<string, unknown>;
   referrer?: string;
   sessionId?: string;
+  visitorId?: string;
   botReason?: string | null;
 };
 
@@ -78,7 +114,9 @@ export async function POST(request: Request) {
   const source = src === "internal" ? "direct" : src;
 
   const ua = request.headers.get("user-agent") ?? "";
-  const device = /Mobi|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+  const device = deviceOf(request, ua);
+  const os = osOf(request, ua);
+  const browser = browserOf(ua);
 
   const decode = (v: string | null) => {
     if (!v) return null;
@@ -93,6 +131,8 @@ export async function POST(request: Request) {
   const region = decode(request.headers.get("x-vercel-ip-country-region"));
   const sessionId =
     typeof body.sessionId === "string" ? body.sessionId.slice(0, 64) : null;
+  const visitorId =
+    typeof body.visitorId === "string" ? body.visitorId.slice(0, 64) : null;
 
   // ---------------------------------------------------------------- event
   if (body.kind === "event") {
@@ -107,10 +147,13 @@ export async function POST(request: Request) {
       value: typeof body.value === "number" && Number.isFinite(body.value) ? body.value : null,
       params: body.params && typeof body.params === "object" ? body.params : {},
       session_id: sessionId,
+      visitor_id: visitorId,
       source,
       country: country || null,
       city,
       device,
+      os,
+      browser,
       is_bot: isBot,
       bot_reason: reason,
     });
@@ -128,7 +171,10 @@ export async function POST(request: Request) {
     city,
     region,
     device,
+    os,
+    browser,
     session_id: sessionId,
+    visitor_id: visitorId,
     is_bot: isBot,
     bot_reason: reason,
   });

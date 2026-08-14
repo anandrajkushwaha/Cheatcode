@@ -57,6 +57,25 @@ declare global {
   }
 }
 
+/**
+ * Persistent, first-party visitor id. Lives in localStorage, so it survives
+ * across sessions and tabs — that is what separates "unique users" from
+ * "sessions". No cookie is set and nothing leaves your own domain.
+ */
+function visitorId() {
+  try {
+    const KEY = "cc_vid";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = "v" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 function sessionId() {
   try {
     const KEY = "cc_sid";
@@ -98,6 +117,7 @@ export function track(event: EventName, params: EventParams = {}) {
       params,
       referrer: document.referrer || "",
       sessionId: sessionId(),
+      visitorId: visitorId(),
     });
 
     // sendBeacon survives the page unloading; fetch is the fallback.
@@ -137,6 +157,7 @@ export function trackPageView(path: string) {
         path,
         referrer: document.referrer || "",
         sessionId: sessionId(),
+        visitorId: visitorId(),
       }),
       keepalive: true,
     }).catch(() => {});
