@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
 import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { detectBot } from "@/lib/analytics/bot-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,31 +25,45 @@ function sourceOf(host: string | null): string {
   return h;
 }
 
+type Body = {
+  kind?: "pageview" | "event";
+  path?: string;
+  event?: string;
+  label?: string;
+  location?: string;
+  value?: number;
+  params?: Record<string, unknown>;
+  referrer?: string;
+  sessionId?: string;
+  botReason?: string | null;
+};
+
+const ok = () => new Response(null, { status: 204 });
+
 export async function POST(request: Request) {
   const supabase = createPublicClient();
-  if (!supabase) return new Response(null, { status: 204 });
+  if (!supabase) return ok();
 
-  let body: { path?: string; referrer?: string; sessionId?: string };
+  let body: Body;
   try {
     body = await request.json();
   } catch {
-    return new Response(null, { status: 204 });
+    return ok();
   }
 
   const path = typeof body.path === "string" ? body.path.slice(0, 300) : null;
-  if (!path || !path.startsWith("/")) return new Response(null, { status: 204 });
+  if (!path || !path.startsWith("/")) return ok();
 
-  // Never record admin pages themselves.
-  if (path.startsWith("/admin")) return new Response(null, { status: 204 });
+  // Admin pages are never part of site analytics.
+  if (path.startsWith("/admin")) return ok();
 
-  // Never record your own browsing. If a valid admin session cookie is present,
-  // this is you looking at your own site — counting it would drown out the
-  // handful of real visitors a new site gets.
+  // Neither is your own browsing while signed in to the admin panel.
   const store = await cookies();
-  if (verifySessionToken(store.get(ADMIN_COOKIE)?.value)) {
-    return new Response(null, { status: 204 });
-  }
+  if (verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return ok();
 
+  const { isBot, reason } = detectBot(request, body.botReason);
+
+  // Referrer → source
   let referrerHost: string | null = null;
   const referrer = typeof body.referrer === "string" ? body.referrer.slice(0, 500) : "";
   if (referrer) {
@@ -58,13 +73,13 @@ export async function POST(request: Request) {
       /* malformed referrer — ignore */
     }
   }
+  const src = sourceOf(referrerHost);
+  if (src === "internal") referrerHost = null;
+  const source = src === "internal" ? "direct" : src;
 
   const ua = request.headers.get("user-agent") ?? "";
   const device = /Mobi|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
 
-  // Vercel adds these at the edge; absent in local dev.
-  // City and region arrive percent-encoded ("New%20Delhi").
-  const country = request.headers.get("x-vercel-ip-country");
   const decode = (v: string | null) => {
     if (!v) return null;
     try {
@@ -73,26 +88,50 @@ export async function POST(request: Request) {
       return v.slice(0, 80);
     }
   };
+  const country = request.headers.get("x-vercel-ip-country");
   const city = decode(request.headers.get("x-vercel-ip-city"));
   const region = decode(request.headers.get("x-vercel-ip-country-region"));
+  const sessionId =
+    typeof body.sessionId === "string" ? body.sessionId.slice(0, 64) : null;
 
-  const src = sourceOf(referrerHost);
-  if (src === "internal") {
-    // Same-site navigation: still a page view, but not a traffic source.
-    referrerHost = null;
+  // ---------------------------------------------------------------- event
+  if (body.kind === "event") {
+    const event = typeof body.event === "string" ? body.event.slice(0, 64) : null;
+    if (!event) return ok();
+
+    await supabase.from("page_events").insert({
+      event,
+      path,
+      label: typeof body.label === "string" ? body.label.slice(0, 200) : null,
+      location: typeof body.location === "string" ? body.location.slice(0, 80) : null,
+      value: typeof body.value === "number" && Number.isFinite(body.value) ? body.value : null,
+      params: body.params && typeof body.params === "object" ? body.params : {},
+      session_id: sessionId,
+      source,
+      country: country || null,
+      city,
+      device,
+      is_bot: isBot,
+      bot_reason: reason,
+    });
+
+    return ok();
   }
 
+  // ---------------------------------------------------------------- page view
   await supabase.from("page_views").insert({
     path,
     referrer: referrer || null,
     referrer_host: referrerHost,
-    source: src === "internal" ? "direct" : src,
+    source,
     country: country || null,
     city,
     region,
     device,
-    session_id: typeof body.sessionId === "string" ? body.sessionId.slice(0, 64) : null,
+    session_id: sessionId,
+    is_bot: isBot,
+    bot_reason: reason,
   });
 
-  return new Response(null, { status: 204 });
+  return ok();
 }

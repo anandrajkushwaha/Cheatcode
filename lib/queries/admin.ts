@@ -172,3 +172,29 @@ export async function getRecentlyPublished(limit = 10) {
     .limit(limit);
   return data ?? [];
 }
+
+// ---------------------------------------------------------------- events
+
+export type EventsSummary = {
+  days: number;
+  total: number;
+  bots_blocked: number;
+  by_event: { event: string; count: number; sessions: number }[];
+  top_ctas: { location: string; label: string; count: number }[];
+  outbound: { label: string; count: number }[];
+  funnel: Record<string, number>;
+  error?: string;
+};
+
+const EMPTY_EVENTS: EventsSummary = {
+  days: 7, total: 0, bots_blocked: 0, by_event: [], top_ctas: [],
+  outbound: [], funnel: {},
+};
+
+export async function getEvents(days = 7): Promise<EventsSummary> {
+  const db = createAdminClient();
+  if (!db) return EMPTY_EVENTS;
+  const { data, error } = await db.rpc("events_summary", { p_days: days });
+  if (error) return { ...EMPTY_EVENTS, days, error: error.message };
+  return { ...EMPTY_EVENTS, ...(data as object), days };
+}

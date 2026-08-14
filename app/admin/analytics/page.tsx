@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAnalytics } from "@/lib/queries/admin";
+import { getAnalytics, getEvents } from "@/lib/queries/admin";
 
 const RANGES = [1, 7, 30, 90];
 
@@ -69,7 +69,7 @@ export default async function AdminAnalytics({
 }) {
   const { days: daysParam } = await searchParams;
   const days = RANGES.includes(Number(daysParam)) ? Number(daysParam) : 7;
-  const a = await getAnalytics(days);
+  const [a, ev] = await Promise.all([getAnalytics(days), getEvents(days)]);
 
   if (a.error) {
     return (
@@ -109,9 +109,12 @@ export default async function AdminAnalytics({
         </div>
       </div>
 
-      <p className="mt-3 max-w-[64ch] text-[0.85rem] leading-relaxed text-ink-50">
-        First-party tracking — the data lives in your own database, no third party, no
-        cookies. Admin pages are excluded.
+      <p className="mt-3 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
+        First-party tracking, alongside Google Analytics. Bots, headless browsers and
+        your own admin browsing are excluded before anything is counted
+        {ev.bots_blocked > 0
+          ? ` — ${ev.bots_blocked.toLocaleString("en-IN")} automated hit${ev.bots_blocked === 1 ? "" : "s"} filtered in this window.`
+          : "."}
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -173,6 +176,49 @@ export default async function AdminAnalytics({
           emptyNote="No data yet."
         />
       </div>
+
+      {!ev.error && (
+        <>
+          <div className="mt-16">
+            <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+              Conversion funnel (unique sessions)
+            </h2>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                ["Sessions", ev.funnel.sessions],
+                ["Saw a CTA", ev.funnel.cta_view],
+                ["Clicked a CTA", ev.funnel.cta_click],
+                ["Started typing", ev.funnel.waitlist_start],
+                ["Submitted", ev.funnel.waitlist_submit],
+                ["Joined", ev.funnel.waitlist_success],
+              ].map(([label, n]) => (
+                <div key={label as string} className="rounded-2xl border border-ink-08 p-5">
+                  <p className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">{label}</p>
+                  <p className="mt-2 text-[1.6rem] font-semibold leading-none tracking-[-0.04em]">
+                    {((n as number) ?? 0).toLocaleString("en-IN")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-14 grid gap-12 lg:grid-cols-2">
+            <BarList
+              title="Events"
+              rows={ev.by_event.map((e) => ({ label: e.event, value: e.count }))}
+              emptyNote="No events recorded yet."
+            />
+            <BarList
+              title="Which CTAs get clicked"
+              rows={ev.top_ctas.map((c) => ({
+                label: c.label ? `${c.location} — ${c.label}` : c.location,
+                value: c.count,
+              }))}
+              emptyNote="No CTA clicks yet."
+            />
+          </div>
+        </>
+      )}
     </>
   );
 }
