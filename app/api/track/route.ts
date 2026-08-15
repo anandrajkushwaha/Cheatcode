@@ -126,9 +126,28 @@ export async function POST(request: Request) {
       return v.slice(0, 80);
     }
   };
-  const country = request.headers.get("x-vercel-ip-country");
-  const city = decode(request.headers.get("x-vercel-ip-city"));
-  const region = decode(request.headers.get("x-vercel-ip-country-region"));
+  /**
+   * The site sits behind Cloudflare, so Vercel's x-vercel-ip-* headers now
+   * describe Cloudflare's edge rather than the visitor. Cloudflare's own
+   * headers are the authoritative source here; the Vercel ones are kept as a
+   * fallback so nothing breaks if the proxy is ever switched to DNS-only.
+   *
+   * cf-ipcountry ships by default. cf-ipcity and cf-region require the
+   * "Add visitor location headers" managed transform to be turned on
+   * (Cloudflare -> Rules -> Settings -> Managed Transforms) — free on all plans.
+   */
+  const geo = (...names: string[]) => {
+    for (const name of names) {
+      const v = request.headers.get(name);
+      // XX = Cloudflare could not resolve the IP, T1 = Tor exit node.
+      if (v && v !== "XX" && v !== "T1") return v;
+    }
+    return null;
+  };
+
+  const country = geo("cf-ipcountry", "x-vercel-ip-country");
+  const city = decode(geo("cf-ipcity", "x-vercel-ip-city"));
+  const region = decode(geo("cf-region", "x-vercel-ip-country-region"));
   const sessionId =
     typeof body.sessionId === "string" ? body.sessionId.slice(0, 64) : null;
   const visitorId =
