@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { detectAutomation, watchForHumanInput } from "@/lib/analytics/bot";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-TZC69SKP8W";
@@ -16,19 +17,25 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-TZC69SKP8W";
  *
  * Automatic page_view is disabled: this is a single-page app, so page views
  * are fired manually on route change (see components/Analytics.tsx).
+ *
+ * The script is also never loaded inside the admin panel, so your own
+ * back-office work can't register as a GA4 session in the first place.
  */
 export function GoogleAnalytics() {
+  const pathname = usePathname();
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
+    if (isAdmin) return;
     const reason = detectAutomation();
     window.__ccBot = reason;
     if (reason) return;
     watchForHumanInput();
     setAllowed(true);
-  }, []);
+  }, [isAdmin]);
 
-  if (!allowed || !GA_ID) return null;
+  if (isAdmin || !allowed || !GA_ID) return null;
 
   return (
     <>

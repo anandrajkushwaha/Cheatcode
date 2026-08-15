@@ -10,11 +10,8 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/admin/", "/blog/page/"],
       },
     ],
-    sitemap: [
-      `${SITE.url}/sitemap/static.xml`,
-      `${SITE.url}/sitemap/posts.xml`,
-      `${SITE.url}/sitemap/categories.xml`,
-    ],
+    // One entry: the index at /sitemap.xml points to every shard.
+    sitemap: `${SITE.url}/sitemap.xml`,
     host: SITE.url,
   };
 }

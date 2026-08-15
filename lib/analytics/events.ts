@@ -91,6 +91,20 @@ function sessionId() {
 }
 
 /**
+ * The admin panel is a tool, not the product — nothing that happens inside it
+ * is site traffic. It is cut off here, at the single point every event passes
+ * through, rather than only on the server. That matters because GA4 is written
+ * to directly from the browser and never sees our server-side filter.
+ */
+function isAdminSurface() {
+  try {
+    return window.location.pathname.startsWith("/admin");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fire an event. Safe to call anywhere — it no-ops during SSR, and it never
  * throws, because analytics must never be able to break a page.
  */
@@ -99,6 +113,9 @@ export function track(event: EventName, params: EventParams = {}) {
 
   // Automation detected on this client: send nothing, anywhere.
   if (window.__ccBot) return;
+
+  // Your own admin browsing is never counted — not in GA4, not in our database.
+  if (isAdminSurface()) return;
 
   try {
     window.gtag?.("event", event, params);
@@ -138,6 +155,7 @@ export function track(event: EventName, params: EventParams = {}) {
 
 export function trackPageView(path: string) {
   if (typeof window === "undefined" || window.__ccBot) return;
+  if (path.startsWith("/admin") || isAdminSurface()) return;
   try {
     window.gtag?.("event", "page_view", {
       page_path: path,
