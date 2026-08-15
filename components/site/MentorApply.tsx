@@ -44,31 +44,13 @@ const VALUE = [
   },
   {
     n: "03",
-    title: "The room is the point.",
+    title: "A community of people like you.",
     body: "Everyone here was invited, one at a time. Engineers, designers, PMs, founders — five to fifteen years in. A private group where the people you'd normally cold-DM are just, quietly, around.",
   },
   {
     n: "04",
     title: "We handle everything that isn't the conversation.",
     body: "Profile, scheduling, reminders, payments, the person who doesn't turn up. You get a calendar invite and a name. Nothing else touches your week.",
-  },
-];
-
-const STEPS = [
-  {
-    n: "01",
-    title: "You apply",
-    body: "Four minutes. What you do, where you've done it, and what you're happy to be asked about.",
-  },
-  {
-    n: "02",
-    title: "We talk",
-    body: "Fifteen minutes, both ways. You should be sure about us before we're sure about you.",
-  },
-  {
-    n: "03",
-    title: "You're in",
-    body: "Profile live, calendar connected, slots on your terms. First conversation whenever you're ready for it.",
   },
 ];
 
@@ -79,11 +61,11 @@ export function MentorApply() {
       <section className="border-b border-ink-08 pt-24 pb-20 sm:pt-32 sm:pb-28">
         <div className="container-page">
           <Reveal>
-            <p className="text-[0.75rem] font-medium uppercase tracking-[0.18em] text-ink-30">
-              By invitation
-            </p>
-            <h1 className="mt-6 max-w-[20ch] text-[length:var(--text-hero)] font-semibold leading-[0.98]">
-              Someone is about to make a mistake you fixed five years ago.
+            <h1 className="max-w-[22ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
+              The world is getting harder to figure out.{" "}
+              <span className="text-ink-30">
+                Let&apos;s make it easier for the next generation.
+              </span>
             </h1>
           </Reveal>
 
@@ -162,38 +144,21 @@ export function MentorApply() {
       </section>
 
       {/* ---------------------------------------------------------- invite only */}
-      <section className="border-t border-ink-08 py-24 sm:py-28">
+      <section className="border-t border-ink-08 py-20 sm:py-24">
         <div className="container-page">
-          <div className="grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:gap-20">
             <Reveal>
               <h2 className="max-w-[14ch] text-[length:var(--text-title)] font-semibold leading-[1.1]">
                 Why invitation only.
               </h2>
-              <p className="mt-6 max-w-[42ch] text-[1.05rem] leading-relaxed text-ink-50">
-                The moment anyone can be a mentor, no one is. Every person here is
-                reviewed by a human — because a student&apos;s first honest
-                conversation about their career shouldn&apos;t be a gamble.
-              </p>
             </Reveal>
 
             <Reveal delay={90}>
-              <ol className="space-y-9">
-                {STEPS.map((s) => (
-                  <li key={s.n} className="flex gap-6">
-                    <span className="mt-1 shrink-0 text-[0.8rem] font-medium tracking-[0.18em] text-ink-30">
-                      {s.n}
-                    </span>
-                    <div>
-                      <p className="text-lg font-medium tracking-[-0.02em]">
-                        {s.title}
-                      </p>
-                      <p className="mt-2 max-w-[46ch] text-[0.95rem] leading-relaxed text-ink-50">
-                        {s.body}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <p className="max-w-[54ch] text-[1.15rem] leading-relaxed text-ink-50">
+                The moment anyone can be a mentor, no one is. Every person here
+                is reviewed by a human — because a student&apos;s first honest
+                conversation about their career shouldn&apos;t be a gamble.
+              </p>
             </Reveal>
           </div>
         </div>
