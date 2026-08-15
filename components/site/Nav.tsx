@@ -28,7 +28,7 @@ export function Nav() {
       }`}
     >
       <nav
-        className="container-page flex h-14 items-center justify-between"
+        className="container-page flex h-14 items-center justify-between gap-4"
         aria-label="Main"
       >
         <a
@@ -38,7 +38,7 @@ export function Nav() {
           Cheatcode
         </a>
 
-        <ul className="hidden items-center gap-8 md:flex">
+        <ul className="hidden items-center gap-8 lg:flex">
           {LINKS.map((link) => (
             <li key={link.href}>
               <a
@@ -51,12 +51,26 @@ export function Nav() {
           ))}
         </ul>
 
-        <a
-          href="#waitlist"
-          className="rounded-full bg-ink px-4 py-2 text-[0.8rem] font-medium text-paper transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
-        >
-          Get early access
-        </a>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <a
+            href="/become-a-mentor"
+            data-ev="cta_click"
+            data-ev-location="nav"
+            data-ev-label="Become a mentor"
+            className="whitespace-nowrap text-[0.78rem] text-ink-50 transition-colors hover:text-ink sm:rounded-full sm:border sm:border-ink-15 sm:px-4 sm:py-2 sm:text-[0.8rem] sm:text-ink sm:hover:border-ink-30"
+          >
+            Become a mentor
+          </a>
+          <a
+            href="#waitlist"
+            data-ev="cta_click"
+            data-ev-location="nav"
+            data-ev-label="Get early access"
+            className="whitespace-nowrap rounded-full bg-ink px-3.5 py-2 text-[0.78rem] font-medium text-paper sm:px-4 sm:text-[0.8rem] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
+          >
+            Get early access
+          </a>
+        </div>
       </nav>
     </header>
   );
