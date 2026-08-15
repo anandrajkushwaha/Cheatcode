@@ -24,6 +24,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: SITE.url, lastModified: now, changeFrequency: "daily", priority: 1 },
     { url: `${SITE.url}/blog`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    {
+      url: `${SITE.url}/become-a-mentor`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     {
       url: `${SITE.url}/tools/in-hand-salary-calculator`,
