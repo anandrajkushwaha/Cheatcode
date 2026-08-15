@@ -6,11 +6,18 @@ import { Breadcrumbs } from "@/components/content/bits";
 export const metadata: Metadata = buildMetadata({
   title: "Free Career Tools for Indian Job Seekers | Cheatcode",
   description:
-    "Free tools for Indian job seekers — starting with an in-hand salary calculator that turns your CTC into real monthly take-home. No signup, nothing stored.",
+    "Free tools for Indian job seekers — a resume ATS checker and an in-hand salary calculator. Everything runs in your browser. No signup, nothing stored.",
   path: "/tools",
 });
 
 const TOOLS = [
+  {
+    slug: "resume-ats-checker",
+    name: "Resume ATS checker",
+    tagline:
+      "Upload the resume you're already sending and see what the software reads — with the exact weak points costing you interviews.",
+    meta: "score · parse check · weak points",
+  },
   {
     slug: "in-hand-salary-calculator",
     name: "In-hand salary calculator",

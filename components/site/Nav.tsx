@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ToolsMenu } from "./ToolsMenu";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
   { href: "#mentors", label: "Mentors" },
-  { href: "#resume", label: "Resume tool" },
   { href: "/blog", label: "Guides" },
 ];
 
@@ -49,6 +49,9 @@ export function Nav() {
               </a>
             </li>
           ))}
+          <li>
+            <ToolsMenu />
+          </li>
         </ul>
 
         <div className="flex items-center gap-2 sm:gap-3">

@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { ToolsMenu } from "@/components/site/ToolsMenu";
 
-/** Header for content pages. Static — no client JS needed. */
+/** Header for content pages. */
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-ink-08 bg-paper/85 backdrop-blur-xl backdrop-saturate-150">
@@ -22,12 +23,7 @@ export function SiteHeader() {
             </Link>
           </li>
           <li>
-            <Link
-              href="/tools/in-hand-salary-calculator"
-              className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
-            >
-              Salary calculator
-            </Link>
+            <ToolsMenu />
           </li>
         </ul>
 

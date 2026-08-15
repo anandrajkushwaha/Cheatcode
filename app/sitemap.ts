@@ -32,6 +32,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     {
+      url: `${SITE.url}/tools/resume-ats-checker`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
       url: `${SITE.url}/tools/in-hand-salary-calculator`,
       lastModified: now,
       changeFrequency: "monthly",
