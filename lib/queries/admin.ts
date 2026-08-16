@@ -124,6 +124,7 @@ export type Analytics = {
   users_today: number;
   views_all_time: number;
   users_all_time: number;
+  excluded_devices: number;
   bots_blocked: number;
   daily: { day: string; views: number; visitors: number; users: number }[];
   top_pages: { path: string; views: number }[];
@@ -138,7 +139,7 @@ export type Analytics = {
 const EMPTY_ANALYTICS: Analytics = {
   configured: false, days: 7, views: 0, visitors: 0, unique_users: 0,
   views_today: 0, visitors_today: 0, users_today: 0, views_all_time: 0,
-  users_all_time: 0, bots_blocked: 0, daily: [], top_pages: [],
+  users_all_time: 0, excluded_devices: 0, bots_blocked: 0, daily: [], top_pages: [],
   top_sources: [], top_countries: [], top_cities: [], devices: [],
   top_os: [], top_browsers: [],
 };

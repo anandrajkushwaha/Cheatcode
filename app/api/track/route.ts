@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
 import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
 import { detectBot } from "@/lib/analytics/bot-server";
+import { OWNER_COOKIE, isExcludedIp } from "@/lib/analytics/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +94,14 @@ export async function POST(request: Request) {
   // Admin pages are never part of site analytics.
   if (path.startsWith("/admin")) return ok();
 
-  // Neither is your own browsing while signed in to the admin panel.
+  // Neither is anything you do yourself. Three independent ways to be
+  // recognised as the owner, because each covers a case the others miss:
+  // the durable cookie survives logout, the session cookie needs no setup,
+  // and the IP list reaches devices that have never visited before.
   const store = await cookies();
+  if (store.get(OWNER_COOKIE)?.value === "1") return ok();
   if (verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return ok();
+  if (isExcludedIp(request)) return ok();
 
   const { isBot, reason } = detectBot(request, body.botReason);
 

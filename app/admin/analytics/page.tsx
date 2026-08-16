@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAnalytics, getEvents } from "@/lib/queries/admin";
+import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
 
 const RANGES = [1, 7, 30, 90];
 
@@ -111,11 +112,13 @@ export default async function AdminAnalytics({
 
       <p className="mt-3 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
         First-party tracking, alongside Google Analytics. Bots, headless browsers and
-        your own admin browsing are excluded before anything is counted
+        your own traffic are excluded before anything is counted
         {ev.bots_blocked > 0
           ? ` — ${ev.bots_blocked.toLocaleString("en-IN")} automated hit${ev.bots_blocked === 1 ? "" : "s"} filtered in this window.`
           : "."}
       </p>
+
+      <DeviceExclusion excludedDevices={a.excluded_devices} />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat

@@ -6,6 +6,7 @@ import {
   safeEqual,
   sessionCookieOptions,
 } from "@/lib/admin/auth";
+import { OWNER_COOKIE, ownerCookieOptions } from "@/lib/analytics/owner";
 
 // Small in-memory throttle. Serverless instances are short-lived, so this is a
 // speed bump rather than a wall — enough to make online guessing impractical.
@@ -50,6 +51,11 @@ export async function POST(request: Request) {
   attempts.delete(ip);
   const store = await cookies();
   store.set(ADMIN_COOKIE, createSessionToken(), sessionCookieOptions());
+
+  // Signing in is the clearest statement we will ever get that this browser is
+  // yours. The admin session expires in 12 hours; this doesn't, so your
+  // ordinary browsing of the live site stays out of the numbers as well.
+  store.set(OWNER_COOKIE, "1", ownerCookieOptions(true));
 
   return Response.json({ ok: true });
 }

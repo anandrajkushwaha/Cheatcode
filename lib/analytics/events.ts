@@ -105,6 +105,25 @@ function isAdminSurface() {
 }
 
 /**
+ * Your own browsing, anywhere on the site.
+ *
+ * The server drops these hits too, but this check has to exist on the client
+ * as well — Google Analytics is written to directly from the browser and never
+ * passes through our server, so a server-side filter alone would leave every
+ * page you visit sitting in the GA4 property.
+ *
+ * Set by signing in to the admin panel, or by opening
+ * /api/analytics/exclude?on=1 on any device.
+ */
+export function isOwner() {
+  try {
+    return document.cookie.split("; ").some((c) => c === "cc_owner=1");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fire an event. Safe to call anywhere — it no-ops during SSR, and it never
  * throws, because analytics must never be able to break a page.
  */
@@ -114,8 +133,8 @@ export function track(event: EventName, params: EventParams = {}) {
   // Automation detected on this client: send nothing, anywhere.
   if (window.__ccBot) return;
 
-  // Your own admin browsing is never counted — not in GA4, not in our database.
-  if (isAdminSurface()) return;
+  // Your own traffic is never counted — not in GA4, not in our database.
+  if (isAdminSurface() || isOwner()) return;
 
   try {
     window.gtag?.("event", event, params);
@@ -155,7 +174,7 @@ export function track(event: EventName, params: EventParams = {}) {
 
 export function trackPageView(path: string) {
   if (typeof window === "undefined" || window.__ccBot) return;
-  if (path.startsWith("/admin") || isAdminSurface()) return;
+  if (path.startsWith("/admin") || isAdminSurface() || isOwner()) return;
   try {
     window.gtag?.("event", "page_view", {
       page_path: path,

@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { detectAutomation, watchForHumanInput } from "@/lib/analytics/bot";
+import { isOwner } from "@/lib/analytics/events";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-TZC69SKP8W";
 
@@ -27,7 +28,9 @@ export function GoogleAnalytics() {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    if (isAdmin) return;
+    // Not loading gtag at all is stronger than not firing events: without the
+    // script there is no session, no engagement time, and no user count.
+    if (isAdmin || isOwner()) return;
     const reason = detectAutomation();
     window.__ccBot = reason;
     if (reason) return;
