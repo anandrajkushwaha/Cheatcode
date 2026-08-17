@@ -8,6 +8,7 @@ import { SITE } from "@/lib/seo/constants";
 import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
 import { FaqBlock } from "@/components/content/FaqBlock";
+import { ToolBlock } from "@/components/content/ToolBlock";
 import {
   Breadcrumbs,
   Toc,
@@ -121,29 +122,7 @@ export default async function ArticlePage({ params }: Props) {
 
             <FaqBlock items={post.faq} />
 
-            {post.related_tool_slugs?.includes("in-hand-salary-calculator") && (
-              <aside className="mt-14 rounded-3xl bg-ink p-8 text-paper">
-                <p className="text-[0.72rem] uppercase tracking-[0.16em] text-white/40">
-                  Free tool
-                </p>
-                <p className="mt-2.5 text-xl font-medium tracking-[-0.02em]">
-                  Work out what your CTC actually becomes in hand
-                </p>
-                <p className="mt-2.5 text-[0.95rem] leading-relaxed text-white/60">
-                  Every deduction, current tax rules, no signup. Your numbers never
-                  leave your browser.
-                </p>
-                <Link
-                  href="/tools/in-hand-salary-calculator"
-                  data-ev="cta_click"
-                  data-ev-location="article-tool-block"
-                  data-ev-label="Open the calculator"
-                  className="mt-6 inline-block rounded-full bg-paper px-5 py-2.5 text-[0.85rem] font-medium text-ink"
-                >
-                  Open the calculator
-                </Link>
-              </aside>
-            )}
+            <ToolBlock slugs={post.related_tool_slugs} />
 
             <aside className="mt-14 rounded-3xl border border-ink-08 p-8">
               <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">
