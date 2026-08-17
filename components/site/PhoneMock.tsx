@@ -245,6 +245,30 @@ export function PhoneScreenDiscover() {
 
 /** One-to-one conversation. */
 export function PhoneScreenChat() {
+  /**
+   * Who sits on which side is the whole readability of this screen.
+   * "them" is Rhea, the mentor named in the header — left, light bubbles.
+   * "me" is the student — right, dark bubbles. Getting this backwards makes
+   * the header read as though Rhea is greeting herself, which is exactly how
+   * an unreadable mockup happens.
+   */
+  const thread: { from: "me" | "them"; text?: string; file?: boolean }[] = [
+    {
+      from: "them",
+      text: "Hey Ananya — got your booking for Wednesday. Anything you want me to look at before we talk?",
+    },
+    { from: "me", text: "Hi Rhea — final year at VIT, applying for backend roles." },
+    { from: "them", text: "Nice. How many have you applied to, and how many replied?" },
+    { from: "me", text: "Around 40 sent. 2 replies." },
+    { from: "them", text: "That ratio is almost never the candidate. It's the resume not being read properly. Send it across?" },
+    { from: "me", file: true },
+    { from: "them", text: "Found it. Your skills sit in a sidebar, so the parser reads them into the middle of your job history." },
+    {
+      from: "them",
+      text: "Put everything in one column instead. That one change usually takes a resume from 61 to about 85.",
+    },
+  ];
+
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-paper to-ink-04">
       <StatusBar />
@@ -262,59 +286,66 @@ export function PhoneScreenChat() {
         </span>
       </div>
 
-      {/* justify-end: a conversation grows from the bottom of the screen.
-          Top-aligned messages leave a void that reads as an empty state. */}
-      <div className="flex flex-1 flex-col justify-end space-y-1.5 overflow-hidden px-3 pb-1 pt-2.5">
-        <p className="text-center text-[0.4rem] font-medium text-ink-30">TODAY</p>
-
-        <div className="max-w-[82%] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <p className="text-[0.5rem] leading-[1.45] text-ink">
-            Hi Rhea — final year, CS at VIT. Applying for backend roles.
-          </p>
+      <div className="flex flex-1 flex-col justify-end space-y-[5px] overflow-hidden px-3 pb-1 pt-2">
+        {/* The booked session, pinned above the thread. It explains in one
+            line what this conversation is and why the mentor showed up. */}
+        <div className="mx-auto mb-1 flex items-center gap-1.5 rounded-full border border-ink-08 bg-paper px-2.5 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+          <Icon d={S.clock} className="size-[8px] text-ink" />
+          <span className="text-[0.42rem] font-medium text-ink">30-min session</span>
+          <span className="text-[0.42rem] text-ink-30">Wed 20 Aug, 4:30 PM</span>
         </div>
 
-        <div className="ml-auto max-w-[86%] rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2.5 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]">
-          <p className="text-[0.5rem] leading-[1.45] text-paper">
-            Good. How many have you sent, and how many replied?
-          </p>
-        </div>
+        <p className="pb-0.5 text-center text-[0.4rem] font-medium text-ink-30">TODAY</p>
 
-        <div className="max-w-[82%] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <p className="text-[0.5rem] leading-[1.45] text-ink">
-            Sent 40 applications, 2 replies. Is my resume the problem?
-          </p>
-        </div>
+        {thread.map((m, i) => {
+          const mine = m.from === "me";
 
-        <div className="ml-auto max-w-[86%] rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2.5 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]">
-          <p className="text-[0.5rem] leading-[1.45] text-paper">
-            Send it across. Nine times out of ten it&apos;s the two-column layout, not the
-            content.
-          </p>
-        </div>
+          if (m.file) {
+            return (
+              <div
+                key={i}
+                className="ml-auto flex max-w-[80%] items-center gap-1.5 rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]"
+              >
+                <span className="flex size-[17px] shrink-0 items-center justify-center rounded-md bg-white/15">
+                  <Icon d={S.doc} className="size-[10px] text-paper" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[0.47rem] font-medium text-paper">
+                    Ananya_Resume.pdf
+                  </p>
+                  <p className="text-[0.4rem] text-white/50">184 KB · ATS score 61</p>
+                </div>
+              </div>
+            );
+          }
 
-        <div className="ml-auto flex max-w-[86%] items-center gap-1.5 rounded-xl border border-ink-15 bg-paper px-2 py-1.5">
-          <Icon d={S.doc} className="size-[11px] shrink-0 text-ink" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[0.47rem] font-medium text-ink">Ananya_Resume.pdf</p>
-            <p className="text-[0.4rem] text-ink-30">184 KB · ATS score 61</p>
-          </div>
-        </div>
+          return (
+            <div
+              key={i}
+              className={
+                mine
+                  ? "ml-auto max-w-[84%] rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2.5 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]"
+                  : "mr-auto max-w-[84%] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+              }
+            >
+              <p
+                className={`text-[0.5rem] leading-[1.45] ${mine ? "text-paper" : "text-ink"}`}
+              >
+                {m.text}
+              </p>
+            </div>
+          );
+        })}
 
-        <div className="max-w-[82%] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-1.5">
-          <p className="text-[0.5rem] leading-[1.45] text-ink">
-            Found it. Your skills sit in a sidebar — the parser reads them into the middle of
-            your job history.
-          </p>
-        </div>
-
-        <div className="flex w-fit items-center gap-[3px] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-2">
+        {/* Rhea is still typing — on her side, where a reply would arrive. */}
+        <div className="mr-auto flex w-fit items-center gap-[3px] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-2">
           {[1, 0.6, 0.3].map((o, i) => (
             <span key={i} className="size-[3px] rounded-full bg-ink-30" style={{ opacity: o }} />
           ))}
         </div>
       </div>
 
-      <div className="px-3 pb-1.5 pt-2">
+      <div className="px-3 pb-1.5 pt-1.5">
         <div className="flex items-center gap-1.5 rounded-full border border-ink-08 bg-paper py-1 pl-2 pr-1 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <Icon d={S.plus} className="size-[11px] text-ink-30" stroke />
           <span className="flex-1 text-[0.48rem] text-ink-30">Message</span>
