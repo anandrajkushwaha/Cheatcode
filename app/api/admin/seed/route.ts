@@ -16,6 +16,34 @@ const POSTS_BATCH = 8;
 type Article = (typeof articles)[number];
 
 /**
+ * Turns a Postgres constraint error into something you can act on.
+ *
+ * The raw message names the index, never the row — so a clashing entity pair
+ * reads as "duplicate key value violates unique constraint posts_entity_uidx"
+ * and leaves you diffing 100+ articles by hand. This finds the actual
+ * offenders and names them.
+ */
+function explain(message: string, all: Article[]): string {
+  if (!message.includes("posts_entity_uidx")) return message;
+
+  const seen = new Map<string, string[]>();
+  for (const a of all) {
+    if (!a.entity_type) continue;
+    const key = `${a.entity_type}/${a.entity_slug}`;
+    seen.set(key, [...(seen.get(key) ?? []), a.slug]);
+  }
+  const clashes = [...seen.entries()].filter(([, slugs]) => slugs.length > 1);
+
+  if (!clashes.length) return `${message} (no clash found in the bundled JSON)`;
+
+  return (
+    "Two articles share the same entity, and only one is allowed per entity. " +
+    clashes.map(([key, slugs]) => `${key} is used by ${slugs.join(" and ")}`).join("; ") +
+    ". Give one of them a different entity_slug and re-sync."
+  );
+}
+
+/**
  * Seeds the database from the JSON bundled with the deployment.
  *
  * Runs in steps so no single request gets close to the function timeout.
@@ -124,7 +152,7 @@ export async function POST(request: Request) {
     }));
 
     const r = await db.from("posts").upsert(rows, { onConflict: "slug" });
-    if (r.error) return fail(r.error.message);
+    if (r.error) return fail(explain(r.error.message, articles as Article[]));
 
     const next = start + POSTS_BATCH;
     const total = (articles as Article[]).length;

@@ -9117,9 +9117,9 @@
         "a": "Only on the official TCS NextStep portal, which is where registration happens and where the current test pattern, section structure and eligibility criteria are published. TCS changes these details between hiring cycles without much announcement, so coaching PDFs and forum posts from previous years are frequently wrong. Read the official criteria yourself before assuming that you are eligible."
       }
     ],
-    "entity_type": "company",
-    "entity_slug": "tcs",
-    "entity_name": "TCS",
+    "entity_type": "exam",
+    "entity_slug": "tcs-nqt",
+    "entity_name": "TCS NQT",
     "related_tool_slugs": [
       "resume-ats-checker"
     ],
