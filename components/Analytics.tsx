@@ -127,7 +127,7 @@ export function Analytics() {
           observer.unobserve(entry.target);
 
           const el = entry.target as HTMLElement;
-          track(EVENTS.CTA_VIEW, {
+          track((el.dataset.evView ?? EVENTS.CTA_VIEW) as never, {
             label: el.dataset.evLabel ?? el.innerText?.trim().slice(0, 80),
             location: el.dataset.evLocation,
           });
@@ -138,9 +138,13 @@ export function Analytics() {
     );
 
     // Re-query after paint so client-rendered CTAs are included.
+    // Two kinds of element are watched: a CTA, whose view event is implied by
+    // its click event, and anything carrying an explicit data-ev-view — which
+    // is how a promo banner reports that it was actually seen rather than
+    // merely present somewhere far below the fold.
     const id = window.setTimeout(() => {
       document
-        .querySelectorAll<HTMLElement>('[data-ev="cta_click"]')
+        .querySelectorAll<HTMLElement>('[data-ev="cta_click"], [data-ev-view]')
         .forEach((el) => observer.observe(el));
     }, 300);
 

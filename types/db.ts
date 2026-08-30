@@ -28,6 +28,9 @@ export type TocItem = { id: string; text: string };
 export type FaqItem = { q: string; a: string };
 
 export type Post = {
+  cover_image?: string | null;
+  cover_alt?: string | null;
+  origin?: string | null;
   id: string;
   slug: string;
   post_type: PostType;

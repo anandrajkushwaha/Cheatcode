@@ -29,6 +29,10 @@ export const EVENTS = {
   TOOL_INPUT: "tool_input", // params: label (field)
   TOOL_RESULT_CTA: "tool_result_cta", // params: label
 
+  // --- promotional slots ---
+  BANNER_VIEW: "banner_view",   // params: label (banner id), location (placement)
+  BANNER_CLICK: "banner_click", // params: label (banner id), location (placement)
+
   // --- content ---
   ARTICLE_VIEW: "article_view", // params: label (slug), location (category)
   ARTICLE_READ: "article_read", // params: value (percent)

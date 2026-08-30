@@ -1,13 +1,13 @@
 import Link from "next/link";
-import {
-  getAdminStats, getAnalytics, getEvents, getPostTitles, getScheduledPosts,
-} from "@/lib/queries/admin";
+import { getAdminStats, getAnalytics, getEvents, getScheduledPosts } from "@/lib/queries/admin";
 import { SeedButton } from "@/components/admin/SeedButton";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
+import { StaleSchemaNotice } from "@/components/admin/StaleSchemaNotice";
+import { resolveRange, rangeWords, IST } from "@/lib/admin/range";
 import {
-  BarList, Empty, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num,
+  BarList, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num,
 } from "@/components/admin/ui";
-
-const IST = "Asia/Kolkata";
 
 function istShort(iso: string) {
   return new Intl.DateTimeFormat("en-IN", {
@@ -16,11 +16,17 @@ function istShort(iso: string) {
   }).format(new Date(iso));
 }
 
-export default async function AdminOverview() {
+export default async function AdminOverview({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const range = resolveRange(await searchParams);
+
   const [s, traffic, events, scheduled] = await Promise.all([
     getAdminStats(),
-    getAnalytics(7),
-    getEvents(7),
+    getAnalytics(range.days, range.from, range.to),
+    getEvents(range.days, range.from, range.to),
     getScheduledPosts(1),
   ]);
 
@@ -37,25 +43,25 @@ export default async function AdminOverview() {
   }
 
   const tracking = !traffic.error;
-  const bounceRate = traffic.sessions_total
-    ? Math.round((traffic.sessions_bounced / traffic.sessions_total) * 100)
-    : null;
-
-  // A landing page is only useful if you can tell which article it is.
-  const titles = await getPostTitles(traffic.entry_pages.map((p) => p.path));
-  const label = (path: string) => titles[path] ?? path;
+  const words = rangeWords(range);
+  const mobileShare = (() => {
+    const total = traffic.devices.reduce((a, d) => a + d.views, 0);
+    const m = traffic.devices.find((d) => d.device === "mobile")?.views ?? 0;
+    return total ? `${Math.round((m / total) * 100)}%` : "—";
+  })();
 
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.03em]">Overview</h1>
-        <p className="text-[0.8rem] text-ink-30">Last 7 days, compared with the 7 before it</p>
+        <RangePicker basePath="/admin" range={range} />
       </div>
 
-      {/* ---------------------------------------------------------- headline */}
-      {/* Four cards, one row, no ragged tail. These are the only four numbers
-          worth glancing at daily; everything else lives one click away. */}
-      <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StaleSchemaNotice stale={traffic.stale || events.stale} />
+      <DeviceExclusion excludedDevices={traffic.excluded_devices} />
+
+      {/* --------------------------------------------------------- headline */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="People"
           value={tracking ? traffic.unique_users : "—"}
@@ -86,7 +92,7 @@ export default async function AdminOverview() {
       {tracking && (
         <div className="mt-4">
           <Panel
-            title="Traffic, last 7 days"
+            title={`Traffic · ${words}`}
             action={{ label: "Full traffic report", href: "/admin/analytics" }}
           >
             <TrendChart points={traffic.daily} />
@@ -94,64 +100,12 @@ export default async function AdminOverview() {
         </div>
       )}
 
-      {/* ---------------------------------------------------------- reading */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Panel
-          title="Where people land"
-          note="The first page of a session — the front doors Google is actually sending people to."
-          action={{ label: "By article", href: "/admin/content" }}
-        >
-          <BarList
-            rows={traffic.entry_pages.slice(0, 6).map((p) => ({
-              label: label(p.path),
-              value: p.views,
-              href: p.path,
-            }))}
-            empty="No sessions recorded yet."
-          />
-        </Panel>
-
-        <Panel title="Where they came from" action={{ label: "All", href: "/admin/analytics" }}>
-          <BarList
-            rows={traffic.top_sources.slice(0, 6).map((x) => ({
-              label: x.source,
-              value: x.views,
-              sub: x.users ? `${num(x.users)} people` : undefined,
-            }))}
-            empty="No traffic recorded yet."
-          />
-        </Panel>
-
-        <Panel
-          title="Do they read it"
-          note="Averaged over every page a session opened."
-        >
-          {events.engagement.avg_scroll === null ? (
-            <Empty>No scroll data yet.</Empty>
-          ) : (
-            <dl className="space-y-4">
-              {[
-                ["Average scroll depth", `${events.engagement.avg_scroll}%`],
-                ["Reached 75% of the page", `${events.engagement.read_75_share}%`],
-                ["Median time on page", duration(events.engagement.median_seconds)],
-                ["Single-page sessions", bounceRate === null ? "—" : `${bounceRate}%`],
-              ].map(([k, v]) => (
-                <div key={k} className="flex items-baseline justify-between gap-4">
-                  <dt className="text-[0.85rem] text-ink-50">{k}</dt>
-                  <dd className="text-[1.05rem] font-medium tabular-nums">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </Panel>
-      </div>
-
       {/* ----------------------------------------------------------- funnel */}
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Panel
           className="lg:col-span-2"
           title="From reader to signup"
-          note="Unique sessions reaching each step in the last 7 days."
+          note={`Unique sessions reaching each step in ${words}. The right-hand column is where people leave.`}
           action={{ label: "Detail", href: "/admin/analytics" }}
         >
           <FunnelChart
@@ -168,7 +122,7 @@ export default async function AdminOverview() {
           />
         </Panel>
 
-        <Panel title="Your audience" note="People seen in the last 7 days.">
+        <Panel title="Your audience" note={`People seen in ${words}.`}>
           <SplitBar
             parts={[
               { label: "First time here", value: traffic.new_users },
@@ -179,12 +133,8 @@ export default async function AdminOverview() {
             {[
               ["Sessions", num(traffic.visitors)],
               ["Pages per session", traffic.views_per_session?.toFixed(2) ?? "—"],
-              ["Today so far", `${num(traffic.users_today)} people · ${num(traffic.views_today)} views`],
-              ["Mobile share", (() => {
-                const total = traffic.devices.reduce((a, d) => a + d.views, 0);
-                const m = traffic.devices.find((d) => d.device === "mobile")?.views ?? 0;
-                return total ? `${Math.round((m / total) * 100)}%` : "—";
-              })()],
+              ["Median time on page", duration(events.engagement.median_seconds)],
+              ["Mobile share", mobileShare],
             ].map(([k, v]) => (
               <div key={k} className="flex items-baseline justify-between gap-4">
                 <dt className="text-[0.85rem] text-ink-50">{k}</dt>
@@ -198,7 +148,7 @@ export default async function AdminOverview() {
       {/* --------------------------------------------------------- library */}
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Panel title="The library" action={{ label: "All articles", href: "/admin/posts" }}>
-          <dl className="space-y-4">
+          <dl className="space-y-3.5">
             {[
               ["Live", num(s.postsLive)],
               ["Scheduled", num(s.postsScheduled)],
@@ -222,6 +172,12 @@ export default async function AdminOverview() {
               , {istShort(scheduled[0].published_at as string)} IST
             </p>
           )}
+          <Link
+            href="/admin/posts/new"
+            className="mt-5 inline-block rounded-full bg-ink px-4 py-2 text-[0.82rem] font-medium text-paper"
+          >
+            Write a new article
+          </Link>
         </Panel>
 
         <Panel className="lg:col-span-2" title="Articles by topic">

@@ -34,10 +34,14 @@ export function DeviceExclusion({ excludedDevices }: { excludedDevices: number }
   const [vid, setVid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setExcluded(readCookie());
+    const on = readCookie();
+    setExcluded(on);
     setVid(readVisitorId());
+    // Being counted is the state that needs attention, so that one opens itself.
+    if (!on) setOpen(true);
   }, []);
 
   async function hideHistory(remove: boolean) {
@@ -67,8 +71,40 @@ export function DeviceExclusion({ excludedDevices }: { excludedDevices: number }
 
   if (excluded === null) return null;
 
+  // Collapsed by default. When exclusion is on — the correct, normal state —
+  // this is settled configuration, not something to re-read every visit. It
+  // only opens itself when the setting is OFF, because then your own browsing
+  // is polluting every number on the screen and you need to know.
+  if (!open) {
+    return (
+      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-[0.8rem]">
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 rounded-full ${excluded ? "bg-ink-30" : "bg-ink"}`}
+        />
+        <span className="text-ink-50">
+          {excluded
+            ? "Your own browsing is excluded from these numbers"
+            : "Your own browsing is being counted in these numbers"}
+        </span>
+        {excludedDevices > 0 && (
+          <span className="text-ink-30">
+            · {excludedDevices} device{excludedDevices === 1 ? "" : "s"} hidden
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-ink-30 underline underline-offset-4 hover:text-ink"
+        >
+          change
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-8 rounded-2xl border border-ink-08 p-6">
+    <div className="mt-6 rounded-2xl border border-ink-08 p-6">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="max-w-[62ch]">
           <p className="text-[0.95rem] font-medium">
@@ -126,6 +162,14 @@ export function DeviceExclusion({ excludedDevices }: { excludedDevices: number }
         <span className="font-mono text-ink-50">ANALYTICS_EXCLUDE_IPS</span> in Vercel to your
         IP addresses, comma separated.
       </p>
+
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        className="mt-4 text-[0.78rem] text-ink-30 underline underline-offset-4 hover:text-ink"
+      >
+        Hide this
+      </button>
     </div>
   );
 }

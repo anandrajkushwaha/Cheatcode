@@ -27,10 +27,28 @@
 
 
 -- ============================================================
+-- Drop the earlier signatures first.
+--
+-- `create or replace function` only replaces a function with the SAME argument
+-- list. Adding p_from/p_to creates a second overload instead, and Postgres then
+-- refuses every call that does not disambiguate — "function analytics_summary(
+-- integer) is not unique". These drops are what make this file safe to run over
+-- an existing install.
+-- ============================================================
+drop function if exists public.analytics_summary(int);
+drop function if exists public.events_summary(int);
+drop function if exists public.content_performance(int, int);
+
+
+-- ============================================================
 -- analytics_summary — now with a previous period, new vs returning,
 -- bounce rate and entry pages.
 -- ============================================================
-create or replace function public.analytics_summary(p_days int default 7)
+create or replace function public.analytics_summary(
+  p_days int default 7,
+  p_from timestamptz default null,
+  p_to   timestamptz default null
+)
 returns jsonb
 language sql
 stable
@@ -43,12 +61,19 @@ as $$
        and (visitor_id is null
             or visitor_id not in (select visitor_id from public.analytics_excluded))
   ),
+  -- An explicit p_from/p_to wins; otherwise the window is the last p_days.
+  -- The comparison period is always the same length, immediately before.
   bounds as (
-    select now() - make_interval(days => p_days)     as win_start,
-           now() - make_interval(days => p_days * 2) as prev_start
+    select
+      coalesce(p_from, now() - make_interval(days => p_days)) as win_start,
+      coalesce(p_to,   now())                                 as win_end,
+      coalesce(p_from, now() - make_interval(days => p_days))
+        - (coalesce(p_to, now()) - coalesce(p_from, now() - make_interval(days => p_days)))
+                                                              as prev_start
   ),
   win as (
-    select c.* from clean c, bounds b where c.created_at >= b.win_start
+    select c.* from clean c, bounds b
+     where c.created_at >= b.win_start and c.created_at < b.win_end
   ),
   prev as (
     select c.* from clean c, bounds b
@@ -154,7 +179,8 @@ as $$
 
     'excluded_devices', (select count(*) from public.analytics_excluded),
     'bots_blocked',   (select count(*) from public.page_views, bounds
-                        where is_bot = true and created_at >= win_start),
+                        where is_bot = true
+                          and created_at >= win_start and created_at < win_end),
 
     'daily', (select coalesce(jsonb_agg(jsonb_build_object(
                 'day', to_char(d,'YYYY-MM-DD'),'views',views,'visitors',visitors,'users',users
@@ -170,9 +196,9 @@ as $$
   );
 $$;
 
-revoke all on function public.analytics_summary(int) from public, anon, authenticated;
+revoke all on function public.analytics_summary(int, timestamptz, timestamptz) from public, anon, authenticated;
 
-comment on function public.analytics_summary(int) is
+comment on function public.analytics_summary(int, timestamptz, timestamptz) is
   'Traffic rollup for the admin panel. Bots and excluded visitors removed; every headline figure ships with its previous-period value.';
 
 
@@ -191,7 +217,11 @@ comment on function public.analytics_summary(int) is
 --     params->>'first' marks the first fire of a session; that is the one
 --     that means "someone used the calculator".
 -- ============================================================
-create or replace function public.events_summary(p_days int default 7)
+create or replace function public.events_summary(
+  p_days int default 7,
+  p_from timestamptz default null,
+  p_to   timestamptz default null
+)
 returns jsonb
 language sql
 stable
@@ -199,8 +229,12 @@ security definer
 set search_path = public
 as $$
   with bounds as (
-    select now() - make_interval(days => p_days)     as win_start,
-           now() - make_interval(days => p_days * 2) as prev_start
+    select
+      coalesce(p_from, now() - make_interval(days => p_days)) as win_start,
+      coalesce(p_to,   now())                                 as win_end,
+      coalesce(p_from, now() - make_interval(days => p_days))
+        - (coalesce(p_to, now()) - coalesce(p_from, now() - make_interval(days => p_days)))
+                                                              as prev_start
   ),
   clean as (
     select * from public.page_events
@@ -209,7 +243,8 @@ as $$
             or visitor_id not in (select visitor_id from public.analytics_excluded))
   ),
   win as (
-    select c.* from clean c, bounds b where c.created_at >= b.win_start
+    select c.* from clean c, bounds b
+     where c.created_at >= b.win_start and c.created_at < b.win_end
   ),
   prev as (
     select c.* from clean c, bounds b
@@ -303,7 +338,8 @@ as $$
     'days', p_days,
     'total', (select count(*) from win),
     'bots_blocked', (select count(*) from public.page_events, bounds
-                      where is_bot = true and created_at >= win_start),
+                      where is_bot = true
+                        and created_at >= win_start and created_at < win_end),
 
     'by_event', (select coalesce(jsonb_agg(jsonb_build_object(
                    'event',event,'count',n,'sessions',sessions)),'[]'::jsonb) from by_event),
@@ -342,9 +378,9 @@ as $$
   );
 $$;
 
-revoke all on function public.events_summary(int) from public, anon, authenticated;
+revoke all on function public.events_summary(int, timestamptz, timestamptz) from public, anon, authenticated;
 
-comment on function public.events_summary(int) is
+comment on function public.events_summary(int, timestamptz, timestamptz) is
   'Behaviour rollup: the product funnel, engagement depth, and per-tool outcomes.';
 
 
@@ -356,7 +392,12 @@ comment on function public.events_summary(int) is
 -- it sits in the nav, and a page can be opened rarely but read to the end and
 -- send people to a tool. This returns both halves side by side.
 -- ============================================================
-create or replace function public.content_performance(p_days int default 30, p_limit int default 60)
+create or replace function public.content_performance(
+  p_days  int default 30,
+  p_limit int default 60,
+  p_from  timestamptz default null,
+  p_to    timestamptz default null
+)
 returns jsonb
 language sql
 stable
@@ -364,19 +405,20 @@ security definer
 set search_path = public
 as $$
   with bounds as (
-    select now() - make_interval(days => p_days) as win_start
+    select coalesce(p_from, now() - make_interval(days => p_days)) as win_start,
+           coalesce(p_to,   now())                                 as win_end
   ),
   views as (
     select v.* from public.page_views v, bounds b
      where v.is_bot = false
-       and v.created_at >= b.win_start
+       and v.created_at >= b.win_start and v.created_at < b.win_end
        and (v.visitor_id is null
             or v.visitor_id not in (select visitor_id from public.analytics_excluded))
   ),
   events as (
     select e.* from public.page_events e, bounds b
      where e.is_bot = false
-       and e.created_at >= b.win_start
+       and e.created_at >= b.win_start and e.created_at < b.win_end
        and (e.visitor_id is null
             or e.visitor_id not in (select visitor_id from public.analytics_excluded))
   ),
@@ -469,7 +511,7 @@ as $$
   );
 $$;
 
-revoke all on function public.content_performance(int, int) from public, anon, authenticated;
+revoke all on function public.content_performance(int, int, timestamptz, timestamptz) from public, anon, authenticated;
 
-comment on function public.content_performance(int, int) is
+comment on function public.content_performance(int, int, timestamptz, timestamptz) is
   'Per-page performance: views, readers, entry share, scroll depth, time on page and CTA clicks.';

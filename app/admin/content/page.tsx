@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { getContentPerformance, getPostTitles, type ContentRow } from "@/lib/queries/admin";
+import {
+  getBanners, getBannerStats, getContentPerformance, getPostTitles, type ContentRow,
+} from "@/lib/queries/admin";
+import { BannerManager } from "@/components/admin/BannerManager";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { resolveRange, rangeWords } from "@/lib/admin/range";
 import { Empty, Panel, Stat, duration, num } from "@/components/admin/ui";
 
-const RANGES = [7, 30, 90];
 const KINDS = ["article", "tool", "listing", "page"] as const;
 
 /**
@@ -24,17 +28,25 @@ function Depth({ pct }: { pct: number }) {
 export default async function AdminContent({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; kind?: string; sort?: string }>;
+  searchParams: Promise<{
+    range?: string; from?: string; to?: string; kind?: string; sort?: string;
+  }>;
 }) {
   const sp = await searchParams;
-  const days = RANGES.includes(Number(sp.days)) ? Number(sp.days) : 30;
+  const range = resolveRange(sp);
+  const days = range.days;
   const kind = (KINDS as readonly string[]).includes(sp.kind ?? "") ? sp.kind! : "article";
   const sort = ["views", "readers", "entries", "depth", "time", "cta"].includes(sp.sort ?? "")
     ? sp.sort!
     : "views";
 
-  const perf = await getContentPerformance(days, 200);
+  const [perf, banners, bannerStats] = await Promise.all([
+    getContentPerformance(days, 200, range.from, range.to),
+    getBanners(),
+    getBannerStats(days),
+  ]);
   const titles = await getPostTitles(perf.rows.map((r) => r.path));
+  const statsById = Object.fromEntries(bannerStats.rows.map((r) => [r.id, r]));
 
   if (perf.error) {
     return (
@@ -61,7 +73,6 @@ export default async function AdminContent({
       : r.views;
 
   const rows = perf.rows.filter((r) => r.kind === kind).sort((a, b) => key(b) - key(a));
-  const maxViews = Math.max(1, ...rows.map((r) => r.views));
 
   const articles = perf.rows.filter((r) => r.kind === "article");
   const articleViews = articles.reduce((a, r) => a + r.views, 0);
@@ -78,7 +89,8 @@ export default async function AdminContent({
     .slice(0, 6);
 
   const link = (patch: Record<string, string | number>) => {
-    const q = new URLSearchParams({ days: String(days), kind, sort });
+    const q = new URLSearchParams({ range: range.id, kind, sort });
+    if (range.id === "custom" && sp.from && sp.to) { q.set("from", sp.from); q.set("to", sp.to); }
     for (const [k, v] of Object.entries(patch)) q.set(k, String(v));
     return `/admin/content?${q}`;
   };
@@ -97,20 +109,16 @@ export default async function AdminContent({
 
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.03em]">Content</h1>
-        <div className="flex gap-2">
-          {RANGES.map((r) => (
-            <Link
-              key={r}
-              href={link({ days: r })}
-              className={`rounded-full px-3.5 py-1.5 text-[0.78rem] ${
-                days === r ? "bg-ink text-paper" : "border border-ink-15 text-ink-50"
-              }`}
-            >
-              {r}d
-            </Link>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <RangePicker basePath="/admin/content" range={range} />
+          <Link
+            href="/admin/posts/new"
+            className="rounded-full bg-ink px-4 py-1.5 text-[0.8rem] font-medium text-paper"
+          >
+            New article
+          </Link>
         </div>
       </div>
 
@@ -123,7 +131,7 @@ export default async function AdminContent({
       </p>
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Articles with traffic" value={articles.length} hint={`in the last ${days} days`} />
+        <Stat label="Articles with traffic" value={articles.length} hint={rangeWords(range)} />
         <Stat label="Article views" value={articleViews} />
         <Stat
           label="Average reading depth"
@@ -219,17 +227,7 @@ export default async function AdminContent({
                     {titles[r.path] ?? r.path}
                   </Link>
                 </td>
-                <td className="py-3 pr-4 text-right">
-                  {/* The bar lives in the Views cell rather than under the
-                      title, where it read as an underline. */}
-                  <span className="tabular-nums">{num(r.views)}</span>
-                  <span className="mt-1 ml-auto block h-1 w-14 overflow-hidden rounded-full bg-ink-04">
-                    <span
-                      className="block h-full rounded-full bg-ink"
-                      style={{ width: `${Math.min(100, (r.views / maxViews) * 100)}%` }}
-                    />
-                  </span>
-                </td>
+                <td className="py-3 pr-4 text-right font-medium tabular-nums">{num(r.views)}</td>
                 <td className="py-3 pr-4 text-right tabular-nums text-ink-50">{num(r.readers)}</td>
                 <td className="py-3 pr-4 text-right tabular-nums text-ink-50">{num(r.entries)}</td>
                 <td className="py-3 pr-4"><Depth pct={r.avg_scroll} /></td>
@@ -248,6 +246,10 @@ export default async function AdminContent({
             Nothing in this window yet. Traffic has to arrive before this table has anything to say.
           </p>
         )}
+      </div>
+
+      <div className="mt-16 border-t border-ink-08 pt-10">
+        <BannerManager banners={banners} stats={statsById} />
       </div>
     </>
   );

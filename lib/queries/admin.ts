@@ -67,7 +67,10 @@ export async function getAdminPosts(limit = 100) {
   if (!db) return [];
   const { data } = await db
     .from("posts")
-    .select("id,slug,title,post_type,status,published_at,word_count,quality_score,category:categories(name)")
+    .select(
+      "id,slug,title,post_type,status,published_at,word_count,quality_score," +
+        "focus_keyword,origin,category:categories(name)",
+    )
     .order("published_at", { ascending: false })
     .limit(limit);
   return data ?? [];
@@ -128,16 +131,63 @@ const EMPTY_ANALYTICS: Analytics = {
   top_os: [], top_browsers: [],
 };
 
-export async function getAnalytics(days = 7): Promise<Analytics & { error?: string }> {
-  const db = createAdminClient();
-  if (!db) return EMPTY_ANALYTICS;
+/**
+ * Merge an RPC payload onto the defaults, one level into nested objects.
+ *
+ * A plain spread replaces a nested object wholesale, so when the deployed SQL
+ * function is older than this code — the window between pushing and running
+ * the migration — a returned `funnel` missing half its keys wiped out the
+ * defaults and the screen rendered NaN. Merging per key means a stale function
+ * degrades to zeroes instead, which is wrong but readable, and the screen says
+ * so rather than printing arithmetic on undefined.
+ */
+function mergeSummary<T extends object>(base: T, incoming: unknown): T {
+  if (!incoming || typeof incoming !== "object") return base;
+  const out = { ...base } as Record<string, unknown>;
 
-  const { data, error } = await db.rpc("analytics_summary", { p_days: days });
-  if (error) {
-    // Most likely cause: 05_analytics.sql hasn't been run yet.
-    return { ...EMPTY_ANALYTICS, days, error: error.message };
+  for (const [k, v] of Object.entries(incoming as Record<string, unknown>)) {
+    const prior = out[k];
+    if (
+      prior && typeof prior === "object" && !Array.isArray(prior) &&
+      v && typeof v === "object" && !Array.isArray(v)
+    ) {
+      out[k] = { ...(prior as object), ...(v as object) };
+    } else if (v !== null && v !== undefined) {
+      out[k] = v;
+    }
   }
-  return { ...EMPTY_ANALYTICS, ...(data as object), configured: true, days };
+  return out as T;
+}
+
+/** True when the deployed SQL predates this code and is missing new fields. */
+function isStale(data: unknown, requiredKeys: string[]): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return requiredKeys.some((k) => d[k] === undefined);
+}
+
+export type AnalyticsResult = Analytics & { stale: boolean; error?: string };
+
+export async function getAnalytics(
+  days = 7, from?: string, to?: string,
+): Promise<AnalyticsResult> {
+  const db = createAdminClient();
+  if (!db) return { ...EMPTY_ANALYTICS, stale: false };
+
+  const { data, error } = await db.rpc("analytics_summary", {
+    p_days: days,
+    ...(from && to ? { p_from: from, p_to: to } : {}),
+  });
+  if (error) {
+    // Most likely cause: the schema files haven't been run yet.
+    return { ...EMPTY_ANALYTICS, days, stale: false, error: error.message };
+  }
+  return {
+    ...mergeSummary(EMPTY_ANALYTICS, data),
+    configured: true,
+    days,
+    stale: isStale(data, ["prev_views", "new_users", "entry_pages"]),
+  };
 }
 
 // ---------------------------------------------------------------- schedule
@@ -222,12 +272,24 @@ const EMPTY_EVENTS: EventsSummary = {
   prev_funnel: { used_tool: 0, joined: 0 },
 };
 
-export async function getEvents(days = 7): Promise<EventsSummary> {
+export type EventsResult = EventsSummary & { stale: boolean };
+
+export async function getEvents(
+  days = 7, from?: string, to?: string,
+): Promise<EventsResult> {
   const db = createAdminClient();
-  if (!db) return EMPTY_EVENTS;
-  const { data, error } = await db.rpc("events_summary", { p_days: days });
-  if (error) return { ...EMPTY_EVENTS, days, error: error.message };
-  return { ...EMPTY_EVENTS, ...(data as object), days };
+  if (!db) return { ...EMPTY_EVENTS, stale: false };
+  const { data, error } = await db.rpc("events_summary", {
+    p_days: days,
+    ...(from && to ? { p_from: from, p_to: to } : {}),
+  });
+  if (error) return { ...EMPTY_EVENTS, days, stale: false, error: error.message };
+  return {
+    ...mergeSummary(EMPTY_EVENTS, data),
+    days,
+    stale: isStale(data, ["engagement", "tools"]) ||
+      isStale((data as { funnel?: unknown })?.funnel, ["read_article", "saw_cta"]),
+  };
 }
 
 // ---------------------------------------------------------------- content
@@ -257,12 +319,24 @@ const EMPTY_CONTENT: ContentPerformance = {
   days: 30, rows: [], totals: { pages: 0, articles: 0, views: 0 },
 };
 
-export async function getContentPerformance(days = 30, limit = 100): Promise<ContentPerformance> {
+export async function getContentPerformance(
+  days = 30, limit = 200, from?: string, to?: string,
+): Promise<ContentPerformance> {
   const db = createAdminClient();
   if (!db) return EMPTY_CONTENT;
-  const { data, error } = await db.rpc("content_performance", { p_days: days, p_limit: limit });
+  const { data, error } = await db.rpc("content_performance", {
+    p_days: days,
+    p_limit: limit,
+    ...(from && to ? { p_from: from, p_to: to } : {}),
+  });
   if (error) return { ...EMPTY_CONTENT, days, error: error.message };
-  return { ...EMPTY_CONTENT, ...(data as object), days };
+  return { ...mergeSummary(EMPTY_CONTENT, data), days };
+}
+
+/** Views per article path, for the Articles table. */
+export async function getViewsByPath(days = 30): Promise<Record<string, ContentRow>> {
+  const perf = await getContentPerformance(days, 500);
+  return Object.fromEntries(perf.rows.map((r) => [r.path, r]));
 }
 
 /** Titles for the article paths a performance row names, so the table reads. */
@@ -274,4 +348,85 @@ export async function getPostTitles(paths: string[]): Promise<Record<string, str
   if (!db || slugs.length === 0) return {};
   const { data } = await db.from("posts").select("slug,title").in("slug", slugs);
   return Object.fromEntries((data ?? []).map((p) => [`/blog/${p.slug}`, p.title as string]));
+}
+
+// ---------------------------------------------------------------- banners
+
+export type { Placement, Banner, BannerStatRow } from "@/lib/admin/banners";
+import type { Banner, BannerStatRow } from "@/lib/admin/banners";
+
+export async function getBanners(): Promise<Banner[]> {
+  const db = createAdminClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("promo_banners")
+    .select("*")
+    .order("placement")
+    .order("sort_order");
+  return (data ?? []) as unknown as Banner[];
+}
+
+export async function getBanner(id: string): Promise<Banner | null> {
+  const db = createAdminClient();
+  if (!db) return null;
+  const { data } = await db.from("promo_banners").select("*").eq("id", id).limit(1);
+  return ((data ?? [])[0] as unknown as Banner) ?? null;
+}
+
+export async function getBannerStats(days = 30): Promise<{
+  rows: BannerStatRow[];
+  totals: { views: number; clicks: number };
+  error?: string;
+}> {
+  const db = createAdminClient();
+  const empty = { rows: [], totals: { views: 0, clicks: 0 } };
+  if (!db) return empty;
+  const { data, error } = await db.rpc("banner_stats", { p_days: days });
+  if (error) return { ...empty, error: error.message };
+  return { ...empty, ...(data as object) };
+}
+
+// ---------------------------------------------------------------- editor
+
+export type EditablePost = {
+  id: string;
+  slug: string;
+  title: string;
+  h1: string | null;
+  excerpt: string | null;
+  content_html: string;
+  category_id: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  focus_keyword: string | null;
+  cover_image: string | null;
+  cover_alt: string | null;
+  status: string;
+  origin: string;
+  published_at: string;
+  post_type: string;
+  word_count: number | null;
+  reading_minutes: number | null;
+};
+
+export async function getEditablePost(slug: string): Promise<EditablePost | null> {
+  const db = createAdminClient();
+  if (!db) return null;
+  const { data } = await db
+    .from("posts")
+    .select(
+      "id,slug,title,h1,excerpt,content_html,category_id,seo_title,seo_description," +
+        "focus_keyword,cover_image,cover_alt,status,origin,published_at,post_type," +
+        "word_count,reading_minutes",
+    )
+    .eq("slug", slug)
+    .limit(1);
+  return ((data ?? [])[0] as unknown as EditablePost) ?? null;
+}
+
+export async function getCategories() {
+  const db = createAdminClient();
+  if (!db) return [];
+  const { data } = await db.from("categories").select("id,slug,name").order("sort_order");
+  return (data ?? []) as { id: string; slug: string; name: string }[];
 }

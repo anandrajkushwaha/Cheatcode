@@ -1,20 +1,23 @@
-import Link from "next/link";
 import { getAnalytics, getEvents, getPostTitles } from "@/lib/queries/admin";
 import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { StaleSchemaNotice } from "@/components/admin/StaleSchemaNotice";
+import { resolveRange, rangeWords } from "@/lib/admin/range";
 import {
   BarList, Empty, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num, rupees,
 } from "@/components/admin/ui";
 
-const RANGES = [1, 7, 30, 90];
-
 export default async function AdminAnalytics({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const { days: daysParam } = await searchParams;
-  const days = RANGES.includes(Number(daysParam)) ? Number(daysParam) : 7;
-  const [a, ev] = await Promise.all([getAnalytics(days), getEvents(days)]);
+  const range = resolveRange(await searchParams);
+  const days = range.days;
+  const [a, ev] = await Promise.all([
+    getAnalytics(days, range.from, range.to),
+    getEvents(days, range.from, range.to),
+  ]);
 
   if (a.error) {
     return (
@@ -39,28 +42,16 @@ export default async function AdminAnalytics({
   ]);
   const label = (path: string) => titles[path] ?? path;
 
-  const window = days === 1 ? "last 24 hours" : `last ${days} days`;
+  const window = rangeWords(range);
   const bounceRate = a.sessions_total
     ? Math.round((a.sessions_bounced / a.sessions_total) * 100)
     : null;
 
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.03em]">Traffic</h1>
-        <div className="flex gap-2">
-          {RANGES.map((r) => (
-            <Link
-              key={r}
-              href={`/admin/analytics?days=${r}`}
-              className={`rounded-full px-3.5 py-1.5 text-[0.78rem] ${
-                days === r ? "bg-ink text-paper" : "border border-ink-15 text-ink-50"
-              }`}
-            >
-              {r === 1 ? "24h" : `${r}d`}
-            </Link>
-          ))}
-        </div>
+        <RangePicker basePath="/admin/analytics" range={range} />
       </div>
 
       <p className="mt-3 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
@@ -69,9 +60,11 @@ export default async function AdminAnalytics({
         {a.bots_blocked > 0
           ? ` — ${num(a.bots_blocked)} automated hit${a.bots_blocked === 1 ? "" : "s"} filtered in this window.`
           : "."}{" "}
-        Every headline number is compared with the {days === 1 ? "24 hours" : `${days} days`}{" "}
-        immediately before this window.
+        Every headline number is compared with the equivalent period immediately before
+        this window.
       </p>
+
+      <StaleSchemaNotice stale={a.stale || ev.stale} />
 
       <DeviceExclusion excludedDevices={a.excluded_devices} />
 
@@ -141,7 +134,7 @@ export default async function AdminAnalytics({
           />
         </Panel>
 
-        <Panel title="New vs returning" note={`People seen in the ${window}.`}>
+        <Panel title="New vs returning" note={`People seen in ${window}.`}>
           <SplitBar
             parts={[
               { label: "First time here", value: a.new_users },

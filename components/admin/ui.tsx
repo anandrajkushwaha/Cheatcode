@@ -291,49 +291,51 @@ export function TrendChart({ points }: { points: Point[] }) {
 export type FunnelStep = { label: string; value: number; note?: string };
 
 /**
- * A funnel is only useful if it shows the drop, not the counts.
+ * The reader-to-signup steps.
  *
- * Every step is annotated as a share of sessions, which is true whatever order
- * the steps are in. The step-over-step figure is shown only where the step
- * really is a subset of the one above it — a reader can see a CTA without
- * having opened a tool first, and printing "140% of previous" there would be
- * arithmetic pretending to be insight.
+ * The earlier version drew a bar under every step. The bars were the problem:
+ * the steps are not strictly nested — you can see a CTA without opening a tool —
+ * so bar lengths implied a funnel shape that does not exist, and told you
+ * nothing a number could not. What is actually worth knowing is the drop
+ * between one step and the next, so that is what this shows, in words.
  */
 export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   const first = steps[0]?.value ?? 0;
   if (!first) return <Empty>No sessions recorded in this window yet.</Empty>;
 
   return (
-    <ol className="space-y-3">
+    <ol className="divide-y divide-ink-08 border-t border-ink-08">
       {steps.map((s, i) => {
         const prev = i === 0 ? null : steps[i - 1].value;
+        // Only a genuine subset of the step above can have a drop-off.
         const nested = prev !== null && prev > 0 && s.value <= prev;
-        const ofPrev = nested ? Math.round((s.value / prev!) * 100) : null;
+        const dropped = nested ? prev! - s.value : null;
         const share = Math.round((s.value / first) * 100);
-        const width = Math.min(100, Math.max(s.value > 0 ? 1.5 : 0, share));
 
         return (
-          <li key={s.label}>
-            {/* Wraps rather than truncates: on a phone the numbers drop to
-                their own line instead of squeezing the label to nothing. */}
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-[0.82rem]">
-              <span>
-                {s.label}
-                {s.note && <span className="ml-2 text-[0.75rem] text-ink-30">{s.note}</span>}
-              </span>
-              <span className="shrink-0 tabular-nums text-ink-50">
-                {num(s.value)}
-                {i > 0 && (
-                  <span className="ml-2 text-[0.75rem] text-ink-30">
-                    {share}% of sessions
-                    {ofPrev !== null && ` · ${ofPrev}% of the step above`}
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-04">
-              <div className="h-full rounded-full bg-ink" style={{ width: `${width}%` }} />
-            </div>
+          <li key={s.label} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3">
+            <span className="min-w-0 flex-1 text-[0.88rem]">
+              {s.label}
+              {s.note && <span className="ml-2 text-[0.75rem] text-ink-30">{s.note}</span>}
+            </span>
+
+            <span className="w-16 shrink-0 text-right text-[1.05rem] font-medium tabular-nums">
+              {num(s.value)}
+            </span>
+
+            <span className="w-14 shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
+              {i === 0 ? "" : `${share}%`}
+            </span>
+
+            <span className="w-[11rem] shrink-0 text-right text-[0.78rem] text-ink-30">
+              {dropped === null
+                ? i === 0
+                  ? "everyone"
+                  : "not a subset of the step above"
+                : dropped === 0
+                  ? "no drop-off"
+                  : `${num(dropped)} dropped off here`}
+            </span>
           </li>
         );
       })}

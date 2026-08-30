@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getPosts, getCategories, getCategoryCounts, POSTS_PER_PAGE } from "@/lib/queries/posts";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ArticleCard, Pagination, Breadcrumbs } from "@/components/content/bits";
+import { pickBanner } from "@/lib/queries/banners";
+import { PromoBanner } from "@/components/content/PromoBanner";
 import { JsonLd } from "@/components/JsonLd";
 import { SITE } from "@/lib/seo/constants";
 
@@ -16,10 +18,11 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function BlogIndex() {
-  const [{ posts, total }, categories, counts] = await Promise.all([
+  const [{ posts, total }, categories, counts, banner] = await Promise.all([
     getPosts({ page: 1 }),
     getCategories(),
     getCategoryCounts(),
+    pickBanner("blog_list", "/blog"),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / POSTS_PER_PAGE));
@@ -46,8 +49,15 @@ export default async function BlogIndex() {
             <p className="text-ink-50">No guides published yet.</p>
           ) : (
             <>
-              {posts.map((post) => (
-                <ArticleCard key={post.id} post={post} />
+              {posts.map((post, i) => (
+                <div key={post.id}>
+                  <ArticleCard post={post} />
+                  {banner && i === 3 && (
+                    <div className="py-7">
+                      <PromoBanner banner={banner} />
+                    </div>
+                  )}
+                </div>
               ))}
               <Pagination page={1} totalPages={totalPages} basePath="/blog" />
             </>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPostBySlug, getRelatedPosts, getAllPostSlugs } from "@/lib/queries/posts";
+import { pickBanner } from "@/lib/queries/banners";
+import { PromoBanner } from "@/components/content/PromoBanner";
 import { withHeadingIds } from "@/lib/content/render";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { SITE } from "@/lib/seo/constants";
@@ -59,7 +61,11 @@ export default async function ArticlePage({ params }: Props) {
   const post = await getPostBySlug(slug);
   if (!post) notFound();
 
-  const related = await getRelatedPosts(post);
+  const [related, inArticleBanner, sidebarBanner] = await Promise.all([
+    getRelatedPosts(post),
+    pickBanner("in_article", post.slug),
+    pickBanner("sidebar", post.slug),
+  ]);
   const body = withHeadingIds(post.content_html, post.toc);
   const url = `${SITE.url}/blog/${post.slug}`;
 
@@ -113,6 +119,16 @@ export default async function ArticlePage({ params }: Props) {
           <span>{post.reading_minutes} min read</span>
         </div>
 
+        {post.cover_image && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={post.cover_image}
+            alt={post.cover_alt ?? ""}
+            className="mt-10 w-full rounded-3xl border border-ink-08 object-cover"
+            style={{ aspectRatio: "16 / 9" }}
+          />
+        )}
+
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_260px] lg:gap-16">
           <div className="min-w-0">
             <div
@@ -123,6 +139,12 @@ export default async function ArticlePage({ params }: Props) {
             <FaqBlock items={post.faq} />
 
             <ToolBlock slugs={post.related_tool_slugs} />
+
+            {inArticleBanner && (
+              <div className="mt-14">
+                <PromoBanner banner={inArticleBanner} />
+              </div>
+            )}
 
             <aside className="mt-14 rounded-3xl border border-ink-08 p-8">
               <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">
@@ -147,9 +169,12 @@ export default async function ArticlePage({ params }: Props) {
             </aside>
           </div>
 
-          <aside className="hidden lg:block">
-            <div className="sticky top-24">
-              <Toc items={post.toc} />
+          <aside className="min-w-0 lg:block">
+            <div className="sticky top-24 space-y-6">
+              <div className="hidden lg:block">
+                <Toc items={post.toc} />
+              </div>
+              {sidebarBanner && <PromoBanner banner={sidebarBanner} />}
             </div>
           </aside>
         </div>
