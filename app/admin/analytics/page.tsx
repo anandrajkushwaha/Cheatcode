@@ -1,67 +1,11 @@
 import Link from "next/link";
-import { getAnalytics, getEvents } from "@/lib/queries/admin";
+import { getAnalytics, getEvents, getPostTitles } from "@/lib/queries/admin";
 import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
+import {
+  BarList, Empty, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num, rupees,
+} from "@/components/admin/ui";
 
 const RANGES = [1, 7, 30, 90];
-
-function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-ink-08 p-6">
-      <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">{label}</p>
-      <p className="mt-3 text-[2rem] font-semibold leading-none tracking-[-0.04em]">
-        {typeof value === "number" ? value.toLocaleString("en-IN") : value}
-      </p>
-      {hint && <p className="mt-2 text-[0.78rem] text-ink-30">{hint}</p>}
-    </div>
-  );
-}
-
-function BarList({
-  title,
-  rows,
-  emptyNote,
-}: {
-  title: string;
-  rows: { label: string; value: number; href?: string }[];
-  emptyNote: string;
-}) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  return (
-    <div>
-      <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-        {title}
-      </h2>
-      {rows.length === 0 ? (
-        <p className="mt-4 text-[0.85rem] text-ink-30">{emptyNote}</p>
-      ) : (
-        <ul className="mt-4 space-y-2.5">
-          {rows.map((r) => (
-            <li key={r.label} className="flex items-center gap-3">
-              <span className="w-[46%] shrink-0 truncate text-[0.85rem]">
-                {r.href ? (
-                  <Link href={r.href} className="underline-offset-4 hover:underline">
-                    {r.label}
-                  </Link>
-                ) : (
-                  r.label
-                )}
-              </span>
-              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-08">
-                <span
-                  className="block h-full rounded-full bg-ink"
-                  style={{ width: `${(r.value / max) * 100}%` }}
-                />
-              </span>
-              <span className="w-12 shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
-                {r.value.toLocaleString("en-IN")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 export default async function AdminAnalytics({
   searchParams,
@@ -79,9 +23,9 @@ export default async function AdminAnalytics({
         <div className="mt-8 rounded-2xl border border-ink-30 p-7">
           <p className="text-[0.95rem] font-medium">Tracking isn&apos;t set up yet</p>
           <p className="mt-2.5 max-w-[64ch] text-[0.9rem] leading-relaxed text-ink-50">
-            Run <code>supabase/schemas/05_analytics.sql</code> in the Supabase SQL Editor,
-            then reload this page. It creates the <code>page_views</code> table and the
-            aggregation function this screen reads.
+            Run the files in <code>supabase/schemas/</code> in order, ending with{" "}
+            <code>10_dashboard.sql</code>, in the Supabase SQL Editor. They create the
+            tables and the aggregation functions this screen reads.
           </p>
           <p className="mt-4 font-mono text-[0.75rem] text-ink-30">{a.error}</p>
         </div>
@@ -89,7 +33,16 @@ export default async function AdminAnalytics({
     );
   }
 
-  const maxDaily = Math.max(1, ...a.daily.map((d) => d.views));
+  const titles = await getPostTitles([
+    ...a.entry_pages.map((p) => p.path),
+    ...a.top_pages.map((p) => p.path),
+  ]);
+  const label = (path: string) => titles[path] ?? path;
+
+  const window = days === 1 ? "last 24 hours" : `last ${days} days`;
+  const bounceRate = a.sessions_total
+    ? Math.round((a.sessions_bounced / a.sessions_total) * 100)
+    : null;
 
   return (
     <>
@@ -110,152 +63,246 @@ export default async function AdminAnalytics({
         </div>
       </div>
 
-      <p className="mt-3 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-        First-party tracking, alongside Google Analytics. Bots, headless browsers and
-        your own traffic are excluded before anything is counted
-        {ev.bots_blocked > 0
-          ? ` — ${ev.bots_blocked.toLocaleString("en-IN")} automated hit${ev.bots_blocked === 1 ? "" : "s"} filtered in this window.`
-          : "."}
+      <p className="mt-3 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
+        First-party tracking, alongside Google Analytics. Bots, headless browsers and your own
+        traffic are excluded before anything is counted
+        {a.bots_blocked > 0
+          ? ` — ${num(a.bots_blocked)} automated hit${a.bots_blocked === 1 ? "" : "s"} filtered in this window.`
+          : "."}{" "}
+        Every headline number is compared with the {days === 1 ? "24 hours" : `${days} days`}{" "}
+        immediately before this window.
       </p>
 
       <DeviceExclusion excludedDevices={a.excluded_devices} />
 
+      {/* ------------------------------------------------------- headline */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="People" value={a.unique_users} now={a.unique_users} before={a.prev_users} />
+        <Stat label="Sessions" value={a.visitors} now={a.visitors} before={a.prev_visitors} />
+        <Stat label="Page views" value={a.views} now={a.views} before={a.prev_views} />
         <Stat
-          label="Unique users"
-          value={a.unique_users}
-          hint="distinct people, across sessions"
-        />
-        <Stat
-          label="Sessions"
-          value={a.visitors}
-          hint={`last ${days === 1 ? "24 hours" : `${days} days`}`}
-        />
-        <Stat
-          label="Page views"
-          value={a.views}
-          hint={`${a.visitors > 0 ? (a.views / a.visitors).toFixed(1) : "0"} per session`}
-        />
-        <Stat
-          label="Today"
-          value={a.users_today}
-          hint={`${a.visitors_today} sessions · ${a.views_today.toLocaleString("en-IN")} views · IST`}
-        />
-        <Stat label="All time users" value={a.users_all_time} />
-        <Stat label="All time views" value={a.views_all_time} />
-      </div>
-
-      {a.daily.length > 0 && (
-        <div className="mt-12">
-          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Views per day
-          </h2>
-          <div className="mt-5 flex items-end gap-1.5" style={{ height: 140 }}>
-            {a.daily.map((d) => (
-              <div key={d.day} className="group flex flex-1 flex-col items-center gap-2">
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-t bg-ink transition-opacity group-hover:opacity-70"
-                    style={{ height: `${Math.max(2, (d.views / maxDaily) * 100)}%` }}
-                    title={`${d.day}: ${d.users} users · ${d.visitors} sessions · ${d.views} views`}
-                  />
-                </div>
-                <span className="text-[0.62rem] text-ink-30">{d.day.slice(8)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-14 grid gap-12 lg:grid-cols-2">
-        <BarList
-          title="Where visitors came from"
-          rows={a.top_sources.map((s) => ({ label: s.source, value: s.views }))}
-          emptyNote="No traffic recorded yet."
-        />
-        <BarList
-          title="Most visited pages"
-          rows={a.top_pages.map((p) => ({ label: p.path, value: p.views, href: p.path }))}
-          emptyNote="No page views recorded yet."
-        />
-        <BarList
-          title="Cities"
-          rows={a.top_cities.map((c) => ({
-            label: c.country ? `${c.city} · ${c.country}` : c.city,
-            value: c.views,
-          }))}
-          emptyNote="City data appears once the site is visited through Vercel."
-        />
-        <BarList
-          title="Countries"
-          rows={a.top_countries.map((c) => ({ label: c.country, value: c.views }))}
-          emptyNote="Country data appears once the site is visited through Vercel."
-        />
-        <BarList
-          title="Platform"
-          rows={a.top_os.map((o) => ({
-            label: `${o.os}${o.users ? ` · ${o.users} user${o.users === 1 ? "" : "s"}` : ""}`,
-            value: o.views,
-          }))}
-          emptyNote="No data yet."
-        />
-        <BarList
-          title="Browser"
-          rows={a.top_browsers.map((b) => ({
-            label: `${b.browser}${b.users ? ` · ${b.users} user${b.users === 1 ? "" : "s"}` : ""}`,
-            value: b.views,
-          }))}
-          emptyNote="No data yet."
-        />
-        <BarList
-          title="Device type"
-          rows={a.devices.map((d) => ({ label: d.device, value: d.views }))}
-          emptyNote="No data yet."
+          label="Pages per session"
+          value={a.views_per_session === null ? "—" : a.views_per_session.toFixed(2)}
+          hint={bounceRate === null ? undefined : `${bounceRate}% saw only one page`}
         />
       </div>
 
-      {!ev.error && (
-        <>
-          <div className="mt-16">
-            <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-              Conversion funnel (unique sessions)
-            </h2>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Today so far" value={a.users_today} hint={`${num(a.views_today)} views · IST`} />
+        <Stat label="All-time people" value={a.users_all_time} hint="since tracking began" />
+        <Stat label="All-time views" value={a.views_all_time} hint="since tracking began" />
+        <Stat
+          label="Median time on page"
+          value={duration(ev.engagement.median_seconds)}
+          hint={`average ${duration(ev.engagement.avg_seconds)}`}
+        />
+      </div>
+
+      {/* ---------------------------------------------------------- trend */}
+      <div className="mt-4">
+        <Panel title={`Views and people per day · ${window}`}>
+          <TrendChart points={a.daily} />
+        </Panel>
+      </div>
+
+      {/* -------------------------------------------------------- acquisition */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel title="Where visitors came from">
+          <BarList
+            rows={a.top_sources.map((s) => ({
+              label: s.source,
+              value: s.views,
+              sub: s.users ? `${num(s.users)} people` : undefined,
+            }))}
+            empty="No traffic recorded yet."
+          />
+        </Panel>
+
+        <Panel
+          title="Landing pages"
+          note="The page that opened the session. This is what search actually ranks."
+          action={{ label: "By article", href: "/admin/content" }}
+        >
+          <BarList
+            rows={a.entry_pages.map((p) => ({ label: label(p.path), value: p.views, href: p.path }))}
+            empty="No sessions recorded yet."
+          />
+        </Panel>
+
+        <Panel title="Most visited pages">
+          <BarList
+            rows={a.top_pages.map((p) => ({
+              label: label(p.path),
+              value: p.views,
+              sub: p.users ? `${num(p.users)} people` : undefined,
+              href: p.path,
+            }))}
+            empty="No page views recorded yet."
+          />
+        </Panel>
+
+        <Panel title="New vs returning" note={`People seen in the ${window}.`}>
+          <SplitBar
+            parts={[
+              { label: "First time here", value: a.new_users },
+              { label: "Been here before", value: a.returning_users },
+            ]}
+          />
+        </Panel>
+      </div>
+
+      {/* -------------------------------------------------------- audience */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel title="Cities">
+          <BarList
+            rows={a.top_cities.map((c) => ({
+              label: c.country ? `${c.city} · ${c.country}` : c.city,
+              value: c.views,
+            }))}
+            empty="City data needs Cloudflare's visitor location headers switched on."
+          />
+        </Panel>
+        <Panel title="Countries">
+          <BarList
+            rows={a.top_countries.map((c) => ({ label: c.country, value: c.views }))}
+            empty="No country data yet."
+          />
+        </Panel>
+        <Panel title="Device">
+          <SplitBar parts={a.devices.map((d) => ({ label: d.device, value: d.views }))} />
+        </Panel>
+        <Panel title="Platform">
+          <BarList
+            rows={a.top_os.map((o) => ({
+              label: o.os,
+              value: o.views,
+              sub: o.users ? `${num(o.users)} people` : undefined,
+            }))}
+            empty="No data yet."
+          />
+        </Panel>
+        <Panel title="Browser">
+          <BarList
+            rows={a.top_browsers.map((b) => ({
+              label: b.browser,
+              value: b.views,
+              sub: b.users ? `${num(b.users)} people` : undefined,
+            }))}
+            empty="No data yet."
+          />
+        </Panel>
+        <Panel title="Links out to other sites">
+          <BarList
+            rows={ev.outbound.map((o) => ({ label: o.label || "unknown", value: o.count }))}
+            empty="Nobody has clicked an external link in this window."
+          />
+        </Panel>
+      </div>
+
+      {/* --------------------------------------------------------- behaviour */}
+      <h2 className="mt-14 text-lg font-semibold tracking-[-0.02em]">What people do</h2>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <Panel
+          className="lg:col-span-2"
+          title="From reader to signup"
+          note="Unique sessions reaching each step. The percentage is the share that survived the previous step — that gap is where a fix pays."
+        >
+          <FunnelChart
+            steps={[
+              { label: "Sessions", value: ev.funnel.sessions },
+              { label: "Opened an article", value: ev.funnel.read_article },
+              { label: "Read most of it", value: ev.funnel.read_deeply, note: "75%+" },
+              { label: "Opened a tool", value: ev.funnel.opened_tool },
+              { label: "Ran the tool", value: ev.funnel.used_tool },
+              { label: "Saw a CTA", value: ev.funnel.saw_cta },
+              { label: "Clicked a CTA", value: ev.funnel.clicked_cta },
+              { label: "Joined the waitlist", value: ev.funnel.joined },
+            ]}
+          />
+        </Panel>
+
+        <Panel title="Reading depth" note="How far into a page a session got, at best.">
+          {ev.engagement.avg_scroll === null ? (
+            <Empty>No scroll data in this window.</Empty>
+          ) : (
+            <dl className="space-y-4">
               {[
-                ["Sessions", ev.funnel.sessions],
-                ["Saw a CTA", ev.funnel.cta_view],
-                ["Clicked a CTA", ev.funnel.cta_click],
-                ["Started typing", ev.funnel.waitlist_start],
-                ["Submitted", ev.funnel.waitlist_submit],
-                ["Joined", ev.funnel.waitlist_success],
-              ].map(([label, n]) => (
-                <div key={label as string} className="rounded-2xl border border-ink-08 p-5">
-                  <p className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">{label}</p>
-                  <p className="mt-2 text-[1.6rem] font-semibold leading-none tracking-[-0.04em]">
-                    {((n as number) ?? 0).toLocaleString("en-IN")}
-                  </p>
+                ["Average scroll depth", `${ev.engagement.avg_scroll}%`],
+                ["Reached 75%", `${ev.engagement.read_75_share}%`],
+                ["Median time on page", duration(ev.engagement.median_seconds)],
+                ["Average time on page", duration(ev.engagement.avg_seconds)],
+                ["Single-page sessions", bounceRate === null ? "—" : `${bounceRate}%`],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-4">
+                  <dt className="text-[0.85rem] text-ink-50">{k}</dt>
+                  <dd className="text-[1.05rem] font-medium tabular-nums">{v}</dd>
                 </div>
               ))}
-            </div>
-          </div>
+            </dl>
+          )}
+        </Panel>
+      </div>
 
-          <div className="mt-14 grid gap-12 lg:grid-cols-2">
-            <BarList
-              title="Events"
-              rows={ev.by_event.map((e) => ({ label: e.event, value: e.count }))}
-              emptyNote="No events recorded yet."
-            />
-            <BarList
-              title="Which CTAs get clicked"
-              rows={ev.top_ctas.map((c) => ({
-                label: c.label ? `${c.location} — ${c.label}` : c.location,
-                value: c.count,
-              }))}
-              emptyNote="No CTA clicks yet."
-            />
-          </div>
-        </>
-      )}
+      {/* ------------------------------------------------------------ tools */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Resume ATS checker"
+          note={`${num(ev.tools.ats_runs)} runs by ${num(ev.tools.ats_people)} people · average score ${
+            ev.tools.ats_avg_score ?? "—"
+          }`}
+        >
+          <BarList
+            rows={ev.tools.ats_bands.map((b) => ({ label: b.band, value: b.count }))}
+            empty="Nobody has run the checker in this window."
+          />
+          {ev.tools.ats_failed_read > 0 && (
+            <p className="mt-4 border-t border-ink-08 pt-3 text-[0.78rem] leading-relaxed text-ink-30">
+              {num(ev.tools.ats_failed_read)} upload
+              {ev.tools.ats_failed_read === 1 ? "" : "s"} could not be read at all — an image
+              export or a broken PDF. Worth watching: those people got no result.
+            </p>
+          )}
+        </Panel>
+
+        <Panel
+          title="In-hand salary calculator"
+          note={`${num(ev.tools.salary_runs)} people ran it · median CTC entered ${rupees(
+            ev.tools.salary_median_ctc,
+          )}`}
+        >
+          <BarList
+            rows={ev.tools.salary_bands.map((b) => ({ label: b.band, value: b.count }))}
+            empty="Nobody has run the calculator in this window."
+          />
+          <p className="mt-4 border-t border-ink-08 pt-3 text-[0.78rem] leading-relaxed text-ink-30">
+            The CTC people type in is the closest thing you have to knowing who your audience
+            actually is. Write for the band that shows up here.
+          </p>
+        </Panel>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel title="Which CTAs get clicked">
+          <BarList
+            rows={ev.top_ctas.map((c) => ({
+              label: c.label ? `${c.location} — ${c.label}` : c.location,
+              value: c.count,
+            }))}
+            empty="No CTA clicks yet."
+          />
+        </Panel>
+        <Panel title="Every event fired" note="Sanity check: if something here is zero, it is not wired up.">
+          <BarList
+            rows={ev.by_event.map((e) => ({
+              label: e.event,
+              value: e.count,
+              sub: `${num(e.sessions)} sessions`,
+            }))}
+            empty="No events recorded yet."
+          />
+        </Panel>
+      </div>
     </>
   );
 }

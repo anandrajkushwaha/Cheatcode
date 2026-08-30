@@ -27,11 +27,17 @@ export function Analytics() {
     if (!pathname || pathname === lastPath.current) return;
     if (pathname.startsWith("/admin")) return;
 
-    // Send time spent on the page we're leaving.
+    // Send time spent on the page we're leaving. The address bar already shows
+    // the new page by now, so the old path has to be passed explicitly or the
+    // reading time gets filed against the wrong article.
     if (lastPath.current) {
       const seconds = Math.round((Date.now() - enteredAt.current) / 1000);
       if (seconds > 1 && seconds < 3600) {
-        track(EVENTS.TIME_ON_PAGE, { value: seconds, label: lastPath.current });
+        track(EVENTS.TIME_ON_PAGE, {
+          value: seconds,
+          label: lastPath.current,
+          path: lastPath.current,
+        });
       }
     }
 
@@ -99,6 +105,51 @@ export function Analytics() {
     return () => document.removeEventListener("click", onClick, { capture: true });
   }, []);
 
+  // ---------------------------------------------------------------- CTA seen
+  /**
+   * The funnel's first real step. Without this, "clicked a CTA" has no
+   * denominator — you cannot tell a CTA nobody wants from a CTA nobody
+   * scrolled far enough to see, and those two problems have opposite fixes.
+   *
+   * Fires once per CTA per page. The observer is rebuilt on navigation
+   * because the CTAs on the new page are different elements.
+   */
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    if (pathname?.startsWith("/admin")) return;
+
+    const seen = new Set<Element>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting || seen.has(entry.target)) continue;
+          seen.add(entry.target);
+          observer.unobserve(entry.target);
+
+          const el = entry.target as HTMLElement;
+          track(EVENTS.CTA_VIEW, {
+            label: el.dataset.evLabel ?? el.innerText?.trim().slice(0, 80),
+            location: el.dataset.evLocation,
+          });
+        }
+      },
+      // Half the element visible, so a CTA clipped at the fold doesn't count.
+      { threshold: 0.5 },
+    );
+
+    // Re-query after paint so client-rendered CTAs are included.
+    const id = window.setTimeout(() => {
+      document
+        .querySelectorAll<HTMLElement>('[data-ev="cta_click"]')
+        .forEach((el) => observer.observe(el));
+    }, 300);
+
+    return () => {
+      window.clearTimeout(id);
+      observer.disconnect();
+    };
+  }, [pathname]);
+
   // ---------------------------------------------------------------- scroll depth
   useEffect(() => {
     function onScroll() {
@@ -128,7 +179,11 @@ export function Analytics() {
       if (document.visibilityState !== "hidden") return;
       const seconds = Math.round((Date.now() - enteredAt.current) / 1000);
       if (seconds > 1 && seconds < 3600) {
-        track(EVENTS.TIME_ON_PAGE, { value: seconds, label: lastPath.current ?? "" });
+        track(EVENTS.TIME_ON_PAGE, {
+          value: seconds,
+          label: lastPath.current ?? "",
+          path: lastPath.current ?? undefined,
+        });
       }
     }
     document.addEventListener("visibilitychange", onHide);

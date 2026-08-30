@@ -35,10 +35,27 @@ export function Breadcrumbs({
   );
 }
 
-export function ArticleCard({ post }: { post: PostCard }) {
+export function ArticleCard({
+  post,
+  context = "list",
+}: {
+  post: PostCard;
+  /**
+   * The same card appears in the blog index and in the "Keep reading" block
+   * under an article. Those are different questions — one is browsing, the
+   * other is whether related links keep a reader on the site — so they are
+   * tracked as different events.
+   */
+  context?: "list" | "related";
+}) {
   return (
     <article className="group border-b border-ink-08 py-7 first:pt-0">
-      <Link href={`/blog/${post.slug}`} className="block">
+      <Link
+        href={`/blog/${post.slug}`}
+        data-ev={context === "related" ? "related_post_click" : undefined}
+        data-ev-label={post.slug}
+        className="block"
+      >
         <div className="flex items-center gap-2.5 text-[0.75rem] text-ink-30">
           {post.category && (
             <span className="uppercase tracking-wider">
@@ -75,6 +92,8 @@ export function Toc({ items }: { items: TocItem[] }) {
           <li key={`${item.id}-${i}`}>
             <a
               href={`#${item.id}`}
+              data-ev="toc_click"
+              data-ev-label={item.text}
               className="text-[0.88rem] leading-snug text-ink-50 transition-colors hover:text-ink"
             >
               {item.text}

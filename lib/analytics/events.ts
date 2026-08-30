@@ -12,12 +12,11 @@ export const EVENTS = {
 
   // --- navigation ---
   NAV_CLICK: "nav_click", // params: label, location
-  INTERNAL_LINK_CLICK: "internal_link_click", // params: label (href)
+  INTERNAL_LINK_CLICK: "internal_link_click", // params: label (href), location
   OUTBOUND_CLICK: "outbound_click", // params: label (host)
-  FOOTER_CLICK: "footer_click",
 
   // --- conversion ---
-  CTA_VIEW: "cta_view", // a CTA scrolled into view
+  CTA_VIEW: "cta_view", // a CTA scrolled into view — params: location, label
   CTA_CLICK: "cta_click", // params: location, label
   WAITLIST_START: "waitlist_start", // first keystroke in the email field
   WAITLIST_SUBMIT: "waitlist_submit",
@@ -33,11 +32,9 @@ export const EVENTS = {
   // --- content ---
   ARTICLE_VIEW: "article_view", // params: label (slug), location (category)
   ARTICLE_READ: "article_read", // params: value (percent)
-  TOC_CLICK: "toc_click",
+  TOC_CLICK: "toc_click", // params: label (heading)
   FAQ_OPEN: "faq_open", // params: label (question)
-  RELATED_POST_CLICK: "related_post_click",
-  CATEGORY_CLICK: "category_click",
-  SHARE_CLICK: "share_click",
+  RELATED_POST_CLICK: "related_post_click", // params: label (slug)
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
@@ -46,6 +43,13 @@ export type EventParams = {
   label?: string;
   location?: string;
   value?: number;
+  /**
+   * The page this event belongs to, when that is not the page currently in
+   * the address bar. time_on_page is the case that needs it: it fires after
+   * the router has already moved on, so without this the event would be
+   * filed against the page the reader went to rather than the one they left.
+   */
+  path?: string;
   [key: string]: string | number | boolean | undefined;
 };
 
@@ -146,7 +150,7 @@ export function track(event: EventName, params: EventParams = {}) {
     const body = JSON.stringify({
       kind: "event",
       event,
-      path: window.location.pathname,
+      path: params.path ?? window.location.pathname,
       label: params.label,
       location: params.location,
       value: typeof params.value === "number" ? params.value : undefined,

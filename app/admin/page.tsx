@@ -1,65 +1,27 @@
 import Link from "next/link";
-import { getAdminStats, getPublishLog, getAnalytics, getScheduledPosts } from "@/lib/queries/admin";
+import {
+  getAdminStats, getAnalytics, getEvents, getPostTitles, getScheduledPosts,
+} from "@/lib/queries/admin";
 import { SeedButton } from "@/components/admin/SeedButton";
+import {
+  BarList, Empty, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num,
+} from "@/components/admin/ui";
 
-function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-ink-08 p-6">
-      <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">{label}</p>
-      <p className="mt-3 text-[2rem] font-semibold leading-none tracking-[-0.04em]">{value}</p>
-      {hint && <p className="mt-2 text-[0.78rem] text-ink-30">{hint}</p>}
-    </div>
-  );
-}
+const IST = "Asia/Kolkata";
 
-
-function MiniBars({
-  title, rows, empty, href,
-}: {
-  title: string;
-  rows: { label: string; value: number }[];
-  empty: string;
-  href: string;
-}) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-          {title}
-        </h2>
-        <Link href={href} className="text-[0.75rem] text-ink-30 underline-offset-4 hover:text-ink hover:underline">
-          all
-        </Link>
-      </div>
-      {rows.length === 0 ? (
-        <p className="mt-4 text-[0.85rem] text-ink-30">{empty}</p>
-      ) : (
-        <ul className="mt-5 space-y-2.5">
-          {rows.map((r) => (
-            <li key={r.label} className="flex items-center gap-3">
-              <span className="w-[52%] shrink-0 truncate text-[0.85rem]">{r.label}</span>
-              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-08">
-                <span className="block h-full rounded-full bg-ink"
-                  style={{ width: `${(r.value / max) * 100}%` }} />
-              </span>
-              <span className="w-8 shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
-                {r.value}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+function istShort(iso: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+    hour12: true, timeZone: IST,
+  }).format(new Date(iso));
 }
 
 export default async function AdminOverview() {
-  const [s, log, traffic, scheduled] = await Promise.all([
+  const [s, traffic, events, scheduled] = await Promise.all([
     getAdminStats(),
-    getPublishLog(8),
     getAnalytics(7),
-    getScheduledPosts(3),
+    getEvents(7),
+    getScheduledPosts(1),
   ]);
 
   if (!s.configured) {
@@ -74,140 +36,208 @@ export default async function AdminOverview() {
     );
   }
 
-  const daysLeft = Math.floor(s.queuePending / 6);
+  const tracking = !traffic.error;
+  const bounceRate = traffic.sessions_total
+    ? Math.round((traffic.sessions_bounced / traffic.sessions_total) * 100)
+    : null;
+
+  // A landing page is only useful if you can tell which article it is.
+  const titles = await getPostTitles(traffic.entry_pages.map((p) => p.path));
+  const label = (path: string) => titles[path] ?? path;
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Overview</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Overview</h1>
+        <p className="text-[0.8rem] text-ink-30">Last 7 days, compared with the 7 before it</p>
+      </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ---------------------------------------------------------- headline */}
+      {/* Four cards, one row, no ragged tail. These are the only four numbers
+          worth glancing at daily; everything else lives one click away. */}
+      <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Articles live"
-          value={s.postsLive}
-          hint={`${s.postsLast7} published in the last 7 days`}
+          label="People"
+          value={tracking ? traffic.unique_users : "—"}
+          now={traffic.unique_users}
+          before={traffic.prev_users}
+          hint={tracking ? undefined : "tracking not set up"}
         />
         <Stat
-          label="Scheduled ahead"
-          value={s.postsScheduled}
-          hint={
-            scheduled[0]
-              ? `next: ${new Intl.DateTimeFormat("en-IN", {
-                  day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
-                  hour12: true, timeZone: "Asia/Kolkata",
-                }).format(new Date(scheduled[0].published_at as string))} IST`
-              : "nothing waiting"
-          }
+          label="Page views"
+          value={tracking ? traffic.views : "—"}
+          now={traffic.views}
+          before={traffic.prev_views}
         />
         <Stat
-          label="Visitors (7d)"
-          value={traffic.error ? "—" : traffic.visitors}
-          hint={traffic.error ? "tracking not set up" : `${traffic.views.toLocaleString("en-IN")} page views`}
+          label="Used a tool"
+          value={events.funnel.used_tool}
+          now={events.funnel.used_tool}
+          before={events.prev_funnel.used_tool}
         />
         <Stat
-          label="Queue remaining"
-          value={s.queuePending}
-          hint={`≈ ${daysLeft} days at 6/day`}
-        />
-        <Stat label="Waitlist signups" value={s.waitlist} />
-        <Stat
-          label="Articles written"
-          value={s.posts}
-          hint={`${s.postsLive} live · ${s.postsScheduled} waiting`}
-        />
-        <Stat
-          label="Avg article"
-          value={`${s.avgWords.toLocaleString("en-IN")} w`}
-          hint={`quality score ${s.avgQuality}/100`}
+          label="Joined the waitlist"
+          value={s.waitlist}
+          hint={`${s.waitlistLast7} in the last 7 days`}
         />
       </div>
 
-      <div className="mt-6">
-        <SeedButton hasPosts={s.posts > 0} />
-      </div>
-
-      {s.queueFailed > 0 && (
-        <div className="mt-6 rounded-2xl border border-ink-30 p-5">
-          <p className="text-[0.9rem] font-medium">
-            {s.queueFailed} queue {s.queueFailed === 1 ? "row is" : "rows are"} stuck or failed
-          </p>
-          <p className="mt-1.5 text-[0.85rem] text-ink-50">
-            A claimed row that never published usually means the scheduled session errored
-            mid-run.{" "}
-            <Link href="/admin/queue?status=failed" className="underline underline-offset-4">
-              Review them
-            </Link>
-            .
-          </p>
+      {/* ------------------------------------------------------------ trend */}
+      {tracking && (
+        <div className="mt-4">
+          <Panel
+            title="Traffic, last 7 days"
+            action={{ label: "Full traffic report", href: "/admin/analytics" }}
+          >
+            <TrendChart points={traffic.daily} />
+          </Panel>
         </div>
       )}
 
-      {!traffic.error && (
-        <section className="mt-14 grid gap-10 lg:grid-cols-2">
-          <MiniBars
-            title="Most visited pages (7d)"
-            href="/admin/analytics"
-            rows={traffic.top_pages.slice(0, 6).map((p) => ({ label: p.path, value: p.views }))}
-            empty="No page views recorded yet."
+      {/* ---------------------------------------------------------- reading */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel
+          title="Where people land"
+          note="The first page of a session — the front doors Google is actually sending people to."
+          action={{ label: "By article", href: "/admin/content" }}
+        >
+          <BarList
+            rows={traffic.entry_pages.slice(0, 6).map((p) => ({
+              label: label(p.path),
+              value: p.views,
+              href: p.path,
+            }))}
+            empty="No sessions recorded yet."
           />
-          <MiniBars
-            title="Where visitors came from (7d)"
-            href="/admin/analytics"
-            rows={traffic.top_sources.slice(0, 6).map((x) => ({ label: x.source, value: x.views }))}
+        </Panel>
+
+        <Panel title="Where they came from" action={{ label: "All", href: "/admin/analytics" }}>
+          <BarList
+            rows={traffic.top_sources.slice(0, 6).map((x) => ({
+              label: x.source,
+              value: x.views,
+              sub: x.users ? `${num(x.users)} people` : undefined,
+            }))}
             empty="No traffic recorded yet."
           />
-        </section>
-      )}
+        </Panel>
 
-      <section className="mt-14 grid gap-10 lg:grid-cols-2">
-        <div>
-          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Articles by topic
-          </h2>
-          <ul className="mt-5 space-y-3">
-            {s.byCategory.map((c) => (
-              <li key={c.slug} className="flex items-center gap-4">
-                <span className="w-48 shrink-0 truncate text-[0.9rem]">{c.name}</span>
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-08">
-                  <span
-                    className="block h-full rounded-full bg-ink"
-                    style={{
-                      width: `${Math.min(100, (c.count / Math.max(1, s.posts / 4)) * 100)}%`,
-                    }}
-                  />
-                </span>
-                <span className="w-8 text-right text-[0.82rem] text-ink-30">{c.count}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Recent auto-publishes
-          </h2>
-          {log.length === 0 ? (
-            <p className="mt-5 text-[0.9rem] text-ink-50">
-              Nothing yet. The scheduler writes here every 4 hours once it&apos;s switched on.
-            </p>
+        <Panel
+          title="Do they read it"
+          note="Averaged over every page a session opened."
+        >
+          {events.engagement.avg_scroll === null ? (
+            <Empty>No scroll data yet.</Empty>
           ) : (
-            <ul className="mt-5 divide-y divide-ink-08 border-t border-ink-08">
-              {log.map((l) => (
-                <li key={l.id as number} className="flex items-baseline gap-3 py-3 text-[0.85rem]">
-                  <span className={l.ok ? "text-ink" : "text-ink-30"}>
-                    {l.ok ? "●" : "○"}
-                  </span>
-                  <span className="flex-1 truncate text-ink-50">
-                    {l.reason ?? (l.ok ? "published" : "failed")}
-                  </span>
-                  <span className="shrink-0 text-[0.75rem] text-ink-30">
-                    slot {l.slot ?? "—"}
-                  </span>
-                </li>
+            <dl className="space-y-4">
+              {[
+                ["Average scroll depth", `${events.engagement.avg_scroll}%`],
+                ["Reached 75% of the page", `${events.engagement.read_75_share}%`],
+                ["Median time on page", duration(events.engagement.median_seconds)],
+                ["Single-page sessions", bounceRate === null ? "—" : `${bounceRate}%`],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-4">
+                  <dt className="text-[0.85rem] text-ink-50">{k}</dt>
+                  <dd className="text-[1.05rem] font-medium tabular-nums">{v}</dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           )}
-        </div>
-      </section>
+        </Panel>
+      </div>
+
+      {/* ----------------------------------------------------------- funnel */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel
+          className="lg:col-span-2"
+          title="From reader to signup"
+          note="Unique sessions reaching each step in the last 7 days."
+          action={{ label: "Detail", href: "/admin/analytics" }}
+        >
+          <FunnelChart
+            steps={[
+              { label: "Sessions", value: events.funnel.sessions },
+              { label: "Opened an article", value: events.funnel.read_article },
+              { label: "Read most of it", value: events.funnel.read_deeply, note: "75%+" },
+              { label: "Opened a tool", value: events.funnel.opened_tool },
+              { label: "Ran the tool", value: events.funnel.used_tool },
+              { label: "Saw a CTA", value: events.funnel.saw_cta },
+              { label: "Clicked a CTA", value: events.funnel.clicked_cta },
+              { label: "Joined the waitlist", value: events.funnel.joined },
+            ]}
+          />
+        </Panel>
+
+        <Panel title="Your audience" note="People seen in the last 7 days.">
+          <SplitBar
+            parts={[
+              { label: "First time here", value: traffic.new_users },
+              { label: "Been here before", value: traffic.returning_users },
+            ]}
+          />
+          <dl className="mt-6 space-y-3.5 border-t border-ink-08 pt-5">
+            {[
+              ["Sessions", num(traffic.visitors)],
+              ["Pages per session", traffic.views_per_session?.toFixed(2) ?? "—"],
+              ["Today so far", `${num(traffic.users_today)} people · ${num(traffic.views_today)} views`],
+              ["Mobile share", (() => {
+                const total = traffic.devices.reduce((a, d) => a + d.views, 0);
+                const m = traffic.devices.find((d) => d.device === "mobile")?.views ?? 0;
+                return total ? `${Math.round((m / total) * 100)}%` : "—";
+              })()],
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-4">
+                <dt className="text-[0.85rem] text-ink-50">{k}</dt>
+                <dd className="text-[0.95rem] font-medium tabular-nums">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </Panel>
+      </div>
+
+      {/* --------------------------------------------------------- library */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel title="The library" action={{ label: "All articles", href: "/admin/posts" }}>
+          <dl className="space-y-4">
+            {[
+              ["Live", num(s.postsLive)],
+              ["Scheduled", num(s.postsScheduled)],
+              ["Published this week", num(s.postsLast7)],
+              ["The week before", num(s.postsPrev7)],
+              ["Average length", `${num(s.avgWords)} words`],
+              ["Average quality score", `${s.avgQuality}/100`],
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-4">
+                <dt className="text-[0.85rem] text-ink-50">{k}</dt>
+                <dd className="text-[0.95rem] font-medium tabular-nums">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {scheduled[0] && (
+            <p className="mt-5 border-t border-ink-08 pt-4 text-[0.8rem] leading-relaxed text-ink-30">
+              Next out:{" "}
+              <Link href="/admin/schedule" className="text-ink-50 underline underline-offset-4">
+                {scheduled[0].title as string}
+              </Link>
+              , {istShort(scheduled[0].published_at as string)} IST
+            </p>
+          )}
+        </Panel>
+
+        <Panel className="lg:col-span-2" title="Articles by topic">
+          <BarList
+            rows={s.byCategory
+              .filter((c) => c.count > 0)
+              .sort((a, b) => b.count - a.count)
+              .map((c) => ({ label: c.name, value: c.count }))}
+            empty="No articles yet."
+          />
+        </Panel>
+      </div>
+
+      <div className="mt-8 border-t border-ink-08 pt-8">
+        <SeedButton hasPosts={s.posts > 0} />
+      </div>
     </>
   );
 }
