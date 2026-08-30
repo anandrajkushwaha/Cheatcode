@@ -288,28 +288,50 @@ export function TrendChart({ points }: { points: Point[] }) {
 
 /* ------------------------------------------------------------------- funnel */
 
-export type FunnelStep = { label: string; value: number; note?: string };
+export type FunnelStep = {
+  label: string;
+  value: number;
+  note?: string;
+  /** When this step's event was first ever recorded, YYYY-MM-DD. */
+  since?: string;
+  /** True when that date falls inside the window being shown. */
+  partial?: boolean;
+};
 
 /**
  * The reader-to-signup steps.
  *
- * The earlier version drew a bar under every step. The bars were the problem:
- * the steps are not strictly nested — you can see a CTA without opening a tool —
- * so bar lengths implied a funnel shape that does not exist, and told you
- * nothing a number could not. What is actually worth knowing is the drop
- * between one step and the next, so that is what this shows, in words.
+ * Two things this deliberately does not do. It does not draw bars — the steps
+ * are not strictly nested (you can see a CTA without opening a tool), so bar
+ * lengths implied a shape that does not exist. And it does not silently show a
+ * small number for an event that was only wired up recently: that reads as a
+ * collapse in behaviour when it is really a gap in measurement, so those rows
+ * say when counting started instead.
  */
-export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
+export function FunnelChart({ steps, stale }: { steps: FunnelStep[]; stale?: boolean }) {
   const first = steps[0]?.value ?? 0;
-  if (!first) return <Empty>No sessions recorded in this window yet.</Empty>;
+  if (!first) return <Empty>No visits recorded in this window yet.</Empty>;
+
+  // A stale reporting function returns none of these fields, so every step
+  // after the first is zero. Printing "everyone left here" would be a
+  // confident lie; say what is actually wrong instead.
+  if (stale) {
+    return (
+      <Empty>
+        These steps can&apos;t be counted until the database migration is run — every one would
+        read zero, which is not the same as nobody doing it.
+      </Empty>
+    );
+  }
 
   return (
     <ol className="divide-y divide-ink-08 border-t border-ink-08">
       {steps.map((s, i) => {
         const prev = i === 0 ? null : steps[i - 1].value;
-        // Only a genuine subset of the step above can have a drop-off.
-        const nested = prev !== null && prev > 0 && s.value <= prev;
-        const dropped = nested ? prev! - s.value : null;
+        // Only a genuine subset of the step above can have a drop-off, and only
+        // if both were being measured for the whole window.
+        const comparable = prev !== null && prev > 0 && s.value <= prev && !s.partial;
+        const dropped = comparable ? prev! - s.value : null;
         const share = Math.round((s.value / first) * 100);
 
         return (
@@ -320,21 +342,25 @@ export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
             </span>
 
             <span className="w-16 shrink-0 text-right text-[1.05rem] font-medium tabular-nums">
-              {num(s.value)}
+              {s.partial ? "—" : num(s.value)}
             </span>
 
             <span className="w-14 shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
-              {i === 0 ? "" : `${share}%`}
+              {i === 0 || s.partial ? "" : `${share}%`}
             </span>
 
-            <span className="w-[11rem] shrink-0 text-right text-[0.78rem] text-ink-30">
-              {dropped === null
-                ? i === 0
+            <span className="w-[13rem] shrink-0 text-right text-[0.78rem] text-ink-30">
+              {s.partial
+                ? `only measured from ${s.since}`
+                : i === 0
                   ? "everyone"
-                  : "not a subset of the step above"
-                : dropped === 0
-                  ? "no drop-off"
-                  : `${num(dropped)} dropped off here`}
+                  : s.value === 0 && prev === 0
+                    ? ""
+                    : dropped === null
+                      ? "counted separately"
+                      : dropped === 0
+                        ? "no drop-off"
+                        : `${num(dropped)} stopped here`}
             </span>
           </li>
         );

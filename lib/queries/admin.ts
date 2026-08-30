@@ -62,18 +62,46 @@ export async function getAdminStats(): Promise<AdminStats> {
   };
 }
 
+
+/**
+ * Select columns that may not exist yet.
+ *
+ * The admin panel ships ahead of its migrations: between a deploy and someone
+ * running the SQL, a column named here is simply absent, PostgREST rejects the
+ * whole request, and `data` comes back null. The Articles table then rendered
+ * as "0 articles" — no error, no clue, just a screen insisting the library was
+ * empty. Falling back to the columns that definitely exist means a pending
+ * migration costs you one feature, not the page.
+ */
+async function selectOptional<T>(
+  run: (cols: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  required: string,
+  optional: string[],
+): Promise<{ rows: T[]; missing: string[]; error?: string }> {
+  const full = [required, ...optional].join(",");
+  const first = await run(full);
+  if (!first.error) return { rows: (first.data ?? []) as T[], missing: [] };
+
+  const second = await run(required);
+  if (second.error) return { rows: [], missing: optional, error: second.error.message };
+  return { rows: (second.data ?? []) as T[], missing: optional };
+}
+
 export async function getAdminPosts(limit = 100) {
   const db = createAdminClient();
-  if (!db) return [];
-  const { data } = await db
-    .from("posts")
-    .select(
-      "id,slug,title,post_type,status,published_at,word_count,quality_score," +
-        "focus_keyword,origin,category:categories(name)",
-    )
-    .order("published_at", { ascending: false })
-    .limit(limit);
-  return data ?? [];
+  if (!db) return { rows: [], missing: [] as string[] };
+
+  return selectOptional<Record<string, unknown>>(
+    (cols) =>
+      db
+        .from("posts")
+        .select(cols)
+        .order("published_at", { ascending: false })
+        .limit(limit),
+    "id,slug,title,post_type,status,published_at,word_count,quality_score," +
+      "focus_keyword,category:categories(name)",
+    ["origin"],
+  );
 }
 
 export async function getWaitlist(limit = 200) {
@@ -255,6 +283,8 @@ export type EventsSummary = {
   };
   funnel: Funnel;
   prev_funnel: { used_tool: number; joined: number };
+  /** Event name -> the date it was first ever recorded (YYYY-MM-DD). */
+  first_seen: Record<string, string>;
   error?: string;
 };
 
@@ -270,6 +300,7 @@ const EMPTY_EVENTS: EventsSummary = {
     used_tool: 0, saw_cta: 0, clicked_cta: 0, joined: 0,
   },
   prev_funnel: { used_tool: 0, joined: 0 },
+  first_seen: {},
 };
 
 export type EventsResult = EventsSummary & { stale: boolean };
@@ -334,9 +365,16 @@ export async function getContentPerformance(
 }
 
 /** Views per article path, for the Articles table. */
-export async function getViewsByPath(days = 30): Promise<Record<string, ContentRow>> {
+export async function getViewsByPath(
+  days = 30,
+): Promise<{ byPath: Record<string, ContentRow>; ready: boolean }> {
   const perf = await getContentPerformance(days, 500);
-  return Object.fromEntries(perf.rows.map((r) => [r.path, r]));
+  return {
+    byPath: Object.fromEntries(perf.rows.map((r) => [r.path, r])),
+    // Without the reporting function every traffic column reads zero, which
+    // looks like an article nobody visits rather than a missing migration.
+    ready: !perf.error,
+  };
 }
 
 /** Titles for the article paths a performance row names, so the table reads. */
@@ -355,15 +393,17 @@ export async function getPostTitles(paths: string[]): Promise<Record<string, str
 export type { Placement, Banner, BannerStatRow } from "@/lib/admin/banners";
 import type { Banner, BannerStatRow } from "@/lib/admin/banners";
 
-export async function getBanners(): Promise<Banner[]> {
+export async function getBanners(): Promise<{ rows: Banner[]; ready: boolean }> {
   const db = createAdminClient();
-  if (!db) return [];
-  const { data } = await db
+  if (!db) return { rows: [], ready: false };
+  const { data, error } = await db
     .from("promo_banners")
     .select("*")
     .order("placement")
     .order("sort_order");
-  return (data ?? []) as unknown as Banner[];
+  // No table yet means 11_authoring.sql has not been run — not an empty list.
+  if (error) return { rows: [], ready: false };
+  return { rows: (data ?? []) as unknown as Banner[], ready: true };
 }
 
 export async function getBanner(id: string): Promise<Banner | null> {
@@ -412,16 +452,13 @@ export type EditablePost = {
 export async function getEditablePost(slug: string): Promise<EditablePost | null> {
   const db = createAdminClient();
   if (!db) return null;
-  const { data } = await db
-    .from("posts")
-    .select(
-      "id,slug,title,h1,excerpt,content_html,category_id,seo_title,seo_description," +
-        "focus_keyword,cover_image,cover_alt,status,origin,published_at,post_type," +
-        "word_count,reading_minutes",
-    )
-    .eq("slug", slug)
-    .limit(1);
-  return ((data ?? [])[0] as unknown as EditablePost) ?? null;
+  const { rows } = await selectOptional<EditablePost>(
+    (cols) => db.from("posts").select(cols).eq("slug", slug).limit(1),
+    "id,slug,title,h1,excerpt,content_html,category_id,seo_title,seo_description," +
+      "focus_keyword,status,published_at,post_type,word_count,reading_minutes",
+    ["cover_image", "cover_alt", "origin"],
+  );
+  return rows[0] ?? null;
 }
 
 export async function getCategories() {

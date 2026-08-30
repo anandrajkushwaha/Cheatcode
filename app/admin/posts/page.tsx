@@ -45,11 +45,13 @@ export default async function AdminPosts({
     getAdminStats(),
     getViewsByPath(range.days),
   ]);
+  const loadError = posts.error;
+  const trafficReady = byPath.ready;
 
   const now = new Date().toISOString();
-  const traffic = (slug: string): ContentRow | undefined => byPath[`/blog/${slug}`];
+  const traffic = (slug: string): ContentRow | undefined => byPath.byPath[`/blog/${slug}`];
 
-  let rows = (posts as unknown as Row[]).map((p) => {
+  let rows = (posts.rows as unknown as Row[]).map((p) => {
     const t = traffic(p.slug);
     return {
       id: p.id,
@@ -210,6 +212,24 @@ export default async function AdminPosts({
         )}
       </form>
 
+      {!trafficReady && !loadError && (
+        <p className="mt-6 rounded-2xl border border-ink-30 p-4 text-[0.85rem] leading-relaxed text-ink-50">
+          Every traffic column below reads zero because the reporting function is not in the
+          database yet — not because these articles have no readers. Run{" "}
+          <code className="font-mono text-ink">supabase/schemas/10_dashboard.sql</code> and reload.
+        </p>
+      )}
+
+      {loadError && (
+        <div className="mt-6 rounded-2xl border border-ink-30 p-5">
+          <p className="text-[0.9rem] font-medium">Couldn&apos;t read the articles</p>
+          <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
+            The list below is empty because the query failed, not because there are no articles.
+          </p>
+          <p className="mt-3 font-mono text-[0.75rem] text-ink-30">{loadError}</p>
+        </div>
+      )}
+
       <p className="mt-5 text-[0.8rem] text-ink-30">
         {num(rows.length)} article{rows.length === 1 ? "" : "s"} · {num(totalViews)} views in this window
       </p>
@@ -269,9 +289,13 @@ export default async function AdminPosts({
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
+        {rows.length === 0 && !loadError && (
           <div className="mt-6">
-            <Empty>Nothing matches those filters.</Empty>
+            <Empty>
+              {stats.posts > 0
+                ? "Nothing matches those filters."
+                : "No articles in the database yet. Press Re-sync content on the Overview, or write one."}
+            </Empty>
           </div>
         )}
       </div>

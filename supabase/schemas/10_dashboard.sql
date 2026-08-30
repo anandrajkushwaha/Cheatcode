@@ -333,6 +333,19 @@ as $$
     select
       (select count(distinct session_id) from prev where event = 'tool_compute')     as used_tool,
       (select count(distinct session_id) from prev where event = 'waitlist_success') as joined
+  ),
+
+  -- When each event was first ever recorded.
+  --
+  -- Without this the funnel lies by omission: an event only wired up last week
+  -- shows a tiny number next to events measured for months, and it reads as a
+  -- collapse in behaviour rather than a gap in instrumentation. The UI uses
+  -- these dates to say "measuring from" instead of showing a false drop.
+  coverage as (
+    select event, min(created_at) as first_seen
+      from public.page_events
+     where is_bot = false
+     group by event
   )
   select jsonb_build_object(
     'days', p_days,
@@ -374,7 +387,9 @@ as $$
       'opened_tool', opened_tool, 'used_tool', used_tool,
       'saw_cta', saw_cta, 'clicked_cta', clicked_cta, 'joined', joined) from f),
     'prev_funnel', (select jsonb_build_object(
-      'used_tool', used_tool, 'joined', joined) from prev_f)
+      'used_tool', used_tool, 'joined', joined) from prev_f),
+    'first_seen', (select coalesce(jsonb_object_agg(event, to_char(first_seen, 'YYYY-MM-DD')),
+                                   '{}'::jsonb) from coverage)
   );
 $$;
 

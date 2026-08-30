@@ -3,6 +3,7 @@ import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
 import { RangePicker } from "@/components/admin/RangePicker";
 import { StaleSchemaNotice } from "@/components/admin/StaleSchemaNotice";
 import { resolveRange, rangeWords } from "@/lib/admin/range";
+import { funnelSteps } from "@/lib/admin/funnel";
 import {
   BarList, Empty, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num, rupees,
 } from "@/components/admin/ui";
@@ -198,21 +199,10 @@ export default async function AdminAnalytics({
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         <Panel
           className="lg:col-span-2"
-          title="From reader to signup"
-          note="Unique sessions reaching each step. The percentage is the share that survived the previous step — that gap is where a fix pays."
+          title="What visitors did"
+          note="How many separate visits got as far as each step. Each line is a subset of the one above it, so the right-hand column is where people stopped."
         >
-          <FunnelChart
-            steps={[
-              { label: "Sessions", value: ev.funnel.sessions },
-              { label: "Opened an article", value: ev.funnel.read_article },
-              { label: "Read most of it", value: ev.funnel.read_deeply, note: "75%+" },
-              { label: "Opened a tool", value: ev.funnel.opened_tool },
-              { label: "Ran the tool", value: ev.funnel.used_tool },
-              { label: "Saw a CTA", value: ev.funnel.saw_cta },
-              { label: "Clicked a CTA", value: ev.funnel.clicked_cta },
-              { label: "Joined the waitlist", value: ev.funnel.joined },
-            ]}
-          />
+          <FunnelChart steps={funnelSteps(ev, range)} stale={ev.stale} />
         </Panel>
 
         <Panel title="Reading depth" note="How far into a page a session got, at best.">

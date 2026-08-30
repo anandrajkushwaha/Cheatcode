@@ -5,6 +5,7 @@ import { RangePicker } from "@/components/admin/RangePicker";
 import { DeviceExclusion } from "@/components/admin/DeviceExclusion";
 import { StaleSchemaNotice } from "@/components/admin/StaleSchemaNotice";
 import { resolveRange, rangeWords, IST } from "@/lib/admin/range";
+import { funnelSteps } from "@/lib/admin/funnel";
 import {
   BarList, FunnelChart, Panel, SplitBar, Stat, TrendChart, duration, num,
 } from "@/components/admin/ui";
@@ -76,15 +77,19 @@ export default async function AdminOverview({
           before={traffic.prev_views}
         />
         <Stat
-          label="Used a tool"
-          value={events.funnel.used_tool}
-          now={events.funnel.used_tool}
-          before={events.prev_funnel.used_tool}
+          label="Sessions"
+          value={tracking ? traffic.visitors : "—"}
+          now={traffic.visitors}
+          before={traffic.prev_visitors}
         />
         <Stat
-          label="Joined the waitlist"
-          value={s.waitlist}
-          hint={`${s.waitlistLast7} in the last 7 days`}
+          label="Pages per session"
+          value={traffic.views_per_session?.toFixed(2) ?? "—"}
+          hint={
+            traffic.sessions_total
+              ? `${Math.round((traffic.sessions_bounced / traffic.sessions_total) * 100)}% saw only one page`
+              : undefined
+          }
         />
       </div>
 
@@ -104,22 +109,11 @@ export default async function AdminOverview({
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Panel
           className="lg:col-span-2"
-          title="From reader to signup"
-          note={`Unique sessions reaching each step in ${words}. The right-hand column is where people leave.`}
+          title="What visitors did"
+          note={`How many separate visits got as far as each step, in ${words}. Each line is a subset of the one above it, so the right-hand column is where people stopped.`}
           action={{ label: "Detail", href: "/admin/analytics" }}
         >
-          <FunnelChart
-            steps={[
-              { label: "Sessions", value: events.funnel.sessions },
-              { label: "Opened an article", value: events.funnel.read_article },
-              { label: "Read most of it", value: events.funnel.read_deeply, note: "75%+" },
-              { label: "Opened a tool", value: events.funnel.opened_tool },
-              { label: "Ran the tool", value: events.funnel.used_tool },
-              { label: "Saw a CTA", value: events.funnel.saw_cta },
-              { label: "Clicked a CTA", value: events.funnel.clicked_cta },
-              { label: "Joined the waitlist", value: events.funnel.joined },
-            ]}
-          />
+          <FunnelChart steps={funnelSteps(events, range)} stale={events.stale} />
         </Panel>
 
         <Panel title="Your audience" note={`People seen in ${words}.`}>

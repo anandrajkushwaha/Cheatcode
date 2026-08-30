@@ -249,7 +249,18 @@ export default async function AdminContent({
       </div>
 
       <div className="mt-16 border-t border-ink-08 pt-10">
-        <BannerManager banners={banners} stats={statsById} />
+        {banners.ready ? (
+          <BannerManager banners={banners.rows} stats={statsById} />
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold tracking-[-0.02em]">Promotional banners</h2>
+            <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
+              Run <code className="font-mono text-ink">supabase/schemas/11_authoring.sql</code> in
+              the Supabase SQL editor to switch this on. It creates the banners table and the
+              storage bucket for images.
+            </p>
+          </>
+        )}
       </div>
     </>
   );
