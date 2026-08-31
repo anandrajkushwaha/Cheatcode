@@ -4,11 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 import type { Profile } from "@/lib/app/account";
+import { CANONICAL_CITIES } from "@/lib/geo/cities";
 
-const CITIES = [
-  "Bengaluru", "Hyderabad", "Pune", "Chennai", "Mumbai", "Delhi NCR",
-  "Noida", "Gurugram", "Kolkata", "Ahmedabad", "Jaipur", "Indore",
-];
 
 /**
  * Written straight to Supabase from the browser rather than through an API
@@ -174,7 +171,7 @@ export function ProfileForm({
         <div>
           <span className={label}>Cities you would work in</span>
           <div className="mt-2 flex flex-wrap gap-2">
-            {CITIES.map((c) => (
+            {CANONICAL_CITIES.map((c) => (
               <button
                 key={c}
                 type="button"

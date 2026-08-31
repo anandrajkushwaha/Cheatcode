@@ -7,6 +7,8 @@ import {
   profileStrength,
   hasIntent,
 } from "@/lib/app/account";
+import { searchJobs } from "@/lib/jobs/query";
+import { JobCard } from "@/components/app/JobCard";
 import { AgentHero } from "@/components/app/AgentHero";
 import { ProfileCard } from "@/components/app/ProfileCard";
 import {
@@ -45,6 +47,16 @@ const STEPS = [
  */
 export default async function AppHome() {
   const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+
+  // Three jobs, filtered by what the profile already says. Not ranked — that
+  // is what the paid plan will do — so the heading below says "for you" and
+  // the line under it says exactly which filters produced them.
+  const { jobs: preview } = await searchJobs({
+    cities: (profile?.preferred_cities ?? []).slice(0, 4),
+    remote: profile?.open_to_remote && !profile?.preferred_cities?.length ? true : undefined,
+    maxYears: profile?.years_experience ?? null,
+    limit: 3,
+  }).catch(() => ({ jobs: [] as never[] }));
 
   const paid = isPaid(profile);
   const gaps = profileGaps(profile, resume);
@@ -128,20 +140,23 @@ export default async function AppHome() {
           <section className="cc-surface rounded-2xl border border-ink-08 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <SectionHead
-                title="Matched for you"
+                title={preview.length ? "Jobs for you" : "Matched for you"}
                 note={
-                  knowsWhatTheyWant
-                    ? "Ranked against your resume and what you told me above."
-                    : "Tell the agent what you want and these fill in first."
+                  preview.length
+                    ? "Filtered by your cities and experience. Ranking comes with the plan."
+                    : knowsWhatTheyWant
+                      ? "As soon as a board carries something that fits, it lands here."
+                      : "Tell the agent what you want and these fill in first."
                 }
+                action={preview.length ? { label: "See all", href: "/app/jobs" } : undefined}
               />
-              <Soon>Building now</Soon>
+              {preview.length === 0 && <Soon>Building now</Soon>}
             </div>
 
             <div className="mt-5 grid gap-3">
-              {[0, 90, 180].map((d) => (
-                <JobCardSkeleton key={d} delay={d} />
-              ))}
+              {preview.length > 0
+                ? preview.map((job, i) => <JobCard key={job.id} job={job} delay={i * 70} />)
+                : [0, 90, 180].map((d) => <JobCardSkeleton key={d} delay={d} />)}
             </div>
 
             <ol className="mt-5 grid gap-4 border-t border-ink-08 pt-5 sm:grid-cols-3">

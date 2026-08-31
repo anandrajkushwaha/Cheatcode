@@ -1,5 +1,6 @@
 import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
 import { parseResume, flatten } from "@/lib/app/parse-resume";
+import { fillProfileFromResume } from "@/lib/app/autofill";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -99,7 +100,13 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: updateError.message }, { status: 500 });
   }
 
-  return Response.json({ ok: true, id, parsed: parsed.parsed, parseError: null });
+  // The resume already contains most of the profile. Asking someone to retype
+  // their own name and job title into a form, immediately after handing us a
+  // document with both on it, is the kind of thing that makes people close the
+  // tab. Only blank fields are filled — see the module for why that matters.
+  const filled = await fillProfileFromResume(supabase, user.id, parsed.parsed);
+
+  return Response.json({ ok: true, id, parsed: parsed.parsed, parseError: null, filled });
 }
 
 export async function DELETE(request: Request) {

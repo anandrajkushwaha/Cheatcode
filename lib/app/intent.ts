@@ -1,4 +1,5 @@
 import "server-only";
+import { CANONICAL_CITIES } from "@/lib/geo/cities";
 
 /**
  * Turn one typed sentence into the fields matching needs.
@@ -21,14 +22,6 @@ const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 /** Long enough for a rambling sentence, short enough that nobody pastes a resume in. */
 const MAX_CHARS = 600;
 
-/**
- * The cities we can actually match on. Free text here would produce
- * "Bangalore", "Bengaluru", "BLR" and "bangalore " as four different places.
- */
-export const CANONICAL_CITIES = [
-  "Bengaluru", "Hyderabad", "Pune", "Chennai", "Mumbai", "Delhi NCR",
-  "Noida", "Gurugram", "Kolkata", "Ahmedabad", "Jaipur", "Indore",
-] as const;
 
 export type Intent = {
   target_roles: string[];
