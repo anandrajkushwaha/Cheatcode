@@ -1,122 +1,288 @@
 import Link from "next/link";
-import { getProfile, getPrimaryResume, isPaid, profileGaps } from "@/lib/app/account";
-import { Card, Empty, ScoreRing, Stat } from "@/components/app/ui";
+import {
+  getProfile,
+  getPrimaryResume,
+  isPaid,
+  profileGaps,
+  profileStrength,
+  hasIntent,
+} from "@/lib/app/account";
+import { AgentHero } from "@/components/app/AgentHero";
+import { ProfileCard } from "@/components/app/ProfileCard";
+import {
+  JobCardSkeleton,
+  SectionHead,
+  Soon,
+} from "@/components/app/ui";
 
+const STEPS = [
+  {
+    title: "Official sources",
+    detail: "Company job boards and public APIs — not scraped listings.",
+  },
+  {
+    title: "Scored against you",
+    detail: "Your skills, years, cities and salary, not just keywords.",
+  },
+  {
+    title: "With the reason",
+    detail: "Why each one fits, so you can disagree with it.",
+  },
+];
+
+/**
+ * Home.
+ *
+ * Three columns, the way every job site in this market is laid out, because
+ * that is the shape people already know how to read: who you are on the left,
+ * what to do in the middle, what is happening on the right. What is different
+ * is the top — the agent gets the first screen, and the columns are the
+ * evidence behind whatever it just said.
+ *
+ * The centre column is deliberately drawn for jobs that do not exist yet.
+ * Blank space would read as an unfinished product; an outline shows what is
+ * arriving, and the label next to it is honest about when.
+ */
 export default async function AppHome() {
   const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+
   const paid = isPaid(profile);
   const gaps = profileGaps(profile, resume);
-  const firstName = profile?.full_name?.split(" ")[0];
+  const strength = profileStrength(profile, resume);
+  const knowsWhatTheyWant = hasIntent(profile);
+
+  const firstName = profile?.full_name?.split(" ")[0]?.trim();
+  // IST, because that is where the audience is. Not worth a timezone library.
+  const istHour = (new Date().getUTCHours() + 5) % 24;
+  const partOfDay = istHour < 12 ? "Good morning" : istHour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = firstName ? `${partOfDay}, ${firstName}` : partOfDay;
+
+  const line = !resume
+    ? "Start with your resume — everything here is built on it."
+    : !knowsWhatTheyWant
+      ? "Tell me what you're looking for, in one line."
+      : "Tell me anything that's changed and I'll keep your matches honest.";
+
+  const resumeAlert = !resume
+    ? {
+        title: "Add your resume",
+        detail: "It is what your ATS score and every match on this page is built from.",
+        action: "Upload",
+      }
+    : resume.parse_error
+      ? {
+          title: "We saved your resume but could not read it",
+          detail: "Matching needs the details out of it. Try exporting a real PDF.",
+          action: "Fix",
+        }
+      : (resume.ats_score ?? 100) < 60
+        ? {
+            title: `Your resume scores ${resume.ats_score} out of 100`,
+            detail: "Below 60, an applicant tracking system is likely to drop it before a person looks.",
+            action: "See why",
+          }
+        : null;
+
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">
-        {firstName ? `Hello, ${firstName}` : "Hello"}
-      </h1>
-      <p className="mt-2.5 max-w-[64ch] text-[0.92rem] leading-relaxed text-ink-50">
-        {resume
-          ? "Your resume is in. Jobs and the agent are being built next — they will read from it."
-          : "Start with your resume. Everything else here is built on top of it."}
-      </p>
+      <AgentHero greeting={greeting} line={line} gaps={gaps} hasIntent={knowsWhatTheyWant} />
 
-      {/* -------------------------------------------------- what to do next */}
-      {gaps.length > 0 && (
-        <div className="mt-7 rounded-2xl border border-ink-15 p-6">
-          <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">Next</p>
-          <ul className="mt-4 space-y-3">
-            {gaps.map((g) => (
-              <li key={g.key}>
-                <Link
-                  href={g.href}
-                  className="text-[0.95rem] underline underline-offset-4 hover:text-ink"
-                >
-                  {g.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label="ATS score"
-          value={resume?.ats_score ?? "—"}
-          hint={resume ? resume.file_name ?? "your resume" : "no resume yet"}
-        />
-        <Stat
-          label="Skills found"
-          value={resume?.skills?.length ?? "—"}
-          hint={resume?.parsed ? "used for matching" : "upload to see"}
-        />
-        <Stat
-          label="Experience"
-          value={
-            resume?.years_experience !== null && resume?.years_experience !== undefined
-              ? `${resume.years_experience} yr`
-              : "—"
-          }
-          hint={resume?.latest_title ?? "from your resume"}
-        />
-        <Stat
-          label="Plan"
-          value={paid ? "Pro" : "Free"}
-          hint={paid ? "all features on" : "agent and matching are paid"}
-        />
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card
-          className="lg:col-span-2"
-          title="Your resume"
-          action={{ label: resume ? "Open" : "Add", href: "/app/resume" }}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)_272px]">
+        {/* ------------------------------------------------------- left rail */}
+        <aside
+          className="cc-rise min-w-0 lg:sticky lg:top-20 lg:self-start"
+          style={{ "--d": "60ms" } as React.CSSProperties}
         >
-          {resume ? (
-            <div className="flex flex-wrap items-center gap-6">
-              <ScoreRing score={resume.ats_score ?? 0} />
-              <div className="min-w-0 flex-1">
-                <p className="text-[1rem] font-medium">
-                  {resume.parsed?.headline ?? resume.file_name ?? "Resume"}
-                </p>
-                <p className="mt-1.5 text-[0.88rem] text-ink-50">
-                  {[resume.latest_title, resume.latest_company].filter(Boolean).join(" at ") ||
-                    "Details still being read"}
-                </p>
-                {resume.parse_error && (
-                  <p className="mt-2 text-[0.8rem] text-ink-30">
-                    We saved it but could not read the details.
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <Empty>
-              Nothing here yet. Upload a resume and you will get an ATS score plus the structured
-              profile that job matching runs on.
-            </Empty>
-          )}
-        </Card>
+          <ProfileCard
+            profile={profile}
+            resume={resume}
+            strength={strength}
+            nextStep={gaps[0]?.label.toLowerCase() ?? null}
+          />
+        </aside>
 
-        <Card title="Coming next">
-          <ul className="space-y-3.5 text-[0.88rem]">
-            <li className="flex items-baseline justify-between gap-3">
-              <span>Jobs across boards</span>
-              <span className="shrink-0 text-[0.75rem] text-ink-30">in build</span>
-            </li>
-            <li className="flex items-baseline justify-between gap-3">
-              <span>Match scoring</span>
-              <span className="shrink-0 text-[0.75rem] text-ink-30">after jobs</span>
-            </li>
-            <li className="flex items-baseline justify-between gap-3">
-              <span>Voice agent</span>
-              <span className="shrink-0 text-[0.75rem] text-ink-30">after matching</span>
-            </li>
-          </ul>
-          <p className="mt-5 border-t border-ink-08 pt-4 text-[0.8rem] leading-relaxed text-ink-30">
-            Each one reads the resume above, which is why it comes first.
-          </p>
-        </Card>
+        {/* ---------------------------------------------------------- centre */}
+        <div className="cc-rise min-w-0 space-y-6" style={{ "--d": "120ms" } as React.CSSProperties}>
+          {/* Only when something is actually wrong with it. A full resume card
+              on every visit repeated the left rail and took the best slot on
+              the page from the thing home is supposed to be about. */}
+          {resumeAlert && (
+            <Link
+              href="/app/resume"
+              className="cc-surface flex items-center gap-4 rounded-2xl border border-ink-08 p-4 transition-colors hover:border-ink-30 sm:p-5"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-04 text-ink-50">
+                <IconAlert />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.92rem] font-medium">{resumeAlert.title}</span>
+                <span className="mt-0.5 block text-[0.83rem] leading-relaxed text-ink-50">
+                  {resumeAlert.detail}
+                </span>
+              </span>
+              <span className="shrink-0 text-[0.82rem] text-ink-30">{resumeAlert.action}</span>
+            </Link>
+          )}
+
+          <section className="cc-surface rounded-2xl border border-ink-08 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <SectionHead
+                title="Matched for you"
+                note={
+                  knowsWhatTheyWant
+                    ? "Ranked against your resume and what you told me above."
+                    : "Tell the agent what you want and these fill in first."
+                }
+              />
+              <Soon>Building now</Soon>
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              {[0, 90, 180].map((d) => (
+                <JobCardSkeleton key={d} delay={d} />
+              ))}
+            </div>
+
+            <ol className="mt-5 grid gap-4 border-t border-ink-08 pt-5 sm:grid-cols-3">
+              {STEPS.map((step, i) => (
+                <li key={step.title}>
+                  <span className="text-[0.7rem] font-medium tabular-nums text-ink-30">
+                    0{i + 1}
+                  </span>
+                  <p className="mt-1.5 text-[0.86rem] font-medium">{step.title}</p>
+                  <p className="mt-1 text-[0.79rem] leading-relaxed text-ink-30">{step.detail}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        {/* ------------------------------------------------------ right rail */}
+        <aside
+          className="cc-rise min-w-0 space-y-4 xl:sticky xl:top-20 xl:self-start"
+          style={{ "--d": "180ms" } as React.CSSProperties}
+        >
+          <div className="cc-recess rounded-2xl border border-ink-08 p-5">
+            <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">
+              What is switched on
+            </p>
+            <ul className="mt-4 space-y-3">
+              {[
+                { label: "Your account", state: "on" as const },
+                { label: "Resume and ATS score", state: resume ? ("on" as const) : ("todo" as const) },
+                {
+                  label: "What you're looking for",
+                  state: knowsWhatTheyWant ? ("on" as const) : ("todo" as const),
+                },
+                { label: "Job matching", state: "soon" as const },
+                { label: "Voice agent", state: "soon" as const },
+              ].map((i) => (
+                <li key={i.label} className="flex items-center justify-between gap-3">
+                  <span
+                    className={`text-[0.85rem] ${i.state === "soon" ? "text-ink-30" : "text-ink-70"}`}
+                  >
+                    {i.label}
+                  </span>
+                  <StateMark state={i.state} />
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div
+            className={`rounded-2xl border p-5 ${
+              paid ? "cc-premium-surface" : "cc-recess border-ink-08"
+            }`}
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <p
+                className={`text-[0.72rem] uppercase tracking-[0.14em] ${
+                  paid ? "text-paper/55" : "text-ink-30"
+                }`}
+              >
+                Plan
+              </p>
+              <span
+                className={`text-[0.85rem] font-semibold ${paid ? "text-paper" : "text-ink-70"}`}
+              >
+                {paid ? "Pro" : "Free"}
+              </span>
+            </div>
+            <p
+              className={`mt-3 text-[0.8rem] leading-relaxed ${
+                paid ? "text-paper/75" : "text-ink-50"
+              }`}
+            >
+              {paid
+                ? "Everything is on. Matching and the agent switch on for you the day they ship."
+                : "Free covers your resume and ATS score. Matching and the voice agent are paid."}
+            </p>
+            {!paid && (
+              <Link
+                href="/app/upgrade"
+                className="btn-premium mt-4 block rounded-xl py-2 text-center text-[0.82rem] font-semibold"
+              >
+                See the plan
+              </Link>
+            )}
+          </div>
+        </aside>
       </div>
     </>
+  );
+}
+
+/** Three states, no colour: filled, hollow, dashed. */
+function StateMark({ state }: { state: "on" | "todo" | "soon" }) {
+  if (state === "on") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-label="done" className="shrink-0">
+        <circle cx="7" cy="7" r="6.5" fill="var(--color-ink)" />
+        <path
+          d="M4 7.2l2 2L10 5"
+          fill="none"
+          stroke="var(--color-paper)"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  if (state === "todo") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-label="to do" className="shrink-0">
+        <circle cx="7" cy="7" r="6" fill="none" stroke="var(--color-ink-30)" strokeWidth="1.4" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-label="coming soon" className="shrink-0">
+      <circle
+        cx="7"
+        cy="7"
+        r="6"
+        fill="none"
+        stroke="var(--color-ink-15)"
+        strokeWidth="1.4"
+        strokeDasharray="2.4 2.4"
+      />
+    </svg>
+  );
+}
+
+function IconAlert() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M10 6.4v4.2M10 13.4v.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

@@ -24,6 +24,7 @@ export type Profile = {
   plan_status: PlanStatus;
   plan_expires_at: string | null;
   onboarded_at: string | null;
+  updated_at: string | null;
 };
 
 export type ParsedResume = {
@@ -138,4 +139,37 @@ export function profileGaps(profile: Profile | null, resume: Resume | null) {
     gaps.push({ key: "cities", label: "Add where you'd work", href: "/app/profile" });
   }
   return gaps;
+}
+
+/**
+ * How much of this person we actually know, 0–100.
+ *
+ * Weighted by what matching needs rather than by how many boxes are filled.
+ * The resume and the target role are most of the signal; a notice period
+ * changes which jobs are worth showing but not whether we can rank at all.
+ * The numbers are a judgement, not a measurement — but a stable judgement,
+ * so the bar only ever moves when the person does something.
+ */
+export function profileStrength(profile: Profile | null, resume: Resume | null): number {
+  const checks: [boolean, number][] = [
+    [Boolean(resume), 22],
+    [Boolean(resume?.parsed), 12],
+    [(resume?.skills?.length ?? 0) >= 4, 10],
+    [Boolean(profile?.target_roles?.length), 18],
+    [Boolean(profile?.preferred_cities?.length) || Boolean(profile?.open_to_remote), 14],
+    [profile?.years_experience !== null && profile?.years_experience !== undefined, 8],
+    [Boolean(profile?.expected_ctc), 8],
+    [profile?.notice_period_days !== null && profile?.notice_period_days !== undefined, 5],
+    [Boolean(profile?.full_name), 3],
+  ];
+
+  return checks.reduce((sum, [done, weight]) => sum + (done ? weight : 0), 0);
+}
+
+/** Has this person told us what they actually want yet? */
+export function hasIntent(profile: Profile | null): boolean {
+  return Boolean(
+    profile?.target_roles?.length &&
+      (profile.preferred_cities?.length || profile.open_to_remote),
+  );
 }

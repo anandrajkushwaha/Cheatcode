@@ -15,6 +15,30 @@
   --color-ink-04: #f4f4f5;
   --color-paper: #ffffff;
 
+  /* Obsidian — what the paid plan looks like.
+     Gold was the wrong instinct. In software, gold reads as a luxury-goods
+     badge or a casino chip, and next to a blue page it goes muddy mustard —
+     which is exactly how it looked. Every product people actually call
+     premium marks its top tier in near-black instead: deeper than the page,
+     not brighter than it. */
+  --color-obsidian: #10141a;
+  --color-obsidian-2: #222a35;
+  --color-obsidian-line: #2b333f;
+
+  /* Sky — the product's one colour, and it is allowed to be a colour.
+     The pale tint version failed for a simple reason: a wash so faint it
+     could be a rendering artefact reads as cheap, not restrained. Colour
+     looks expensive when it is committed to in one confident area and then
+     absent everywhere else. So the agent's panel is properly blue, with
+     white type on it, and the rest of the product stays white. */
+  --color-sky-1: #3f92f2;
+  --color-sky-2: #86c2fb;
+  --color-sky-3: #1f6fe0;
+  --color-sky-4: #0b4a93;
+
+  /* Only ever seen inside the agent's border sweep, never as a fill. */
+  --color-agent: #7c8cf0;
+
   --text-hero: clamp(2.75rem, 7.5vw, 6.5rem);
   --text-display: clamp(2rem, 5vw, 4rem);
   --text-title: clamp(1.5rem, 3vw, 2.25rem);
@@ -240,4 +264,210 @@
 .prose-admin > p:only-child:empty::before {
   content: "Start writing…";
   color: var(--color-ink-30);
+}
+
+/* ---------------------------------------------------------------
+   Signed-in app — motion.
+
+   The blog is a document and stays still. The product is a surface you
+   operate, and it has to answer three questions before you have read a
+   word: is it awake, is it working, and where do I look first. That is
+   what these do. Nothing here decorates; every animation is carrying a
+   piece of state.
+
+   All of it is monochrome, and all of it stops dead under
+   prefers-reduced-motion — the information has to survive without it.
+   --------------------------------------------------------------- */
+
+/* Loading. A pale band travelling across a grey block. Used only where
+   real content will land, never as permanent furniture. */
+@keyframes cc-shimmer {
+  from { background-position: -160% 0; }
+  to   { background-position:  260% 0; }
+}
+
+.cc-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-ink-04) 20%,
+    var(--color-ink-08) 42%,
+    var(--color-ink-04) 64%
+  );
+  background-size: 220% 100%;
+  animation: cc-shimmer 2.1s var(--ease-out-expo) infinite;
+}
+
+/* Arrival. Blocks resolve top-down so the eye is led rather than left to
+   scan. --d staggers them; keep the total under ~500ms or it reads slow. */
+@keyframes cc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cc-rise {
+  opacity: 0;
+  animation: cc-rise 0.62s var(--ease-out-expo) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+/* The agent is listening. Two counter-rotating conic sweeps under a blur,
+   which in greyscale reads as depth rather than as a spinner — a spinner
+   would promise that something finishes. */
+@keyframes cc-orbit  { to { transform: rotate(360deg); } }
+@keyframes cc-orbit-r{ to { transform: rotate(-360deg); } }
+@keyframes cc-breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%      { transform: scale(1.06); opacity: 1; }
+}
+
+.cc-orb        { animation: cc-breathe 5.5s ease-in-out infinite; }
+.cc-orb-a      { animation: cc-orbit   14s linear infinite; }
+.cc-orb-b      { animation: cc-orbit-r 22s linear infinite; }
+
+/* Typing. The caret is the tell that the sentence is being written for
+   you now, not stored and replayed. */
+@keyframes cc-caret { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+.cc-caret { animation: cc-caret 1.05s steps(1) infinite; }
+
+/* Thinking. Three dots, offset — the shortest way to say "not stuck". */
+@keyframes cc-dot { 0%, 70%, 100% { opacity: 0.22; } 35% { opacity: 1; } }
+.cc-dot { animation: cc-dot 1.25s ease-in-out infinite; }
+
+/* A chip that was just chosen. One pulse, then done. */
+@keyframes cc-pop { 0% { transform: scale(0.94); } 60% { transform: scale(1.03); } 100% { transform: none; } }
+.cc-pop { animation: cc-pop 0.3s var(--ease-out-expo); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-shimmer,
+  .cc-rise,
+  .cc-orb,
+  .cc-orb-a,
+  .cc-orb-b,
+  .cc-caret,
+  .cc-dot,
+  .cc-pop {
+    animation: none;
+  }
+  /* Without this the staggered blocks would never arrive at all. */
+  .cc-rise { opacity: 1; transform: none; }
+  .cc-shimmer { background-image: none; background-color: var(--color-ink-04); }
+}
+
+@layer utilities {
+  /* The signed-in product runs three columns; 1120 is a reading measure,
+     not a working one. */
+  .container-app {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: 1.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Signed-in app — surfaces.
+
+   Everything used to be a white box with a hairline, which is why the
+   page read as one flat sheet. These give the three columns different
+   weights: the centre is where work happens and sits slightly proud of
+   the page, the rails are quieter, and the agent gets light of its own.
+   No colour is doing the lifting — it is depth.
+   --------------------------------------------------------------- */
+
+/* Centre column. A barely-there vertical wash plus two shadows: a tight
+   one for the edge, a wide soft one for lift. */
+.cc-surface {
+  background:
+    linear-gradient(180deg, var(--color-paper) 0%, color-mix(in srgb, var(--color-ink-04) 60%, var(--color-paper)) 100%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.03),
+    0 12px 32px -18px rgb(0 0 0 / 0.10);
+}
+
+/* Rails. Recessed rather than raised — the opposite move, so the eye
+   settles in the middle without anything shouting. */
+.cc-recess {
+  background: color-mix(in srgb, var(--color-ink-04) 55%, var(--color-paper));
+}
+
+/* The agent's surface. Three soft lights off the top edge, well under the
+   threshold where anyone would call this page colourful. */
+.cc-aura {
+  /* Third attempt, and the first one that is right.
+     A solid blue block owned the whole screen and turned the agent into a
+     billboard; a pale wash was so faint it looked like a mistake. The answer
+     is neither: a white panel, a gradient hairline around it, and one soft
+     light leaking in from the top-left corner. The colour lives on the edge,
+     where it can be seen without being sat in. */
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    radial-gradient(65% 110% at 2% 0%, color-mix(in srgb, var(--color-sky-1) 14%, var(--color-paper)) 0%, var(--color-paper) 58%)
+      padding-box,
+    linear-gradient(
+      118deg,
+      color-mix(in srgb, var(--color-sky-1) 72%, transparent) 0%,
+      color-mix(in srgb, var(--color-agent) 52%, transparent) 34%,
+      color-mix(in srgb, var(--color-sky-2) 34%, transparent) 62%,
+      var(--color-ink-08) 100%
+    )
+      border-box;
+  box-shadow: 0 14px 34px -26px rgb(31 111 224 / 0.45);
+}
+
+/* ------------------------------------------------------------- the plan */
+
+/* Near-black with a cool cast, a hairline of light along the top edge, and a
+   deep shadow. It sits below the page rather than on top of it, which is the
+   whole trick: the eye reads depth as expense. */
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+  color: var(--color-paper);
+  background: linear-gradient(135deg, var(--color-obsidian-2) 0%, #161c24 52%, var(--color-obsidian) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    0 1px 2px rgb(8 12 18 / 0.30),
+    0 12px 26px -16px rgb(8 12 18 / 0.85);
+}
+
+/* One slow pass of light, every six seconds. Enough to catch the eye once. */
+.btn-premium::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.16) 50%, transparent 62%);
+  transform: translateX(-120%);
+  animation: cc-sheen 6s var(--ease-out-expo) infinite;
+}
+
+@keyframes cc-sheen {
+  0%, 72% { transform: translateX(-120%); }
+  100%    { transform: translateX(120%); }
+}
+
+.btn-premium:hover { filter: brightness(1.16); }
+.btn-premium:active { filter: brightness(0.94); }
+
+/* The panel a paid feature lives behind, and the plan card once it is bought. */
+.cc-premium-surface {
+  color: var(--color-paper);
+  background:
+    radial-gradient(110% 130% at 50% -25%, #2b3541 0%, #161c24 58%, var(--color-obsidian) 100%);
+  border-color: var(--color-obsidian-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-premium::after { animation: none; opacity: 0; }
+}
+
+/* A panel lit by the agent's colours rather than by grey. Used where a card
+   needs to feel like a header without becoming a second brand colour. */
+.cc-tint {
+  /* Quieter than the agent's panel, and it has to stay that way: when the
+     profile card was the bluest thing on the page it pulled rank on the
+     surface the page is actually about. */
+  background:
+    radial-gradient(130% 100% at 50% -30%, color-mix(in srgb, var(--color-sky-1) 22%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-sky-2) 10%, var(--color-paper)) 0%, var(--color-paper) 78%);
 }

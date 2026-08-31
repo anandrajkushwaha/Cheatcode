@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { NavLink } from "@/components/app/NavLink";
 import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/supabase/app";
 import { appAuthConfigured } from "@/lib/supabase/app-env";
@@ -60,20 +61,14 @@ APP_SUPABASE_SECRET_KEY=`}
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-ink-08 bg-paper/90 backdrop-blur-xl">
-        <div className="container-page flex h-14 items-center justify-between gap-6">
+        <div className="container-app flex h-14 items-center justify-between gap-6">
           <div className="flex items-center gap-7">
             <Link href="/app" className="text-[0.9rem] font-semibold tracking-[-0.04em]">
               Cheatcode
             </Link>
-            <nav className="hidden gap-6 sm:flex">
+            <nav className="hidden items-center gap-6 sm:flex">
               {NAV.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className="text-[0.82rem] text-ink-50 transition-colors hover:text-ink"
-                >
-                  {n.label}
-                </Link>
+                <NavLink key={n.href} href={n.href} label={n.label} />
               ))}
             </nav>
           </div>
@@ -82,7 +77,7 @@ APP_SUPABASE_SECRET_KEY=`}
             {!paid && (
               <Link
                 href="/app/upgrade"
-                className="rounded-full bg-ink px-3.5 py-1.5 text-[0.78rem] font-medium text-paper"
+                className="btn-premium rounded-full px-3.5 py-1.5 text-[0.78rem] font-semibold"
               >
                 Upgrade
               </Link>
@@ -98,22 +93,16 @@ APP_SUPABASE_SECRET_KEY=`}
           </div>
         </div>
 
-        <nav className="container-page flex gap-5 overflow-x-auto pb-3 sm:hidden">
+        <nav className="container-app flex gap-5 overflow-x-auto pb-3 sm:hidden">
           {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="whitespace-nowrap text-[0.8rem] text-ink-50"
-            >
-              {n.label}
-            </Link>
+            <NavLink key={n.href} href={n.href} label={n.label} />
           ))}
         </nav>
       </header>
 
-      <main className="container-page py-10">{children}</main>
+      <main className="container-app py-8 sm:py-10">{children}</main>
 
-      <footer className="container-page border-t border-ink-08 py-8 text-[0.78rem] text-ink-30">
+      <footer className="container-app mt-12 border-t border-ink-08 py-8 text-[0.78rem] text-ink-30">
         Signed in as {name}.{" "}
         <Link href="/" className="underline underline-offset-4 hover:text-ink">
           Back to the site
