@@ -73,7 +73,13 @@ export async function searchJobs(
     };
   }
 
-  const rows = (data ?? []) as JobRow[];
+  // Checked rather than cast. `data ?? []` covers null and nothing else, so a
+  // non-array reply — which PostgREST sends if the function's return type ever
+  // changes — sailed straight through the `as JobRow[]` and only failed later,
+  // inside whichever caller reached for .find or .map first. This is the one
+  // place that knows the answer is supposed to be a list, so it is enforced
+  // here rather than defended against in five callers.
+  const rows: JobRow[] = Array.isArray(data) ? (data as JobRow[]) : [];
   return { jobs: rows, total: Number(rows[0]?.total_count ?? 0) };
 }
 
