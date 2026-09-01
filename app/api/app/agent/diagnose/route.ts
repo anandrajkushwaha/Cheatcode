@@ -2,7 +2,7 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { provider } from "@/lib/app/llm";
 import { pinnedOpenAI, rankOpenAI } from "@/lib/app/openai-models";
 import { pinned as pinnedGemini } from "@/lib/app/gemini-models";
-import { liveProvider } from "@/lib/app/live-ticket";
+import { liveProvider, mintTicket } from "@/lib/app/live-ticket";
 import { ttsProvider } from "@/lib/app/tts";
 
 export const dynamic = "force-dynamic";
@@ -43,11 +43,32 @@ export async function GET() {
   const live = liveProvider();
   const tts = ttsProvider();
 
+  /**
+   * Actually try to mint a voice credential.
+   *
+   * Reporting which keys are set says nothing about whether a call can start,
+   * and "the mic button does nothing" was impossible to diagnose from a
+   * screenshot. This runs the real code path with the real session object and
+   * reports the provider's own words — which is the only thing that has ever
+   * settled one of these.
+   *
+   * A short instruction rather than the full one: this is a probe, and the
+   * credential is thrown away without being used.
+   */
+  const ticket = live ? await mintTicket("Diagnostic probe. Say nothing.") : null;
+
   const voice = {
     /** Who holds the spoken conversation. */
     liveConversation: live ?? "nobody — no key is set, so the mic will refuse",
     liveModelPinned:
       live === "openai" ? pinnedOpenAI("realtime") : live === "gemini" ? pinnedGemini("live") : null,
+    /** Whether a call could actually start right now. */
+    canStartACall: ticket?.ok ?? false,
+    liveModelChosen: ticket?.ok ? ticket.model : ticket?.model ?? null,
+    // The provider's verbatim refusal. This is the line to read.
+    liveError: ticket && !ticket.ok ? ticket.error : undefined,
+    liveUpstreamStatus: ticket && !ticket.ok ? ticket.upstreamStatus : undefined,
+    liveUpstreamSaid: ticket && !ticket.ok ? ticket.detail : undefined,
     /** Who says the greeting. */
     greeting: tts ?? "the browser's own voice — no key is set",
     openaiKeySet: !!process.env.OPENAI_API_KEY,

@@ -49,7 +49,23 @@ export type LiveProvider = "openai" | "gemini";
 
 export type Ticket =
   | { ok: true; provider: LiveProvider; token: string; model: string; callsUrl?: string }
-  | { ok: false; error: string; status: number };
+  | {
+      ok: false;
+      error: string;
+      status: number;
+      /**
+       * The provider's own words, verbatim.
+       *
+       * For the diagnose route only. The live-token route deliberately does
+       * not forward it — it can name the organisation, and a job seeker can
+       * do nothing with it anyway. But whoever is running the app can do
+       * everything with it, and having to read Vercel logs to find out why a
+       * mic button does nothing is a bad afternoon.
+       */
+      detail?: string;
+      upstreamStatus?: number;
+      model?: string;
+    };
 
 /** Which provider will answer, or null when neither key is set. */
 export function liveProvider(): LiveProvider | null {
@@ -74,10 +90,47 @@ export async function mintTicket(instruction: string): Promise<Ticket> {
 
 /* ---------------------------------------------------------------- openai */
 
+/**
+ * The session we would like, before the API has had an opinion about it.
+ *
+ * Built as an object rather than a string so a field the API refuses can be
+ * removed and the request tried again. Every one of these is a nicety —
+ * noise reduction, a speaking rate, who decides a turn ended — and none is
+ * worth a mic button that does nothing. The model, the instructions and the
+ * tools are not in that category, and are never dropped.
+ */
+function session(model: string, instruction: string): Record<string, unknown> {
+  return {
+    type: "realtime",
+    model,
+    instructions: instruction,
+    // Audio out. The transcript comes down the data channel alongside it, so
+    // there is no second bill and nothing to re-derive.
+    output_modalities: ["audio"],
+    audio: {
+      input: {
+        // Without this there is no record of what the person said, and the
+        // on-screen transcript would have to be guessed from audio.
+        transcription: { model: "gpt-4o-mini-transcribe" },
+        // The server decides when a turn ended. Doing that in the browser
+        // means every slow speaker gets talked over.
+        turn_detection: { type: "server_vad", create_response: true },
+        noise_reduction: { type: "near_field" },
+      },
+      output: { voice: OPENAI_VOICE, speed: 1 },
+    },
+    tools: toolsForOpenAI(TOOLS),
+    tool_choice: "auto",
+  };
+}
+
 async function openaiTicket(instruction: string): Promise<Ticket> {
   const key = process.env.OPENAI_API_KEY!;
 
-  const ask = (model: string) =>
+  let model = preferredOpenAIModel("realtime");
+  let body = session(model, instruction);
+
+  const ask = () =>
     fetch(`${OPENAI_BASE}/realtime/client_secrets`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -89,54 +142,59 @@ async function openaiTicket(instruction: string): Promise<Ticket> {
           // is worthless.
           seconds: 120,
         },
-        session: {
-          type: "realtime",
-          model,
-          instructions: instruction,
-          // Audio out. The transcript comes down the data channel alongside
-          // it, so there is no second bill and nothing to re-derive.
-          output_modalities: ["audio"],
-          audio: {
-            input: {
-              // Without this there is no record of what the person said, and
-              // the on-screen transcript would have to be guessed from audio.
-              transcription: { model: "gpt-4o-mini-transcribe" },
-              // The server decides when a turn ended. Doing that in the
-              // browser means every slow speaker gets talked over.
-              turn_detection: { type: "server_vad", create_response: true },
-              noise_reduction: { type: "near_field" },
-            },
-            output: { voice: OPENAI_VOICE, speed: 1 },
-          },
-          tools: toolsForOpenAI(TOOLS),
-          tool_choice: "auto",
-        },
+        session: body,
       }),
       signal: AbortSignal.timeout(15_000),
     });
 
-  let model = preferredOpenAIModel("realtime");
   let response: Response;
-  try {
-    response = await ask(model);
+  let lastBody = "";
+  let discovered = false;
+  let dropped = 0;
 
-    // Same lesson as everywhere else: which models a key can reach is not
-    // knowable from the documentation. On a rejection that names the model,
-    // ask the account what it has. An explicit OPENAI_REALTIME_MODEL is never
-    // second-guessed — a deliberate choice should fail loudly.
-    if (
-      !response.ok &&
-      !pinnedOpenAI("realtime") &&
-      (response.status === 404 || response.status === 400)
-    ) {
-      const body = await response.clone().text().catch(() => "");
-      if (/model/i.test(body)) {
+  try {
+    /**
+     * Up to four goes, and each one has to be earned by a specific complaint.
+     *
+     * The first version treated every 400 as "wrong model", which was both
+     * wrong and actively misleading: a rejected parameter — a turn-detection
+     * field the API has since renamed, say — came out as "no live voice model
+     * is available on this API key", and sent the debugging in exactly the
+     * wrong direction. A refusal that names a parameter is now answered by
+     * removing that parameter, and only a refusal that names the model sends
+     * us looking for a different one.
+     */
+    for (let attempt = 0; ; attempt++) {
+      response = await ask();
+      if (response.ok) break;
+
+      lastBody = await response.text().catch(() => "");
+      if (attempt >= 4) break;
+
+      const offending = unknownParameter(lastBody);
+      if (offending && dropped < 4 && remove(body, offending)) {
+        console.warn(`live-ticket: ${offending} was refused; retrying without it`);
+        dropped++;
+        continue;
+      }
+
+      if (
+        !discovered &&
+        !pinnedOpenAI("realtime") &&
+        (response.status === 404 || response.status === 400) &&
+        /\bmodel\b/i.test(lastBody)
+      ) {
+        discovered = true;
         const found = await discoverOpenAIModel(key, [model], "realtime");
         if (found && found !== model) {
           model = found;
-          response = await ask(model);
+          body = session(model, instruction);
+          dropped = 0;
+          continue;
         }
       }
+
+      break;
     }
   } catch {
     return { ok: false, error: "Could not reach the voice service.", status: 502 };
@@ -144,18 +202,19 @@ async function openaiTicket(instruction: string): Promise<Ticket> {
 
   if (!response.ok) {
     // OpenAI's error text can name the organisation; it is not for the browser.
-    console.error(
-      "live-ticket: client_secrets returned",
-      response.status,
-      (await response.text().catch(() => "")).slice(0, 600),
-    );
+    console.error("live-ticket: client_secrets returned", response.status, lastBody.slice(0, 800));
     return {
       ok: false,
       error:
-        response.status === 404 || response.status === 400
-          ? "No live voice model is available on this API key."
-          : "Could not start a voice session.",
+        response.status === 401 || response.status === 403
+          ? "Voice isn't switched on properly on this key."
+          : response.status === 429
+            ? "Voice is rate limited right now. Try again in a moment."
+            : "Voice couldn't start. The server log has the reason.",
       status: 502,
+      detail: messageOf(lastBody),
+      upstreamStatus: response.status,
+      model,
     };
   }
 
@@ -184,6 +243,85 @@ async function openaiTicket(instruction: string): Promise<Ticket> {
     model,
     callsUrl: `${OPENAI_BASE}/realtime/calls`,
   };
+}
+
+/** The provider's message, unwrapped from its envelope where there is one. */
+function messageOf(body: string): string {
+  try {
+    const j = JSON.parse(body) as { error?: { message?: string; type?: string; code?: string } };
+    return `${j.error?.type ?? j.error?.code ?? ""} ${j.error?.message ?? ""}`.trim().slice(0, 600);
+  } catch {
+    return body.slice(0, 600);
+  }
+}
+
+/**
+ * Which field the API is complaining about, if it named one.
+ *
+ * Both spellings are in the wild depending on which validator rejects the
+ * request first, and both give a dotted path from the request root.
+ */
+function unknownParameter(body: string): string | null {
+  const m =
+    body.match(/Unknown parameter: '([^']+)'/i) ??
+    body.match(/Unrecognized request argument supplied: ([A-Za-z0-9_.[\]]+)/i) ??
+    body.match(/Invalid type for '([^']+)'/i) ??
+    body.match(/Missing required parameter: '([^']+)'/i);
+  const path = m?.[1] ?? null;
+  if (!path) return null;
+
+  // Only the session's own model is off limits — deleting it would send a
+  // request with no model at all and fail differently. Any *other* path that
+  // happens to end in "model" is an ordinary field: the transcription model
+  // nested three levels down is the one that caught this out.
+  return path.replace(/^session\./, "") === "model" ? null : path;
+}
+
+/**
+ * Delete a dotted path from the session object. Returns whether it found one.
+ *
+ * Paths arrive rooted at the request (`session.audio.input.noise_reduction`),
+ * so the leading segment is stripped. Refusing to delete a top-level
+ * requirement is deliberate: without instructions or tools this is a
+ * different product, and failing loudly is better than answering as one.
+ */
+function remove(sessionBody: Record<string, unknown>, path: string): boolean {
+  const parts = path.replace(/^session\./, "").split(".");
+  if (parts.length === 1 && ["model", "type", "instructions", "tools"].includes(parts[0])) {
+    return false;
+  }
+
+  let node: Record<string, unknown> = sessionBody;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next = node[parts[i]];
+    if (!next || typeof next !== "object") return false;
+    node = next as Record<string, unknown>;
+  }
+
+  const last = parts[parts.length - 1];
+  if (!(last in node)) return false;
+  delete node[last];
+
+  // Removing the only field of an object leaves an empty one behind, and an
+  // empty `transcription: {}` is a different request from no transcription at
+  // all — one that a validator is entitled to reject on its own.
+  prune(sessionBody, parts.slice(0, -1));
+  return true;
+}
+
+/** Walk back up the path, dropping any object we have just emptied. */
+function prune(root: Record<string, unknown>, parts: string[]): void {
+  for (let depth = parts.length; depth > 0; depth--) {
+    let node: Record<string, unknown> = root;
+    for (let i = 0; i < depth - 1; i++) {
+      node = node[parts[i]] as Record<string, unknown>;
+      if (!node || typeof node !== "object") return;
+    }
+    const key = parts[depth - 1];
+    const child = node[key];
+    if (child && typeof child === "object" && Object.keys(child).length === 0) delete node[key];
+    else return;
+  }
 }
 
 /* ---------------------------------------------------------------- gemini */
@@ -240,11 +378,8 @@ async function geminiTicket(instruction: string): Promise<Ticket> {
 
   if (!response.ok) {
     // Google's error text can carry the project id; it is not for the browser.
-    console.error(
-      "live-ticket: auth_tokens returned",
-      response.status,
-      (await response.text().catch(() => "")).slice(0, 600),
-    );
+    const geminiBody = await response.text().catch(() => "");
+    console.error("live-ticket: auth_tokens returned", response.status, geminiBody.slice(0, 600));
     return {
       ok: false,
       error:
@@ -252,6 +387,9 @@ async function geminiTicket(instruction: string): Promise<Ticket> {
           ? "No live voice model is available on this API key."
           : "Could not start a voice session.",
       status: 502,
+      detail: messageOf(geminiBody),
+      upstreamStatus: response.status,
+      model,
     };
   }
 

@@ -100,12 +100,29 @@ export class OpenAITransport implements Transport {
 
     if (!res.ok) {
       // The body is OpenAI's own explanation and it is the only useful thing
-      // here. It goes to the console, not to the person.
-      console.error("live: realtime call refused", res.status, (await res.text()).slice(0, 400));
-      throw new Error(`calls ${res.status}`);
+      // here. It goes to the console in full; the person gets the status,
+      // because "could not open the voice connection" for every possible
+      // cause is what made this impossible to debug from a screenshot.
+      const body = await res.text().catch(() => "");
+      console.error("live: realtime call refused", res.status, body.slice(0, 600));
+      throw new Error(`The voice service refused the call (${res.status}).`);
     }
 
-    await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+    const answer = await res.text();
+    if (!/^v=0/.test(answer.trim())) {
+      // A 200 that is not an SDP means something in front of us answered
+      // instead — a proxy, a captive portal, an extension.
+      console.error("live: answer was not an SDP", answer.slice(0, 300));
+      throw new Error("The voice service sent something unexpected back.");
+    }
+
+    try {
+      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+    } catch (e) {
+      console.error("live: setRemoteDescription failed —", String(e).slice(0, 300));
+      throw new Error("This browser refused the voice connection.");
+    }
+
     await opened(dc, 12_000);
 
     this.startMeter();
@@ -327,14 +344,17 @@ function gathered(pc: RTCPeerConnection, timeoutMs: number): Promise<void> {
 function opened(dc: RTCDataChannel, timeoutMs: number): Promise<void> {
   if (dc.readyState === "open") return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error("data channel timeout")), timeoutMs);
+    const timer = window.setTimeout(
+      () => reject(new Error("The call connected but never opened. Check the network.")),
+      timeoutMs,
+    );
     dc.onopen = () => {
       window.clearTimeout(timer);
       resolve();
     };
     dc.onerror = () => {
       window.clearTimeout(timer);
-      reject(new Error("data channel failed"));
+      reject(new Error("The call's data channel failed to open."));
     };
   });
 }

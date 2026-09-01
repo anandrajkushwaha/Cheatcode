@@ -120,12 +120,16 @@ export class LiveSession {
     try {
       await this.transport.open();
     } catch (e) {
-      console.error("live: could not open the connection —", String(e).slice(0, 200));
+      console.error("live: could not open the connection —", String(e).slice(0, 300));
       // The transport may be half-built. Closing it is safe and skipping it
       // leaks a peer connection and a microphone for the life of the tab.
       this.transport.close();
       this.transport = null;
-      this.fail("Could not open the voice connection.");
+      // The transport's own words when it has any. One sentence covering every
+      // possible cause is exactly what made this undebuggable from a
+      // screenshot — a status code here is worth more than a tidy apology.
+      const said = e instanceof Error && /[a-z] /.test(e.message) ? e.message : null;
+      this.fail(said ?? "Could not open the voice connection.");
       return;
     }
 
