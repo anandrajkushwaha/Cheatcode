@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
+import { PixelField } from "@/components/app/PixelField";
+import { setSoundOn, soundOn, startupChime } from "@/lib/app/agent-sound";
 
 /**
  * The agent, full screen.
@@ -19,8 +21,13 @@ import type { AnimationItem, LottiePlayer } from "lottie-web";
  * Paper, not a dark room. An immersive black surface was the obvious way to
  * make a full screen feel like a different mode, and it was wrong: the brand
  * is monochrome on white everywhere else, and one screen that ignores that
- * reads as a different product. The mode change is carried by the reveal and
- * by the size of the orb instead.
+ * reads as a different product. The mode change is carried by the reveal, by
+ * the pixel field, and by the size of the orb instead.
+ *
+ * The orb is only large while the screen is still a question. Once there is a
+ * conversation, a 160px animation at the top of it is competing with the thing
+ * somebody came here to read, so it shrinks to the mark beside each answer —
+ * the same artwork, doing the job an avatar does.
  */
 
 type Turn = { role: "user" | "model"; text: string };
@@ -44,7 +51,12 @@ export function AgentOverlay({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
-  const [speakBack, setSpeakBack] = useState(true);
+  const [sound, setSound] = useState(true);
+
+  // Every increment sends a ring out through the pixel field. Sending and
+  // receiving both count: the gap between them is the part of the interaction
+  // that otherwise has nothing to show.
+  const [pulse, setPulse] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -52,33 +64,57 @@ export function AgentOverlay({
 
   /* ------------------------------------------------------------- closing */
 
+  // Only `stop` is needed here, and it is stable — depending on the whole
+  // speech object would rebuild `close` on every interim transcript.
+  const stopListening = speech.stop;
+
   const close = useCallback(() => {
-    speech.stop();
+    stopListening();
     window.speechSynthesis?.cancel();
     setClosing(true);
     // Long enough for the conceal animation; the state is thrown away after.
     window.setTimeout(onClose, 380);
-  }, [onClose, speech]);
+  }, [onClose, stopListening]);
 
+  // Escape, separately from the arrival, so a changing handler cannot restart
+  // the things below that must happen exactly once.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [close]);
 
+  /* -------------------------------------------------------------- arrival */
+
+  const arrived = useRef(false);
+
+  useEffect(() => {
     // The page behind must not scroll under a full-screen surface.
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const t = window.setTimeout(() => inputRef.current?.focus(), 420);
 
+    // Read once, on the way in. The preference lives in localStorage so
+    // somebody who turned it off does not get startled again tomorrow. The
+    // ref survives StrictMode's second mount in development, which would
+    // otherwise play the chime twice.
+    if (!arrived.current) {
+      arrived.current = true;
+      const on = soundOn();
+      setSound(on);
+      if (on) startupChime();
+      setPulse((n) => n + 1);
+    }
+
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
       window.clearTimeout(t);
       window.speechSynthesis?.cancel();
     };
-  }, [close]);
+  }, []);
 
   // Keep the newest exchange in view without yanking the page.
   useEffect(() => {
@@ -103,6 +139,7 @@ export function AgentOverlay({
     setValue("");
     setError(null);
     setBusy(true);
+    setPulse((n) => n + 1);
 
     try {
       const res = await fetch("/api/app/agent/chat", {
@@ -118,7 +155,8 @@ export function AgentOverlay({
       }
 
       setTurns([...next, { role: "model", text: json.reply }]);
-      if (speakBack) speak(json.reply);
+      setPulse((n) => n + 1);
+      if (sound) speak(json.reply);
     } catch {
       setError("Network trouble. Try again.");
     } finally {
@@ -168,6 +206,29 @@ export function AgentOverlay({
           } as React.CSSProperties
         }
       >
+        {/* The field sits behind everything and is masked out before it
+            reaches the controls. Once there is a conversation it steps back to
+            a third of its weight: a texture behind an empty screen is
+            atmosphere, the same texture behind a paragraph is noise. */}
+        <PixelField
+          className={`cc-lift transition-opacity duration-700 ${
+            turns.length > 0 ? "opacity-35" : "opacity-100"
+          }`}
+          energy={listening ? 1 : busy ? 0.62 : 0.12}
+          pulse={pulse}
+        />
+
+        {/* Once the orb has left the middle, something has to say whose screen
+            this is. */}
+        {turns.length > 0 && (
+          <div className="absolute left-5 top-5 z-10 flex items-center gap-2.5 sm:left-7 sm:top-7">
+            <OrbMark className="h-6 w-6" />
+            <span className="text-[0.78rem] font-medium tracking-[-0.01em] text-ink-50">
+              Cheatcode agent
+            </span>
+          </div>
+        )}
+
         {/* ----------------------------------------------------------- close */}
         <button
           type="button"
@@ -183,68 +244,76 @@ export function AgentOverlay({
 
         {/* ------------------------------------------------------------ body */}
         <div className="relative mx-auto flex h-full max-w-2xl flex-col px-5 sm:px-7">
-          {/* orb — centred while the screen is still a question, pinned to the
-              top once there is a conversation to read underneath it */}
-          <div
-            className={`cc-lift flex flex-col items-center ${
-              turns.length === 0 ? "flex-1 justify-center pb-4" : "shrink-0 pt-[7vh]"
-            }`}
-            style={{ "--d": "180ms" } as React.CSSProperties}
-          >
-            <BigOrb listening={listening} busy={busy} />
+          {/* The opening question. Sat high rather than centred: the field is
+              densest at the top, and the orb belongs inside it. */}
+          {turns.length === 0 && (
+            <div
+              className="cc-lift flex shrink-0 flex-col items-center pt-[13vh]"
+              style={{ "--d": "180ms" } as React.CSSProperties}
+            >
+              <BigOrb listening={listening} busy={busy} />
 
-            {turns.length === 0 && (
-              <>
-                <h2 className="mt-7 text-center text-[1.35rem] font-semibold leading-snug tracking-[-0.03em] sm:text-[1.6rem]">
-                  {listening ? "Listening…" : "What do you want to know?"}
-                </h2>
-                <p className="mt-2.5 max-w-[46ch] text-center text-[0.88rem] leading-relaxed text-ink-50">
-                  I can see your resume, your profile and every job open to you right now. Speak or
-                  type — whichever is easier.
-                </p>
+              <h2 className="mt-7 text-center text-[1.35rem] font-semibold leading-snug tracking-[-0.03em] sm:text-[1.6rem]">
+                {listening ? "Listening…" : "What do you want to know?"}
+              </h2>
+              <p className="mt-2.5 max-w-[46ch] text-center text-[0.88rem] leading-relaxed text-ink-50">
+                I can see your resume, your profile and every job open to you right now. Speak or
+                type — whichever is easier.
+              </p>
 
-                <div
-                  className="cc-lift mt-7 flex max-w-lg flex-wrap justify-center gap-2"
-                  style={{ "--d": "380ms" } as React.CSSProperties}
-                >
-                  {OPENERS.map((o) => (
-                    <button
-                      key={o}
-                      type="button"
-                      onClick={() => void send(o)}
-                      disabled={busy}
-                      className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.8rem] text-ink-50 transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
-                    >
-                      {o}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+              <div
+                className="cc-lift mt-7 flex max-w-lg flex-wrap justify-center gap-2"
+                style={{ "--d": "380ms" } as React.CSSProperties}
+              >
+                {OPENERS.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => void send(o)}
+                    disabled={busy}
+                    className="rounded-full border border-ink-15 bg-paper/70 px-3.5 py-1.5 text-[0.8rem] text-ink-50 backdrop-blur-[2px] transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* thread */}
+          {/* Holds the question block up against the field and the controls
+              down against the bottom edge. */}
+          {turns.length === 0 && <div className="flex-1" />}
+
+          {/* thread — starts below the identity mark in the corner */}
           {turns.length > 0 && (
             <div
               ref={threadRef}
-              className="mt-7 min-h-0 flex-1 space-y-5 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="mt-[4.5rem] min-h-0 flex-1 space-y-5 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {turns.map((t, i) => (
-                <div key={i} className={t.role === "user" ? "text-right" : ""}>
-                  <p
-                    className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-left text-[0.94rem] leading-relaxed ${
-                      t.role === "user" ? "bg-ink text-paper" : "bg-ink-04 text-ink"
-                    }`}
-                  >
-                    {t.text}
+              {turns.map((t, i) =>
+                t.role === "user" ? (
+                  <div key={i} className="text-right">
+                    <p className="inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink px-4 py-3 text-left text-[0.94rem] leading-relaxed text-paper">
+                      {t.text}
+                    </p>
+                  </div>
+                ) : (
+                  <div key={i} className="flex gap-3">
+                    <OrbMark className="mt-1 h-7 w-7 shrink-0" />
+                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink-04 px-4 py-3 text-[0.94rem] leading-relaxed text-ink">
+                      {t.text}
+                    </p>
+                  </div>
+                ),
+              )}
+              {busy && (
+                <div className="flex items-center gap-3">
+                  <OrbMark className="h-7 w-7 shrink-0 animate-pulse" />
+                  <p className="text-[0.9rem] text-ink-30">
+                    Thinking
+                    <Dots />
                   </p>
                 </div>
-              ))}
-              {busy && (
-                <p className="text-[0.9rem] text-ink-30">
-                  Thinking
-                  <Dots />
-                </p>
               )}
             </div>
           )}
@@ -305,18 +374,23 @@ export function AgentOverlay({
                   ? "Voice runs in your browser for now — the live call agent is being built."
                   : "Voice needs Chrome or Safari; typing works everywhere."}
               </p>
-              {speech.supported && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.speechSynthesis?.cancel();
-                    setSpeakBack((s) => !s);
-                  }}
-                  className="underline underline-offset-4 transition-colors hover:text-ink"
-                >
-                  {speakBack ? "Answers read aloud" : "Answers silent"}
-                </button>
-              )}
+              {/* One switch for everything the screen does audibly — the
+                  opening chime and the spoken answers. Two switches for a
+                  screen with one voice is a settings panel nobody asked for. */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.speechSynthesis?.cancel();
+                  setSound((s) => {
+                    setSoundOn(!s);
+                    return !s;
+                  });
+                }}
+                aria-pressed={sound}
+                className="underline underline-offset-4 transition-colors hover:text-ink"
+              >
+                {sound ? "Sound on" : "Sound off"}
+              </button>
             </div>
           </div>
         </div>
@@ -326,6 +400,27 @@ export function AgentOverlay({
 }
 
 /* ------------------------------------------------------------------- orb */
+
+/**
+ * The orb at avatar size.
+ *
+ * A painted disc rather than a third Lottie instance. The player is 1080×1080
+ * of animating SVG; one of those beside every reply in a long thread is a
+ * repaint per frame per message, and at 26px nobody can see it moving anyway.
+ * The colours are the artwork's own, sampled from its four fills.
+ */
+function OrbMark({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block rounded-full ${className ?? ""}`}
+      style={{
+        background:
+          "radial-gradient(circle at 34% 28%, #fef5bd 0%, #f8e152 30%, #ff8e3a 64%, #ff7100 100%)",
+      }}
+    />
+  );
+}
 
 /** The same artwork as the corner, at the size of a thing you talk to. */
 function BigOrb({ listening, busy }: { listening: boolean; busy: boolean }) {
@@ -360,7 +455,10 @@ function BigOrb({ listening, busy }: { listening: boolean; busy: boolean }) {
   }, []);
 
   return (
-    <span className="relative grid h-32 w-32 place-items-center sm:h-40 sm:w-40">
+    // 104px on a phone, not 128. A third of a 390px screen is a lot of orange
+    // above a question somebody is trying to read; the desktop size was picked
+    // against 1440px and carried over without being looked at again.
+    <span className="relative grid h-26 w-26 place-items-center sm:h-40 sm:w-40">
       {/* Rings only while the microphone is actually open — motion that means
           "I am hearing you" must not appear when nothing is being heard. */}
       {listening && (
@@ -505,7 +603,14 @@ function useSpeech(): SpeechState {
     setListening(false);
   }, []);
 
-  return { supported, listening, interim, final, start, stop };
+  // Memoised because callers put this object in dependency arrays. Returned
+  // as a fresh literal it changed identity on every render, which made every
+  // effect that depended on it re-run on every render — including the one
+  // that opens the surface, which then set state, which rendered again.
+  return useMemo(
+    () => ({ supported, listening, interim, final, start, stop }),
+    [supported, listening, interim, final, start, stop],
+  );
 }
 
 /** Reads an answer back. Cancels anything mid-sentence first. */
