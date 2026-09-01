@@ -12,8 +12,14 @@
  *  3. An IP allowlist in the environment. Covers every device on your
  *     network — a new phone, a browser you have never opened before,
  *     an incognito window — with nothing to set up on the device.
+ *  4. Your signed-in identity. The three above are all per-device, and the
+ *     gap they left was the obvious one: a phone on mobile data has no
+ *     cookie, no admin session, and a carrier IP that changes hourly, so
+ *     every time you checked the live site from it you were a visitor. This
+ *     one follows you rather than the machine — sign in anywhere and that
+ *     device stops being counted, permanently.
  *
- * Any one of the three is enough to drop the hit.
+ * Any one of the four is enough to drop the hit.
  */
 
 export const OWNER_COOKIE = "cc_owner";
@@ -61,4 +67,34 @@ export function isExcludedIp(request: Request): boolean {
   if (!list.length) return false;
   const ip = clientIp(request);
   return Boolean(ip && list.includes(ip));
+}
+
+/* --------------------------------------------------------------- identity */
+
+/**
+ * The people whose browsing is never counted, by email address.
+ *
+ * Set ANALYTICS_OWNER_EMAILS to a comma-separated list. The admin username is
+ * included automatically when it looks like an email, because somebody who
+ * can sign in to the admin panel is by definition not a visitor.
+ *
+ * This is what makes the phone work. Signing in on a device sets the same
+ * long-lived cookie the manual exclude URL sets, so it needs to happen once
+ * per device and then never again.
+ */
+export function ownerEmails(): string[] {
+  const listed = (process.env.ANALYTICS_OWNER_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const admin = process.env.ADMIN_USERNAME?.trim().toLowerCase();
+  if (admin?.includes("@") && !listed.includes(admin)) listed.push(admin);
+
+  return listed;
+}
+
+export function isOwnerEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ownerEmails().includes(email.trim().toLowerCase());
 }

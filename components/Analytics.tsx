@@ -21,6 +21,18 @@ export function Analytics() {
   const lastPath = useRef<string | null>(null);
   const marksHit = useRef<Set<number>>(new Set());
   const enteredAt = useRef<number>(Date.now());
+  /**
+   * Seconds already reported for the page currently open.
+   *
+   * Time on page used to be sent in full on every `visibilitychange`, and
+   * `enteredAt` was only reset on navigation — so a reader who tabbed away at
+   * one minute, four minutes and eight minutes sent 60, 240 and 480, and the
+   * dashboard summed them into thirteen minutes for a page they read for
+   * eight. On a phone, where every notification hides the tab, the number was
+   * closer to fiction than to measurement. Now each report carries only the
+   * time since the last one.
+   */
+  const reportedSeconds = useRef(0);
 
   // ---------------------------------------------------------------- page view
   useEffect(() => {
@@ -31,10 +43,11 @@ export function Analytics() {
     // the new page by now, so the old path has to be passed explicitly or the
     // reading time gets filed against the wrong article.
     if (lastPath.current) {
-      const seconds = Math.round((Date.now() - enteredAt.current) / 1000);
-      if (seconds > 1 && seconds < 3600) {
+      const total = Math.round((Date.now() - enteredAt.current) / 1000);
+      const unreported = total - reportedSeconds.current;
+      if (unreported > 1 && total < 3600) {
         track(EVENTS.TIME_ON_PAGE, {
-          value: seconds,
+          value: unreported,
           label: lastPath.current,
           path: lastPath.current,
         });
@@ -44,6 +57,7 @@ export function Analytics() {
     lastPath.current = pathname;
     marksHit.current = new Set();
     enteredAt.current = Date.now();
+    reportedSeconds.current = 0;
 
     trackPageView(pathname);
 
@@ -181,10 +195,16 @@ export function Analytics() {
   useEffect(() => {
     function onHide() {
       if (document.visibilityState !== "hidden") return;
-      const seconds = Math.round((Date.now() - enteredAt.current) / 1000);
-      if (seconds > 1 && seconds < 3600) {
+
+      // Only the stretch since the last report. Summed across a session these
+      // now add up to the time actually spent, rather than to a running total
+      // sent over and over.
+      const total = Math.round((Date.now() - enteredAt.current) / 1000);
+      const unreported = total - reportedSeconds.current;
+      if (unreported > 1 && total < 3600) {
+        reportedSeconds.current = total;
         track(EVENTS.TIME_ON_PAGE, {
-          value: seconds,
+          value: unreported,
           label: lastPath.current ?? "",
           path: lastPath.current ?? undefined,
         });

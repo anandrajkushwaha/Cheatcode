@@ -46,126 +46,25 @@ create policy "anyone can record an event"
 -- ============================================================
 -- analytics_summary — now excludes bots.
 -- ============================================================
-create or replace function public.analytics_summary(p_days int default 7)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  with win as (
-    select * from public.page_views
-     where created_at >= now() - make_interval(days => p_days)
-       and is_bot = false
-  ),
-  today as (
-    select * from public.page_views
-     where created_at >= (date_trunc('day', now() at time zone 'Asia/Kolkata')
-                          at time zone 'Asia/Kolkata')
-       and is_bot = false
-  ),
-  daily_agg as (
-    select date_trunc('day', created_at at time zone 'Asia/Kolkata') as d,
-           count(*) as views, count(distinct session_id) as visitors
-      from win group by 1
-  ),
-  pages_agg as (
-    select path, count(*) as views from win group by path order by count(*) desc limit 15
-  ),
-  sources_agg as (
-    select coalesce(source,'direct') as source, count(*) as views
-      from win group by 1 order by count(*) desc limit 12
-  ),
-  countries_agg as (
-    select coalesce(country,'unknown') as country, count(*) as views
-      from win group by 1 order by count(*) desc limit 12
-  ),
-  cities_agg as (
-    select coalesce(nullif(city,''),'unknown') as city,
-           coalesce(nullif(country,''),'')     as country,
-           count(*) as views
-      from win group by 1,2 order by count(*) desc limit 15
-  ),
-  devices_agg as (
-    select coalesce(device,'unknown') as device, count(*) as views
-      from win group by 1 order by count(*) desc
-  )
-  select jsonb_build_object(
-    'days', p_days,
-    'views',          (select count(*) from win),
-    'visitors',       (select count(distinct session_id) from win where session_id is not null),
-    'views_today',    (select count(*) from today),
-    'visitors_today', (select count(distinct session_id) from today where session_id is not null),
-    'views_all_time', (select count(*) from public.page_views where is_bot = false),
-    'bots_blocked',   (select count(*) from public.page_views
-                        where is_bot = true
-                          and created_at >= now() - make_interval(days => p_days)),
-    'daily', (select coalesce(jsonb_agg(jsonb_build_object(
-                'day', to_char(d,'YYYY-MM-DD'),'views',views,'visitors',visitors) order by d),
-                '[]'::jsonb) from daily_agg),
-    'top_pages',     (select coalesce(jsonb_agg(jsonb_build_object('path',path,'views',views)),'[]'::jsonb) from pages_agg),
-    'top_sources',   (select coalesce(jsonb_agg(jsonb_build_object('source',source,'views',views)),'[]'::jsonb) from sources_agg),
-    'top_countries', (select coalesce(jsonb_agg(jsonb_build_object('country',country,'views',views)),'[]'::jsonb) from countries_agg),
-    'top_cities',    (select coalesce(jsonb_agg(jsonb_build_object('city',city,'country',country,'views',views)),'[]'::jsonb) from cities_agg),
-    'devices',       (select coalesce(jsonb_agg(jsonb_build_object('device',device,'views',views)),'[]'::jsonb) from devices_agg)
-  );
-$$;
+-- ------------------------------------------------------------------------
+-- analytics_summary / events_summary used to be defined here.
+--
+-- They are not any more, and that is the fix for a live bug rather than
+-- tidying. 10_dashboard.sql defines these functions with a different argument
+-- list (it added a date range), and `create or replace` does not replace a
+-- function whose signature differs — it adds a second overload. So re-running
+-- this file, which says "safe to re-run" at the top, left two versions of
+-- analytics_summary in the database, and the next call from the dashboard
+-- failed with "function is not unique" and every number on every screen
+-- became a dash.
+--
+-- The definitions now live in 10_dashboard.sql only. Run that after this.
+-- ------------------------------------------------------------------------
 
-revoke all on function public.analytics_summary(int) from public, anon, authenticated;
+
 
 
 -- ============================================================
 -- events_summary — counts by event, plus the funnel and top CTAs.
 -- ============================================================
-create or replace function public.events_summary(p_days int default 7)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  with win as (
-    select * from public.page_events
-     where created_at >= now() - make_interval(days => p_days)
-       and is_bot = false
-  ),
-  by_event as (
-    select event, count(*) as n, count(distinct session_id) as sessions
-      from win group by event order by count(*) desc limit 30
-  ),
-  by_cta as (
-    select coalesce(nullif(location,''),'unknown') as location,
-           coalesce(nullif(label,''),'')           as label,
-           count(*) as n
-      from win where event = 'cta_click'
-     group by 1,2 order by count(*) desc limit 15
-  ),
-  outbound as (
-    select coalesce(label,'') as label, count(*) as n
-      from win where event = 'outbound_click'
-     group by 1 order by count(*) desc limit 10
-  )
-  select jsonb_build_object(
-    'days', p_days,
-    'total', (select count(*) from win),
-    'bots_blocked', (select count(*) from public.page_events
-                      where is_bot = true and created_at >= now() - make_interval(days => p_days)),
-    'by_event', (select coalesce(jsonb_agg(jsonb_build_object(
-                   'event',event,'count',n,'sessions',sessions)),'[]'::jsonb) from by_event),
-    'top_ctas', (select coalesce(jsonb_agg(jsonb_build_object(
-                   'location',location,'label',label,'count',n)),'[]'::jsonb) from by_cta),
-    'outbound', (select coalesce(jsonb_agg(jsonb_build_object(
-                   'label',label,'count',n)),'[]'::jsonb) from outbound),
-    'funnel', jsonb_build_object(
-      'sessions',        (select count(distinct session_id) from win),
-      'cta_view',        (select count(distinct session_id) from win where event = 'cta_view'),
-      'cta_click',       (select count(distinct session_id) from win where event = 'cta_click'),
-      'waitlist_start',  (select count(distinct session_id) from win where event = 'waitlist_start'),
-      'waitlist_submit', (select count(distinct session_id) from win where event = 'waitlist_submit'),
-      'waitlist_success',(select count(distinct session_id) from win where event = 'waitlist_success'),
-      'tool_compute',    (select count(distinct session_id) from win where event = 'tool_compute')
-    )
-  );
-$$;
 
-revoke all on function public.events_summary(int) from public, anon, authenticated;

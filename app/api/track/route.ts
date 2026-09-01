@@ -7,22 +7,42 @@ import { OWNER_COOKIE, isExcludedIp } from "@/lib/analytics/owner";
 export const dynamic = "force-dynamic";
 
 /** Map a referrer host to a readable source bucket. */
+/**
+ * Which site sent them.
+ *
+ * Matched on the domain, not on a substring of it. The previous version asked
+ * whether the host `includes("x.com")`, which is true of netflix.com, and
+ * `includes("google")` , which is true of notgoogle.com — so a slice of the
+ * referral traffic was filed under Twitter and Google purely by spelling. The
+ * fix is to compare the registrable domain and its subdomains, nothing else.
+ */
+const SOURCES: [string, string[]][] = [
+  ["google", ["google.com", "google.co.in", "googleusercontent.com"]],
+  ["bing", ["bing.com"]],
+  ["duckduckgo", ["duckduckgo.com"]],
+  ["linkedin", ["linkedin.com", "lnkd.in"]],
+  ["instagram", ["instagram.com"]],
+  ["facebook", ["facebook.com", "fb.com", "fb.me", "m.facebook.com"]],
+  ["x", ["x.com", "twitter.com", "t.co"]],
+  ["reddit", ["reddit.com", "redd.it"]],
+  ["whatsapp", ["whatsapp.com", "wa.me"]],
+  ["youtube", ["youtube.com", "youtu.be"]],
+  ["quora", ["quora.com"]],
+  ["telegram", ["telegram.org", "t.me"]],
+  ["internal", ["cheatcodeapp.com"]],
+];
+
+/** True when `host` is the domain itself or a subdomain of it. */
+function isDomain(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 function sourceOf(host: string | null): string {
   if (!host) return "direct";
   const h = host.toLowerCase().replace(/^www\./, "");
-  if (h.includes("google")) return "google";
-  if (h.includes("bing")) return "bing";
-  if (h.includes("duckduckgo")) return "duckduckgo";
-  if (h.includes("linkedin") || h === "lnkd.in") return "linkedin";
-  if (h.includes("instagram")) return "instagram";
-  if (h.includes("facebook") || h === "fb.com") return "facebook";
-  if (h.includes("x.com") || h.includes("twitter") || h === "t.co") return "x";
-  if (h.includes("reddit")) return "reddit";
-  if (h.includes("whatsapp") || h === "wa.me") return "whatsapp";
-  if (h.includes("youtube")) return "youtube";
-  if (h.includes("quora")) return "quora";
-  if (h.includes("telegram") || h === "t.me") return "telegram";
-  if (h.includes("cheatcodeapp.com")) return "internal";
+  for (const [name, domains] of SOURCES) {
+    if (domains.some((d) => isDomain(h, d))) return name;
+  }
   return h;
 }
 
@@ -93,6 +113,14 @@ export async function POST(request: Request) {
 
   // Admin pages are never part of site analytics.
   if (path.startsWith("/admin")) return ok();
+
+  // Neither is the signed-in product. The Analytics component lives in the
+  // root layout, so /app pages were being counted as website traffic — and a
+  // single person clicking around the agent for thirty screens read as a
+  // spectacular blog session. Worse, the Content screen filters these out
+  // while the Traffic screen did not, so the two dashboards disagreed with
+  // each other. What happens inside the app belongs to the app's own tables.
+  if (path === "/app" || path.startsWith("/app/")) return ok();
 
   // Neither is anything you do yourself. Three independent ways to be
   // recognised as the owner, because each covers a case the others miss:

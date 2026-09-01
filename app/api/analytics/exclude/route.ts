@@ -34,12 +34,17 @@ export async function GET(request: Request) {
  * list that every admin query filters against, so the weeks of your own
  * browsing already in the table disappear from the panel as well.
  *
- * Requires an admin session — it writes to the database, so it is not
- * something an anonymous visitor should be able to fill up.
+ * Two ways to be allowed in. An admin session is one. The owner cookie is the
+ * other, and it exists because the device that most needed this — a phone —
+ * is the device you are least likely to be logged into the admin panel on.
+ * The worst an unauthorised caller can do is hide their own traffic from our
+ * statistics, which is not a threat worth locking the phone out for.
  */
 export async function POST(request: Request) {
   const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) {
+  const allowed =
+    verifySessionToken(store.get(ADMIN_COOKIE)?.value) || store.get(OWNER_COOKIE)?.value === "1";
+  if (!allowed) {
     return Response.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
 
@@ -105,9 +110,35 @@ function page(on: boolean) {
 <body><main>
   <h1>${title}</h1>
   <p>${body}</p>
+  <p id="past" style="font-size:.82rem"></p>
   <a href="${SITE.url}">Back to the site</a>
   <a class="alt" href="/api/analytics/exclude?on=${on ? "0" : "1"}">${
     on ? "Actually, count this device" : "Stop counting this device"
   }</a>
-</main></body></html>`;
+</main>
+<script>
+// The cookie stops new rows; this clears what this browser already logged.
+// The id lives in localStorage, which the server cannot read, so the page
+// has to hand it over. Without this step the weeks of your own browsing
+// already in the table stay in the numbers forever.
+(function () {
+  var on = ${on ? "true" : "false"};
+  var note = document.getElementById("past");
+  try {
+    var id = localStorage.getItem("cc_vid");
+    if (!id) { note.textContent = "This browser had not been counted yet, so there is no history to remove."; return; }
+    fetch("/api/analytics/exclude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: id, remove: !on, note: "self-excluded device" })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      note.textContent = j && j.ok
+        ? (on ? "Everything this browser did before now has been removed from the numbers too."
+              : "Its past activity is back in the numbers.")
+        : "";
+    }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
+</body></html>`;
 }

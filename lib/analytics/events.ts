@@ -84,14 +84,35 @@ function visitorId() {
   }
 }
 
+/**
+ * A visit, not a browser tab.
+ *
+ * This used to live in sessionStorage, which is per-tab and never expires.
+ * Opening three tabs counted as three sessions and each single-page tab
+ * counted as a bounce; a tab left open for a week counted as one visit
+ * spanning seven days. Neither number meant what the dashboard called it.
+ *
+ * localStorage plus an inactivity window is the ordinary definition of a
+ * session and the one every analytics product uses: the same visit continues
+ * across tabs, and goes quiet after half an hour of nothing.
+ */
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+
 function sessionId() {
   try {
     const KEY = "cc_sid";
-    let id = sessionStorage.getItem(KEY);
-    if (!id) {
-      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      sessionStorage.setItem(KEY, id);
+    const SEEN = "cc_sid_at";
+    const now = Date.now();
+    const lastSeen = Number(localStorage.getItem(SEEN) ?? 0);
+
+    let id = localStorage.getItem(KEY);
+    if (!id || !lastSeen || now - lastSeen > SESSION_IDLE_MS) {
+      id = Math.random().toString(36).slice(2) + now.toString(36);
+      localStorage.setItem(KEY, id);
     }
+    // Every hit pushes the window out, so a session ends after half an hour
+    // of silence rather than at a fixed length.
+    localStorage.setItem(SEEN, String(now));
     return id;
   } catch {
     return null;
