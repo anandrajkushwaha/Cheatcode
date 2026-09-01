@@ -16,6 +16,16 @@ import { createAppAdminClient } from "@/lib/supabase/app";
  */
 
 export type Allowance = {
+  /**
+   * False when the database could not answer at all.
+   *
+   * Distinguished from "you have none left" because the two need completely
+   * different sentences. The first version collapsed them, so an account that
+   * had never sent a message was told it had used its ten for the day — which
+   * is not a limit, it is the meter itself being missing, and blaming the
+   * person for our deployment is the worst kind of error message.
+   */
+  configured: boolean;
   paid: boolean;
   /** Text messages left today. */
   messagesLeft: number;
@@ -28,11 +38,26 @@ export type Allowance = {
 /** Below this a call is not worth starting; it would end mid-sentence. */
 export const MIN_VOICE_SECONDS = 30;
 
-const FALLBACK: Allowance = {
-  paid: false,
-  messagesLeft: 0,
-  voiceLeft: 0,
-  voiceIsTrial: true,
+/**
+ * No meter. What that means depends on where we are running.
+ *
+ * In production it fails closed: an unmetered model is an open tab, and the
+ * schema not being deployed is our problem, not a reason to give it away.
+ *
+ * On a development machine it fails open, because the alternative is that
+ * nobody can try the agent locally until they have run a migration against a
+ * shared database — which turns a two-minute test into a chore and, worse,
+ * makes "you've used your ten free messages" the first thing a developer sees
+ * on a fresh checkout. The log line says exactly what to run.
+ */
+const DEV = process.env.NODE_ENV !== "production";
+
+const UNCONFIGURED: Allowance = {
+  configured: false,
+  paid: DEV,
+  messagesLeft: DEV ? 999 : 0,
+  voiceLeft: DEV ? 600 : 0,
+  voiceIsTrial: !DEV,
 };
 
 type Raw = {
@@ -47,6 +72,7 @@ function read(data: unknown): Allowance | null {
   const r = data as Raw;
   if (typeof r.messages_left !== "number" || typeof r.voice_left !== "number") return null;
   return {
+    configured: true,
     paid: !!r.paid,
     messagesLeft: r.messages_left,
     voiceLeft: r.voice_left,
@@ -63,14 +89,18 @@ function read(data: unknown): Allowance | null {
  */
 export async function getAllowance(userId: string): Promise<Allowance> {
   const db = createAppAdminClient();
-  if (!db) return FALLBACK;
+  if (!db) return UNCONFIGURED;
 
   const { data, error } = await db.rpc("agent_allowance", { p_user: userId });
   if (error) {
-    console.error("allowance: agent_allowance failed —", error.message);
-    return FALLBACK;
+    console.error(
+      "allowance: agent_allowance failed —",
+      error.message,
+      "— run supabase/schemas/42_agent_limits.sql",
+    );
+    return UNCONFIGURED;
   }
-  return read(data) ?? FALLBACK;
+  return read(data) ?? UNCONFIGURED;
 }
 
 /** Record usage and return what remains. */
@@ -79,7 +109,7 @@ export async function spend(
   used: { messages?: number; seconds?: number },
 ): Promise<Allowance> {
   const db = createAppAdminClient();
-  if (!db) return FALLBACK;
+  if (!db) return UNCONFIGURED;
 
   const { data, error } = await db.rpc("agent_spend", {
     p_user: userId,
@@ -93,21 +123,33 @@ export async function spend(
 
   if (error) {
     console.error("allowance: agent_spend failed —", error.message);
-    return FALLBACK;
+    return UNCONFIGURED;
   }
-  return read(data) ?? FALLBACK;
+  return read(data) ?? UNCONFIGURED;
 }
 
 /* ------------------------------------------------------------------ words */
 
 /** What to tell somebody who has run out. Never a number without a next step. */
-export function outOfMessages(paid: boolean): string {
-  return paid
+export function outOfMessages(a: Allowance): string {
+  if (!a.configured) return NOT_SET_UP;
+  return a.paid
     ? "That's today's messages. They reset at midnight."
     : "That's your ten free messages for today. Pro is unlimited — and the agent can talk.";
 }
 
+/**
+ * Said when the meter is missing rather than empty.
+ *
+ * Deliberately not "something went wrong": whoever sees this on a live site
+ * is usually the person who can fix it, and naming the file is the whole
+ * difference between a shrug and a two-minute fix.
+ */
+export const NOT_SET_UP =
+  "The agent isn't set up on this server yet — its limits table is missing.";
+
 export function outOfVoice(a: Allowance): string {
+  if (!a.configured) return NOT_SET_UP;
   if (!a.paid) {
     return a.voiceLeft === 0 && a.voiceIsTrial
       ? "Your free voice trial is used up. Pro gets you ten minutes a day."

@@ -62,8 +62,10 @@ export async function POST(request: Request) {
   // for a message the person never gets to read.
   const allowance = await getAllowance(user.id);
   if (allowance.messagesLeft <= 0) {
-    return bad(outOfMessages(allowance.paid), 402, {
-      upgrade: !allowance.paid,
+    return bad(outOfMessages(allowance), allowance.configured ? 402 : 503, {
+      // Not a paywall when the meter is simply absent — offering an upgrade
+      // for our own missing migration would be worse than saying nothing.
+      upgrade: allowance.configured && !allowance.paid,
       messagesLeft: 0,
     });
   }

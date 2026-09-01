@@ -79,6 +79,86 @@ export function setSoundOn(on: boolean): void {
   }
 }
 
+/**
+ * Say something aloud.
+ *
+ * Two voices, in order of preference. ElevenLabs is what the product should
+ * sound like; the browser's own speechSynthesis is what it falls back to when
+ * the key is missing, the quota is gone, or the network is having a bad day.
+ *
+ * The fallback is not a nicety. A greeting is the first thing anybody hears,
+ * and silence at that moment reads as broken in a way that a slightly robotic
+ * voice does not — so this never returns without having tried to make a
+ * sound.
+ */
+let current: HTMLAudioElement | null = null;
+
+export async function say(text: string): Promise<void> {
+  if (typeof window === "undefined" || !soundOn()) return;
+  hush();
+
+  try {
+    const res = await fetch("/api/app/agent/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    if (res.ok && res.headers.get("Content-Type")?.startsWith("audio/")) {
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      current = audio;
+      // Revoked on both paths: a blob URL that is never released holds the
+      // whole file in memory for the life of the tab.
+      const done = () => URL.revokeObjectURL(url);
+      audio.onended = done;
+      audio.onerror = done;
+      await audio.play();
+      return;
+    }
+  } catch {
+    /* Fall through to the browser's voice. */
+  }
+
+  browserSay(text);
+}
+
+/**
+ * The fallback voice.
+ *
+ * en-IN so Indian names and "lakh" come out the way people say them, and a
+ * fraction under normal speed because a greeting that gabbles reads as
+ * nervous.
+ */
+function browserSay(text: string): void {
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text.slice(0, 400));
+  u.lang = "en-IN";
+  u.rate = 0.98;
+  u.pitch = 1;
+
+  // Chrome loads voices asynchronously, so this is best-effort rather than
+  // awaited — a greeting that waits for a voice list is one nobody hears.
+  const voice = synth.getVoices().find((v) => v.lang === "en-IN");
+  if (voice) u.voice = voice;
+
+  synth.speak(u);
+}
+
+/** Stop anything mid-sentence. Called when a real conversation starts. */
+export function hush(): void {
+  if (typeof window === "undefined") return;
+  window.speechSynthesis?.cancel();
+  if (current) {
+    current.pause();
+    current.src = "";
+    current = null;
+  }
+}
+
 /** Plays once, when the surface opens. */
 export function startupChime(volume = 0.09): void {
   const ac = audio();

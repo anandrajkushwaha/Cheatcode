@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
-import { soundOn, startupChime } from "@/lib/app/agent-sound";
+import { hush, say, soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
 import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
 
@@ -62,6 +62,8 @@ export function AgentOverlay({
   const [messagesLeft, setMessagesLeft] = useState<number | null>(null);
   const [voiceLeft, setVoiceLeft] = useState<number | null>(null);
   const [upgrade, setUpgrade] = useState(false);
+  /** The greeting, on screen. Replaces the stock question once it arrives. */
+  const [heading, setHeading] = useState("What do you want to know?");
   const [pulse, setPulse] = useState(0);
 
   /* ------------------------------------------------------------ the call */
@@ -160,11 +162,27 @@ export function AgentOverlay({
       arrived.current = true;
       if (soundOn()) startupChime();
       setPulse((n) => n + 1);
+
+      // The greeting speaks after the chime rather than over it. It does not
+      // become a message: putting it in the thread turned this screen into a
+      // conversation before anybody had said anything, and took the orb with
+      // it. The heading carries the name; the voice carries what it can do.
+      void fetch("/api/app/agent/hello")
+        .then((r) => r.json())
+        .then((j: { ok?: boolean; heading?: string; spoken?: string }) => {
+          if (!j.ok) return;
+          if (j.heading) setHeading(j.heading);
+          if (j.spoken) window.setTimeout(() => void say(j.spoken!), 900);
+        })
+        .catch(() => {
+          /* A silent agent is still a usable one. */
+        });
     }
 
     return () => {
       document.body.style.overflow = previous;
       window.clearTimeout(t);
+      hush();
       session.current?.stop();
     };
   }, []);
@@ -182,6 +200,9 @@ export function AgentOverlay({
       return;
     }
     setError(null);
+    // The greeting is still being read when somebody presses the mic. Two
+    // voices at once is the single most confusing thing a voice product does.
+    hush();
 
     const live = new LiveSession({
       onState: setLiveState,
@@ -250,6 +271,7 @@ export function AgentOverlay({
   async function send(text: string) {
     const message = text.trim();
     if (!message || busy) return;
+    hush();
 
     // Typing while on a call is still the call — the answer comes back spoken.
     if (session.current?.live) {
@@ -419,7 +441,7 @@ export function AgentOverlay({
               <BigOrb listening={listening} busy={busy || connecting} level={level} />
 
               <h2 className="mt-7 text-center text-[1.35rem] font-semibold leading-snug tracking-[-0.03em] sm:text-[1.6rem]">
-                {connecting ? "Connecting…" : listening ? "Go ahead" : "What do you want to know?"}
+                {connecting ? "Connecting…" : listening ? "Go ahead" : heading}
               </h2>
               <p className="mt-2.5 max-w-[46ch] text-center text-[0.88rem] leading-relaxed text-ink-50">
                 {listening
