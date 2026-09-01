@@ -4,12 +4,29 @@
  * Synthesised rather than an audio file, for two reasons. A 40KB mp3 for
  * three-quarters of a second is a network request in the exact moment the
  * screen is supposed to feel instant, and a file cannot be tuned once it
- * ships — this is three numbers and a curve, and the curve is the design.
+ * ships — this is a handful of numbers and a curve, and the curve is the
+ * design.
  *
- * What it is: a rising fifth-and-octave with a lowpass opening underneath it,
- * over a short breath of filtered noise. The filter sweep is what makes it
- * read as something switching on rather than as a notification; the noise is
- * what stops the three tones sounding like three beeps.
+ * What it is: a rising fifth and octave with a lowpass opening underneath
+ * them, over a breath of filtered air. The filter sweep is what makes it read
+ * as something switching on rather than as a notification; the air is what
+ * stops three tones sounding like three beeps.
+ *
+ * It broke up on real hardware once, and the digital signal was innocent —
+ * rendered offline it had no clipping and no discontinuity at all. Three
+ * things outside the samples were doing it, and all three are fixed here:
+ *
+ *   1. It was scheduled 20ms out from a context created in the same tick.
+ *      That lands inside the render quantum that is already being filled, so
+ *      the opening ramp gets truncated into a step. `primeAudio()` now builds
+ *      the context on the press that opens the screen, and the chime is
+ *      scheduled a comfortable 90ms out.
+ *   2. Its fundamental was 392Hz. Phone speakers have nothing below roughly
+ *      500Hz but excursion and distortion, so the loudest partial was the one
+ *      the hardware could least reproduce. The notes moved up and a highpass
+ *      takes the bottom off what is left.
+ *   3. The bed was full-scale white noise through a bandpass, which is hiss.
+ *      It is lowpassed air now, quieter, and fades in over four times as long.
  *
  * Browsers will not start audio without a gesture. That is fine here — the
  * only way to reach this screen is by pressing the orb.
@@ -28,6 +45,19 @@ function audio(): AudioContext | null {
   if (!ctx) ctx = new AC();
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
+}
+
+/**
+ * Build the audio context now, before it is needed.
+ *
+ * Called from the press that opens the agent, which is a few hundred
+ * milliseconds before the chime is scheduled. A context that is already
+ * running by then does not have to start its first buffer while the main
+ * thread is busy mounting two Lottie players and starting a canvas loop —
+ * which is what a dropout sounds like.
+ */
+export function primeAudio(): void {
+  if (soundOn()) audio();
 }
 
 /** Whether this person wants the agent to make noise. Default yes. */
@@ -50,82 +80,112 @@ export function setSoundOn(on: boolean): void {
 }
 
 /** Plays once, when the surface opens. */
-export function startupChime(volume = 0.075): void {
+export function startupChime(volume = 0.09): void {
   const ac = audio();
   if (!ac) return;
-  buildChime(ac, ac.destination, ac.currentTime + 0.02, volume);
+  buildChime(ac, ac.destination, ac.currentTime + 0.09, volume);
 }
 
 /**
  * The graph itself, against any context.
  *
  * Split out from `startupChime` so it can be rendered into an
- * OfflineAudioContext and measured — a sound that is silent because a gain
- * ramp hits zero is a bug you cannot see in a screenshot, and there is no
- * other way to check it.
+ * OfflineAudioContext and measured — clipping, discontinuities and the amount
+ * of energy sitting below what a phone speaker can reproduce are all things
+ * you cannot see in a screenshot and cannot trust an ear to catch at this
+ * volume.
  */
 export function buildChime(
   ac: BaseAudioContext,
   out: AudioNode,
   t0: number,
-  volume = 0.075,
+  volume = 0.09,
 ): void {
+  const END = t0 + 1.85;
+
+  // Master, with its own fade at both ends. Every envelope inside decays to a
+  // small positive number rather than zero — exponential ramps cannot reach
+  // zero — and this is what actually takes it the last of the way, so nothing
+  // can leave a step behind when its source node stops.
   const master = ac.createGain();
-  master.gain.value = volume;
+  master.gain.setValueAtTime(0, t0);
+  master.gain.linearRampToValueAtTime(volume, t0 + 0.012);
+  master.gain.setValueAtTime(volume, END - 0.25);
+  master.gain.linearRampToValueAtTime(0, END);
   master.connect(out);
 
-  // The switching-on part. Everything tonal goes through this.
+  // Nothing below here is reproduced by a laptop or phone speaker; it is only
+  // excursion, and excursion is the sound of something breaking up.
+  const hp = ac.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 240;
+  hp.Q.value = 0.5;
+  hp.connect(master);
+
+  // The switching-on part. Everything goes through this.
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass";
-  lp.Q.value = 0.7;
-  lp.frequency.setValueAtTime(420, t0);
-  lp.frequency.exponentialRampToValueAtTime(5200, t0 + 0.5);
-  lp.connect(master);
+  lp.Q.value = 0.6;
+  lp.frequency.setValueAtTime(520, t0);
+  lp.frequency.exponentialRampToValueAtTime(4800, t0 + 0.55);
+  lp.connect(hp);
 
-  // G4, D5, A5 — stacked fifths, which sit together without implying a key.
-  [392.0, 587.33, 880.0].forEach((f, i) => {
-    const at = t0 + i * 0.085;
+  // A4, E5, A5 — a fifth and an octave, which sit together without implying a
+  // key. Sines throughout: a triangle on top added harmonics up past 8kHz for
+  // sparkle nobody asked for and grit everybody heard.
+  [440.0, 659.25, 880.0].forEach((f, i) => {
+    const at = t0 + i * 0.09;
     const osc = ac.createOscillator();
-    osc.type = i === 2 ? "triangle" : "sine";
+    osc.type = "sine";
     // Each note slides the last few cents into place rather than starting on
     // it. This is most of what separates "alive" from "MIDI".
-    osc.frequency.setValueAtTime(f * 0.994, at);
-    osc.frequency.exponentialRampToValueAtTime(f, at + 0.2);
+    osc.frequency.setValueAtTime(f * 0.995, at);
+    osc.frequency.exponentialRampToValueAtTime(f, at + 0.22);
 
     const g = ac.createGain();
     g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(0.9 - i * 0.24, at + 0.04);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 1.15);
+    // 55ms rather than 40. The three partials sum coherently at onset, and a
+    // faster attack on that sum is a transient with nowhere to go.
+    g.gain.exponentialRampToValueAtTime(0.62 - i * 0.14, at + 0.055);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 1.35);
 
     osc.connect(g);
     g.connect(lp);
     osc.start(at);
-    osc.stop(at + 1.25);
+    osc.stop(END);
   });
 
-  // The breath underneath.
-  const len = Math.floor(ac.sampleRate * 0.75);
+  // The breath underneath: air rather than hiss.
+  const len = Math.floor(ac.sampleRate * 1.1);
   const buffer = ac.createBuffer(1, len, ac.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  // Brown-ish rather than white — integrated and re-scaled, so the energy sits
+  // low-mid where the tones are instead of on top of them.
+  let run = 0;
+  for (let i = 0; i < len; i++) {
+    run = (run + (Math.random() * 2 - 1) * 0.06) * 0.985;
+    data[i] = run * 6;
+  }
 
   const noise = ac.createBufferSource();
   noise.buffer = buffer;
 
-  const bp = ac.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.Q.value = 0.8;
-  bp.frequency.setValueAtTime(700, t0);
-  bp.frequency.exponentialRampToValueAtTime(2600, t0 + 0.45);
+  const air = ac.createBiquadFilter();
+  air.type = "lowpass";
+  air.Q.value = 0.4;
+  air.frequency.setValueAtTime(900, t0);
+  air.frequency.exponentialRampToValueAtTime(3200, t0 + 0.6);
 
   const ng = ac.createGain();
   ng.gain.setValueAtTime(0.0001, t0);
-  ng.gain.exponentialRampToValueAtTime(0.2, t0 + 0.14);
-  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.75);
+  // 0.32s to arrive, where it used to be 0.14. A fast attack on noise is a
+  // click dressed up as a breath.
+  ng.gain.exponentialRampToValueAtTime(0.1, t0 + 0.32);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.05);
 
-  noise.connect(bp);
-  bp.connect(ng);
-  ng.connect(master);
+  noise.connect(air);
+  air.connect(ng);
+  ng.connect(lp);
   noise.start(t0);
-  noise.stop(t0 + 0.78);
+  noise.stop(END);
 }

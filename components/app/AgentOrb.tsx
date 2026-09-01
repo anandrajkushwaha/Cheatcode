@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { AgentOverlay } from "@/components/app/AgentOverlay";
+import { primeAudio } from "@/lib/app/agent-sound";
 
 /**
  * The agent, as a thing in the corner.
@@ -96,6 +97,14 @@ export function AgentOrb() {
         ref={button}
         type="button"
         onClick={() => {
+          // Start the audio context here rather than letting the overlay do
+          // it on mount. This press is the gesture the browser wants, and it
+          // buys the context a few hundred milliseconds to be running before
+          // anything is scheduled into it — otherwise its first buffer is
+          // filled while the main thread is mounting two Lottie players and
+          // starting a canvas loop, and the chime arrives with a hole in it.
+          primeAudio();
+
           const r = button.current?.getBoundingClientRect();
           setOrigin(
             r
