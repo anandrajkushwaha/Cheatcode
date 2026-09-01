@@ -1,5 +1,6 @@
-import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
-import { getProfile, getPrimaryResume, isPaid } from "@/lib/app/account";
+import { getSessionUser } from "@/lib/supabase/app";
+import { getProfile, getPrimaryResume } from "@/lib/app/account";
+import { getAllowance, outOfVoice, MIN_VOICE_SECONDS } from "@/lib/app/allowance";
 import { searchJobs } from "@/lib/jobs/query";
 import { systemInstruction, TOOLS } from "@/lib/app/agent-brain";
 import { discoverModel, pinned, preferredModel, rememberModel } from "@/lib/app/gemini-models";
@@ -31,9 +32,6 @@ const AUTH_ENDPOINT =
   (process.env.GEMINI_API_BASE ?? "https://generativelanguage.googleapis.com/v1beta/models")
     .replace(/\/models$/, "") + "/auth_tokens";
 
-/** Below this there is no point starting; the session would end mid-sentence. */
-const MIN_SECONDS = 30;
-
 const bad = (error: string, status = 400, extra: Record<string, unknown> = {}) =>
   Response.json({ ok: false, error, ...extra }, { status });
 
@@ -44,28 +42,23 @@ export async function POST() {
   const user = await getSessionUser();
   if (!user) return bad("Not signed in", 401);
 
-  const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+  const [profile, resume, allowance] = await Promise.all([
+    getProfile(),
+    getPrimaryResume(),
+    getAllowance(user.id),
+  ]);
 
-  if (!isPaid(profile)) {
-    return bad("Live voice is part of Pro.", 402, { upgrade: true });
-  }
-
-  // How much talking is left today. Read through the admin client because the
-  // function is security definer and not granted to the browser's role.
-  const db = createAppAdminClient();
-  if (!db) return bad("Voice isn't configured on the server.", 503);
-
-  const { data: remainingRaw } = (await db.rpc("agent_voice_remaining", {
-    p_user: user.id,
-  })) as unknown as { data: number | null };
-
-  const remaining = typeof remainingRaw === "number" ? remainingRaw : 0;
-  if (remaining < MIN_SECONDS) {
-    return bad("You've used today's voice minutes. Typing still works.", 429, {
+  // One gate for both questions. A free account is not refused because it is
+  // free — it is refused when its trial is spent, which is a different
+  // sentence and a much better one to read the first time you press the mic.
+  if (allowance.voiceLeft < MIN_VOICE_SECONDS) {
+    return bad(outOfVoice(allowance), 402, {
+      upgrade: !allowance.paid,
       remaining: 0,
-      resetsAt: "midnight IST",
     });
   }
+
+  const remaining = allowance.voiceLeft;
 
   // The same jobs the Jobs page would show them, so the agent never talks
   // about a role they cannot then go and find.
@@ -150,6 +143,8 @@ export async function POST() {
     // So the client can show "7 minutes left" and stop itself before the
     // server has to.
     remaining,
+    paid: allowance.paid,
+    trial: allowance.voiceIsTrial,
     // Enough of the job list to render a card the moment the model names one,
     // without a second round trip mid-conversation.
     jobs: jobs.map((j) => ({

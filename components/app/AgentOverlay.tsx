@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
-import { setSoundOn, soundOn, startupChime } from "@/lib/app/agent-sound";
+import { soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
 import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
 
@@ -58,7 +58,10 @@ export function AgentOverlay({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
-  const [sound, setSound] = useState(true);
+  /** What is left, as the server last reported it. Null until it says. */
+  const [messagesLeft, setMessagesLeft] = useState<number | null>(null);
+  const [voiceLeft, setVoiceLeft] = useState<number | null>(null);
+  const [upgrade, setUpgrade] = useState(false);
   const [pulse, setPulse] = useState(0);
 
   /* ------------------------------------------------------------ the call */
@@ -155,9 +158,7 @@ export function AgentOverlay({
     // otherwise play the chime twice.
     if (!arrived.current) {
       arrived.current = true;
-      const on = soundOn();
-      setSound(on);
-      if (on) startupChime();
+      if (soundOn()) startupChime();
       setPulse((n) => n + 1);
     }
 
@@ -226,11 +227,17 @@ export function AgentOverlay({
       onEnded: (seconds) => {
         setLevel(0);
         keep([], { seconds, ended: true, channel: "voice" });
+        // Optimistic, so the number on screen does not lag a whole session
+        // behind. The server's answer overwrites it on the next request.
+        setVoiceLeft((v) => (v === null ? null : Math.max(0, v - seconds)));
       },
     });
 
     session.current = live;
     await live.start();
+
+    if (typeof live.remaining === "number") setVoiceLeft(live.remaining);
+    if (live.upgrade) setUpgrade(true);
 
     // The job list came back with the token, so a card can be drawn the
     // instant the model names a role rather than after a round trip.
@@ -270,13 +277,21 @@ export function AgentOverlay({
         ok?: boolean;
         reply?: string;
         error?: string;
+        upgrade?: boolean;
+        messagesLeft?: number;
         show?: { jobs?: JobCard[]; reason?: string };
       };
 
+      if (typeof json.messagesLeft === "number") setMessagesLeft(json.messagesLeft);
+
       if (!res.ok || !json.ok || !json.reply) {
         setError(json.error ?? "That didn't go through.");
+        // 402 is the paywall, and it is the one failure worth pointing
+        // somewhere rather than just apologising for.
+        if (json.upgrade) setUpgrade(true);
         return;
       }
+      setUpgrade(false);
 
       const turn: Turn = {
         role: "model",
@@ -307,6 +322,29 @@ export function AgentOverlay({
   }, [origin.x, origin.y]);
 
   const empty = turns.length === 0 && !heard && !saying;
+
+  /**
+   * The one line under the input.
+   *
+   * Says nothing until there is something worth saying. Counting down from
+   * ten on somebody's first message makes a free tier feel like a trap; the
+   * number appears when it starts to matter and when it has run out.
+   */
+  const footnote = (() => {
+    if (listening) {
+      const mins = voiceLeft === null ? null : Math.floor(voiceLeft / 60);
+      return mins !== null && mins <= 2
+        ? `About ${Math.max(1, mins)} min of voice left. Press the mic to hang up.`
+        : "On a call. Press the mic again to hang up.";
+    }
+    if (upgrade) return null; // the error line already carries it
+    if (messagesLeft !== null && messagesLeft <= 3) {
+      return messagesLeft === 0
+        ? "No messages left today."
+        : `${messagesLeft} message${messagesLeft === 1 ? "" : "s"} left today.`;
+    }
+    return null;
+  })();
 
   return (
     <>
@@ -468,7 +506,26 @@ export function AgentOverlay({
             </div>
           )}
 
-          {error && <p className="mb-3 text-center text-[0.85rem] text-ink-50">{error}</p>}
+          {error && (
+            <p className="mb-3 text-center text-[0.85rem] text-ink-50">
+              {error}
+              {/* The way out belongs next to the wall, not in a footnote three
+                  lines below it. The first attempt put it in the footnote and
+                  the footnote suppressed itself whenever the paywall was up,
+                  so the link never rendered at all. */}
+              {upgrade && (
+                <>
+                  {" "}
+                  <a
+                    href="/app/upgrade"
+                    className="font-medium text-ink underline underline-offset-4 hover:no-underline"
+                  >
+                    See Pro
+                  </a>
+                </>
+              )}
+            </p>
+          )}
 
           {/* ------------------------------------------------------- controls */}
           <div
@@ -525,29 +582,14 @@ export function AgentOverlay({
               </button>
             </form>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[0.74rem] text-ink-30">
-              <p>
-                {listening
-                  ? "On a call. Press the mic again to hang up."
-                  : "Voice is a real conversation — it hears you while it talks."}
-              </p>
-              {/* One switch for everything the screen does audibly. Two
-                  switches for a screen with one voice is a settings panel
-                  nobody asked for. */}
-              <button
-                type="button"
-                onClick={() =>
-                  setSound((s) => {
-                    setSoundOn(!s);
-                    return !s;
-                  })
-                }
-                aria-pressed={sound}
-                className="underline underline-offset-4 transition-colors hover:text-ink"
-              >
-                {sound ? "Sound on" : "Sound off"}
-              </button>
-            </div>
+            {/* What is left, and only when it is worth saying. A counter
+                that is always on screen reads as a meter running; one that
+                appears when it starts to matter reads as information. The
+                explanatory line that used to live here was describing the
+                mic button to people who had already pressed it. */}
+            {footnote && (
+              <p className="mt-3 text-center text-[0.74rem] text-ink-30">{footnote}</p>
+            )}
           </div>
         </div>
       </div>

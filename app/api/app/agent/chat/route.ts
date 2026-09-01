@@ -2,11 +2,13 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
 import { agentReply, type Turn } from "@/lib/app/agent-chat";
+import { getAllowance, outOfMessages, spend } from "@/lib/app/allowance";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const bad = (error: string, status = 400) => Response.json({ ok: false, error }, { status });
+const bad = (error: string, status = 400, extra: Record<string, unknown> = {}) =>
+  Response.json({ ok: false, error, ...extra }, { status });
 
 /**
  * Best-effort throttle, same shape as the intent route.
@@ -55,6 +57,17 @@ export async function POST(request: Request) {
 
   if (!turns.length) return bad("Nothing to answer.");
 
+  // The gate. Checked before the model is called, because the model call is
+  // the thing that costs money — refusing after it has already run bills us
+  // for a message the person never gets to read.
+  const allowance = await getAllowance(user.id);
+  if (allowance.messagesLeft <= 0) {
+    return bad(outOfMessages(allowance.paid), 402, {
+      upgrade: !allowance.paid,
+      messagesLeft: 0,
+    });
+  }
+
   // The jobs the answer is allowed to talk about: the same filtered list the
   // Jobs page would show them, so the agent never mentions a role they cannot
   // then go and find.
@@ -66,7 +79,10 @@ export async function POST(request: Request) {
   }).catch(() => ({ jobs: [] }));
 
   const result = await agentReply({ turns, profile, resume, jobs });
+  // Charged only on success. An upstream 503 is our problem, not theirs.
   if (!result.ok) return bad(result.error, 502);
+
+  const left = await spend(user.id, { messages: 1 });
 
   // Resolve the ids the model asked for against the list it was given, and
   // send back only what a card needs. Ids it invented resolve to nothing,
@@ -91,6 +107,8 @@ export async function POST(request: Request) {
   return Response.json({
     ok: true,
     reply: result.reply,
+    messagesLeft: left.messagesLeft,
+    paid: left.paid,
     ...(show?.jobs.length ? { show } : {}),
   });
 }

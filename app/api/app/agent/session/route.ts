@@ -1,4 +1,5 @@
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
+import { spend } from "@/lib/app/allowance";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -54,13 +55,8 @@ export async function POST(request: Request) {
   // Charge first. If the write of the transcript fails we would rather have
   // billed for a conversation than given away an unbilled one — the meter is
   // the only thing standing between this feature and an open tab.
-  if (seconds > 0) {
-    const { error } = await db.rpc("agent_voice_spend", {
-      p_user: user.id,
-      p_seconds: seconds,
-    });
-    if (error) console.error("agent/session: could not record voice seconds", error.message);
-  }
+  let left = null;
+  if (seconds > 0) left = await spend(user.id, { seconds });
 
   let conversationId =
     typeof body.conversationId === "string" && body.conversationId ? body.conversationId : null;
@@ -111,14 +107,11 @@ export async function POST(request: Request) {
     await db.from("agent_conversations").update({ ended_at: new Date().toISOString() }).eq("id", conversationId);
   }
 
-  const { data: remaining } = (await db.rpc("agent_voice_remaining", {
-    p_user: user.id,
-  })) as unknown as { data: number | null };
-
   return Response.json({
     ok: true,
     conversationId,
-    remaining: typeof remaining === "number" ? remaining : null,
+    remaining: left?.voiceLeft ?? null,
+    messagesLeft: left?.messagesLeft ?? null,
   });
 }
 

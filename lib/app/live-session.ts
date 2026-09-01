@@ -63,6 +63,7 @@ export class LiveSession {
   /** Where the next chunk of the agent's voice belongs on the timeline. */
   private cursor = 0;
   private startedAt = 0;
+  private budget = 0;
   private state: LiveState = "idle";
   private ending = false;
 
@@ -80,6 +81,9 @@ export class LiveSession {
 
   /** Seconds of voice this account had left when the session opened. */
   remaining: number | null = null;
+
+  /** True when the refusal was a paywall rather than a fault. */
+  upgrade = false;
 
   constructor(private readonly on: LiveHandlers) {}
 
@@ -114,6 +118,7 @@ export class LiveSession {
       const res = await fetch("/api/app/agent/live-token", { method: "POST" });
       ticket = (await res.json()) as TokenResponse;
       if (!res.ok || !ticket.ok || !ticket.token) {
+        this.upgrade = !!ticket.upgrade;
         this.fail(ticket.error ?? "Could not start a voice session.");
         return;
       }
@@ -135,6 +140,16 @@ export class LiveSession {
 
     this.startedAt = Date.now();
     this.set("live");
+
+    // Hang up on our own allowance rather than waiting for the socket to be
+    // cut from outside. Ending on our terms means the seconds get reported
+    // and the person gets a sentence, instead of the call simply dying.
+    if (this.remaining !== null) {
+      this.budget = window.setTimeout(
+        () => this.stop("That's your voice time. Typing still works."),
+        this.remaining * 1000,
+      );
+    }
   }
 
   private openSocket(token: string, model: string): Promise<void> {
@@ -319,6 +334,11 @@ export class LiveSession {
     this.ending = true;
 
     const seconds = this.startedAt ? Math.round((Date.now() - this.startedAt) / 1000) : 0;
+
+    if (this.budget) {
+      window.clearTimeout(this.budget);
+      this.budget = 0;
+    }
 
     this.worklet?.port.close();
     this.worklet?.disconnect();

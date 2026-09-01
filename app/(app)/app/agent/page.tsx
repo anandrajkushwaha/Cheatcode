@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getProfile, getPrimaryResume, isPaid } from "@/lib/app/account";
-import { listConversations, getMessages, voiceRemaining } from "@/lib/app/agent-history";
+import { listConversations, getMessages, allowance } from "@/lib/app/agent-history";
 import { Card, Empty, PaidOnly } from "@/components/app/ui";
 import { Transcript } from "@/components/app/Transcript";
 
@@ -22,11 +22,11 @@ export default async function AgentPage({
 }) {
   const { c } = await searchParams;
 
-  const [profile, resume, conversations, remaining] = await Promise.all([
+  const [profile, resume, conversations, left] = await Promise.all([
     getProfile(),
     getPrimaryResume(),
     listConversations(),
-    voiceRemaining(),
+    allowance(),
   ]);
 
   const paid = isPaid(profile);
@@ -34,17 +34,21 @@ export default async function AgentPage({
   const messages = openId ? await getMessages(openId) : [];
   const open = conversations.find((x) => x.id === openId);
 
-  const minutes = remaining === null ? null : Math.floor(remaining / 60);
+  const minutes = left === null ? null : Math.floor(left.voiceLeft / 60);
 
   return (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.03em]">Agent</h1>
-        {paid && minutes !== null && (
+        {minutes !== null && left !== null && (
           <p className="text-[0.8rem] text-ink-30">
             {minutes > 0
-              ? `${minutes} min of voice left today`
-              : "Voice minutes used for today — typing still works"}
+              ? left.voiceIsTrial
+                ? `${minutes} min of free voice left — once used, that's it`
+                : `${minutes} min of voice left today`
+              : left.voiceIsTrial
+                ? "Free voice trial used up"
+                : "Voice used for today — typing still works"}
           </p>
         )}
       </div>

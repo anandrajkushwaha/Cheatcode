@@ -74,16 +74,39 @@ export async function getMessages(conversationId: string): Promise<AgentMessage[
   return data ?? [];
 }
 
-/** Seconds of live voice left today. Null when it cannot be read. */
-export async function voiceRemaining(): Promise<number | null> {
+/**
+ * What this account may still use.
+ *
+ * Read with the session client rather than the admin one — agent_allowance is
+ * granted to authenticated precisely so a page can render "6 minutes left"
+ * without going through our own API for it.
+ */
+export async function allowance(): Promise<{
+  paid: boolean;
+  voiceLeft: number;
+  messagesLeft: number;
+  voiceIsTrial: boolean;
+} | null> {
   const user = await getSessionUser();
   if (!user) return null;
 
   const db = await createAppServerClient();
   if (!db) return null;
 
-  const { data } = (await db.rpc("agent_voice_remaining", { p_user: user.id })) as unknown as {
-    data: number | null;
+  const { data } = (await db.rpc("agent_allowance", { p_user: user.id })) as unknown as {
+    data: {
+      paid?: boolean;
+      voice_left?: number;
+      messages_left?: number;
+      voice_is_trial?: boolean;
+    } | null;
   };
-  return typeof data === "number" ? data : null;
+
+  if (!data || typeof data.voice_left !== "number") return null;
+  return {
+    paid: !!data.paid,
+    voiceLeft: data.voice_left,
+    messagesLeft: data.messages_left ?? 0,
+    voiceIsTrial: !!data.voice_is_trial,
+  };
 }
