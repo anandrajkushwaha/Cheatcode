@@ -27,9 +27,19 @@ export type Kind = "chat" | "live";
 
 const cache = new Map<Kind, string>();
 
-/** What we reach for before asking. Right often enough to save a round trip. */
+/**
+ * What we reach for before asking.
+ *
+ * `gemini-flash-latest` for chat, because it is the name that was already
+ * working in this codebase — parse-resume.ts and intent.ts have used it since
+ * before any of this. It was replaced with a documented stable id on the
+ * principle that a hot-swapping alias is bad for a tuned agent, and the
+ * replacement 404'd. The principle still holds and it is still worth pinning
+ * a stable id once we know which one this key can reach; it is not worth a
+ * product that does not answer.
+ */
 const FIRST_GUESS: Record<Kind, string> = {
-  chat: "gemini-2.5-flash",
+  chat: "gemini-flash-latest",
   live: "gemini-3.1-flash-live-preview",
 };
 
@@ -54,7 +64,12 @@ export function rememberModel(kind: Kind, model: string): void {
  * Returns null when the listing itself fails — the caller then keeps whatever
  * it had and reports honestly, rather than pretending to have fixed anything.
  */
-export async function discoverModel(key: string, kind: Kind): Promise<string | null> {
+export async function discoverModel(
+  key: string,
+  kind: Kind,
+  /** Names already tried and found wanting, so a retry does not pick them again. */
+  exclude: string[] = [],
+): Promise<string | null> {
   let res: Response;
   try {
     res = await fetch(`${ENDPOINT}?pageSize=200`, {
@@ -78,6 +93,7 @@ export async function discoverModel(key: string, kind: Kind): Promise<string | n
     }));
 
   const best = candidates
+    .filter((c) => !exclude.includes(c.name))
     .map((c) => ({ name: c.name, score: score(c.name, c.methods, kind) }))
     .sort((a, b) => b.score - a.score)[0];
 
@@ -115,13 +131,18 @@ function score(name: string, methods: string[], kind: Kind): number {
   // Chat.
   if (!methods.includes("generateContent")) return -1;
   if (/live|image|tts|embedding|aqa|vision|translate|guard/.test(n)) return -1;
-  // The moving target we deliberately left behind.
-  if (n.includes("latest")) return -1;
 
   let s = 1;
   if (n.includes("flash")) s += 100;
   if (n.includes("lite")) s -= 20; // cheaper, noticeably worse at this
   if (n.includes("preview") || n.includes("exp")) s -= 40;
+
+  // An alias, ranked below every stable id but above nothing at all. Banning
+  // these outright is what stopped discovery from ever choosing the one model
+  // this key could actually use — a model that might change in a fortnight
+  // beats a model that does not answer today.
+  if (n.includes("latest")) s -= 30;
+
   return s + version(n);
 }
 
