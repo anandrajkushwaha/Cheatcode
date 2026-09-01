@@ -2,6 +2,7 @@ import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume, isPaid } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
 import { systemInstruction, TOOLS } from "@/lib/app/agent-brain";
+import { discoverModel, pinned, preferredModel, rememberModel } from "@/lib/app/gemini-models";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -26,8 +27,9 @@ export const maxDuration = 30;
  * minute allowance are both checked before a token exists.
  */
 
-const MODEL = process.env.GEMINI_LIVE_MODEL ?? "gemini-3.1-flash-live-preview";
-const AUTH_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
+const AUTH_ENDPOINT =
+  (process.env.GEMINI_API_BASE ?? "https://generativelanguage.googleapis.com/v1beta/models")
+    .replace(/\/models$/, "") + "/auth_tokens";
 
 /** Below this there is no point starting; the session would end mid-sentence. */
 const MIN_SECONDS = 30;
@@ -74,9 +76,10 @@ export async function POST() {
   }).catch(() => ({ jobs: [] }));
 
   const now = Date.now();
-  let response: Response;
-  try {
-    response = await fetch(AUTH_ENDPOINT, {
+  const instruction = systemInstruction("voice", { profile, resume, jobs });
+
+  const ask = (model: string) =>
+    fetch(AUTH_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
@@ -88,7 +91,7 @@ export async function POST() {
         // for a click, and it means a leaked token is almost always dead.
         newSessionExpireTime: new Date(now + 60_000).toISOString(),
         liveConnectConstraints: {
-          model: `models/${MODEL}`,
+          model: `models/${model}`,
           config: {
             responseModalities: ["AUDIO"],
             // The spoken answer and its text are the same turn. Without this
@@ -96,9 +99,7 @@ export async function POST() {
             // both a second bill and a second thing to be wrong.
             outputAudioTranscription: {},
             inputAudioTranscription: {},
-            systemInstruction: {
-              parts: [{ text: systemInstruction("voice", { profile, resume, jobs }) }],
-            },
+            systemInstruction: { parts: [{ text: instruction }] },
             tools: TOOLS,
             temperature: 0.4,
           },
@@ -106,6 +107,22 @@ export async function POST() {
       }),
       signal: AbortSignal.timeout(15_000),
     });
+
+  let model = preferredModel("live");
+  let response: Response;
+  try {
+    response = await ask(model);
+
+    // Same lesson as the typed agent: which models a key can reach is not
+    // knowable from the documentation, so on a 404 the API is asked what it
+    // has. An explicitly set GEMINI_LIVE_MODEL is never second-guessed.
+    if (response.status === 404 && !pinned("live")) {
+      const found = await discoverModel(key, "live");
+      if (found && found !== model) {
+        model = found;
+        response = await ask(model);
+      }
+    }
   } catch {
     return bad("Could not reach the voice service.", 502);
   }
@@ -113,16 +130,23 @@ export async function POST() {
   if (!response.ok) {
     // Google's error text can carry the project id; it is not for the browser.
     console.error("live-token: auth_tokens returned", response.status, await response.text());
-    return bad("Could not start a voice session.", 502);
+    return bad(
+      response.status === 404
+        ? "No live voice model is available on this API key."
+        : "Could not start a voice session.",
+      502,
+    );
   }
 
   const json = (await response.json()) as { name?: string };
   if (!json.name) return bad("The voice service returned no token.", 502);
 
+  rememberModel("live", model);
+
   return Response.json({
     ok: true,
     token: json.name,
-    model: MODEL,
+    model,
     // So the client can show "7 minutes left" and stop itself before the
     // server has to.
     remaining,

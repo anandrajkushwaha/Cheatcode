@@ -1,6 +1,7 @@
 import "server-only";
 import { systemInstruction, TOOLS, type Grounding } from "@/lib/app/agent-brain";
 import { readShowJobs, type ShowJobs } from "@/lib/app/agent-types";
+import { discoverModel, pinned, preferredModel, rememberModel } from "@/lib/app/gemini-models";
 
 /**
  * The agent's answer, in text.
@@ -13,16 +14,6 @@ import { readShowJobs, type ShowJobs } from "@/lib/app/agent-types";
  * everything else, so a rule written once applies to both.
  */
 
-/**
- * Pinned, not `-latest`.
- *
- * `gemini-flash-latest` was here, and Google hot-swaps what that alias points
- * at with two weeks' notice. An agent whose behaviour was tuned against one
- * model and silently moved to another is a product that changes personality
- * on a Tuesday for no reason anybody can find. 2.5-flash is also the older,
- * better-provisioned model, which matters here for the reason below.
- */
-const MODEL = process.env.GEMINI_CHAT_MODEL ?? "gemini-2.5-flash";
 // Overridable so the retry path can be driven against a server that returns
 // 503 on demand. Google's own 503s are not reproducible to order, and retry
 // code that has never actually retried is a guess.
@@ -76,6 +67,9 @@ export async function agentReply(
     generationConfig: { temperature: 0.4, maxOutputTokens: 400 },
   });
 
+  let model = preferredModel("chat");
+  let discovered = false;
+
   let response: Response | null = null;
   let lastStatus = 0;
 
@@ -83,7 +77,7 @@ export async function agentReply(
     if (attempt > 0) await wait(400 * 2 ** (attempt - 1) + Math.random() * 250);
 
     try {
-      response = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
+      response = await fetch(`${ENDPOINT}/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body,
@@ -102,8 +96,25 @@ export async function agentReply(
       };
     }
 
-    if (response.ok) break;
+    if (response.ok) {
+      rememberModel("chat", model);
+      break;
+    }
     lastStatus = response.status;
+
+    // 404 means this key cannot reach that model. Ask what it can reach, once,
+    // and try again with the answer. Not done when the model was set by hand:
+    // an explicit choice that is wrong should say so, not be quietly replaced.
+    if (response.status === 404 && !pinned("chat") && !discovered) {
+      discovered = true;
+      const found = await discoverModel(key, "chat");
+      if (found && found !== model) {
+        model = found;
+        response = null;
+        continue;
+      }
+    }
+
     if (!RETRY_STATUSES.has(response.status)) break;
     response = null;
   }
@@ -126,8 +137,18 @@ export async function agentReply(
       return { ok: false, error: "The agent isn't switched on properly yet." };
     }
     if (lastStatus === 404) {
-      console.error("agent-chat: no such model", MODEL);
-      return { ok: false, error: "The agent's model is misconfigured." };
+      console.error(
+        "agent-chat: no model this key can reach",
+        pinned("chat")
+          ? `(GEMINI_CHAT_MODEL is set to "${pinned("chat")}")`
+          : "(discovery found nothing usable)",
+      );
+      return {
+        ok: false,
+        error: pinned("chat")
+          ? "GEMINI_CHAT_MODEL is set to a model this key cannot use."
+          : "No usable model on this API key.",
+      };
     }
     return { ok: false, error: "The agent couldn't answer that. Try again." };
   }
