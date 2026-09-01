@@ -354,8 +354,8 @@ export async function fetchSearch(opts: {
     return { ok: false, error: "JSearch did not return JSON" };
   }
 
-  const raw = (payload as { data?: JsJob[] })?.data;
-  if (!Array.isArray(raw)) return { ok: false, error: "No data array in the response" };
+  const raw = readList(payload);
+  if (!raw) return { ok: false, error: "No job list in the response" };
 
   const jobs: NormalisedJob[] = [];
   for (const j of raw) {
@@ -383,6 +383,26 @@ export async function fetchSearch(opts: {
     if (built) jobs.push(built);
   }
   return { ok: true, jobs };
+}
+
+/**
+ * Find the list, whatever the envelope.
+ *
+ * search-v2 wraps it as { data: { jobs: [...], cursor } }; the older endpoint
+ * returned { data: [...] }. Both are accepted, and so is a bare { jobs: [...] },
+ * because the failure mode of guessing wrong is an empty feed that looks like
+ * "there are no jobs" rather than like a bug — which is exactly what happened
+ * the first time this shipped.
+ */
+function readList(payload: unknown): JsJob[] | null {
+  const root = payload as { data?: unknown; jobs?: unknown };
+  if (Array.isArray(root?.data)) return root.data as JsJob[];
+
+  const container = root?.data as { jobs?: unknown } | undefined;
+  if (container && Array.isArray(container.jobs)) return container.jobs as JsJob[];
+
+  if (Array.isArray(root?.jobs)) return root.jobs as JsJob[];
+  return null;
 }
 
 /**

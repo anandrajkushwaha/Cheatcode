@@ -59,13 +59,21 @@ export function toPlainText(input: string | null | undefined, max = 6000): strin
 
 /* ---------------------------------------------------------- employment */
 
+/**
+ * Boards write this three ways: "Full-time" for people, "FULLTIME" as a code,
+ * and sometimes only inside the title. A test caught JSearch's code form
+ * falling through and every aggregated job arriving with no type at all, so
+ * both the spaced and the collapsed spelling are checked.
+ */
 export function readEmploymentType(...raw: (string | null | undefined)[]): string | null {
   const t = raw.filter(Boolean).join(" ").toLowerCase();
   if (!t) return null;
-  if (/\bintern(ship)?\b/.test(t)) return "internship";
-  if (/\bcontract|contractor|temporary|fixed[- ]term\b/.test(t)) return "contract";
-  if (/\bpart[- ]time\b/.test(t)) return "part_time";
-  if (/\bfull[- ]time|permanent|regular\b/.test(t)) return "full_time";
+  const code = t.replace(/[^a-z]/g, "");
+
+  if (/\bintern(ship)?\b/.test(t) || /\bintern(ship)?\b/.test(code)) return "internship";
+  if (/contract|temporary|fixed[- ]?term/.test(t)) return "contract";
+  if (/\bpart[- ]?time\b/.test(t) || code.includes("parttime")) return "part_time";
+  if (/\bfull[- ]?time\b|permanent|regular/.test(t) || code.includes("fulltime")) return "full_time";
   return null;
 }
 

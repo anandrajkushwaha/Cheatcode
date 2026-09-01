@@ -53,12 +53,20 @@ type SourceRow = {
  * Company boards are free and unlimited; JSearch is 200 requests a month on
  * the free tier, which is about six a day. The cap lives here rather than in
  * the schedule because it is a budget, not a preference — exceed it and the
- * month simply stops working on the 12th.
+ * month simply stops working on the 12th. Raise it with the env var the day
+ * the plan is raised.
  */
 const JSEARCH_PER_RUN = Math.max(
   0,
   Math.min(50, Number(process.env.JSEARCH_QUERIES_PER_RUN ?? 6) || 6),
 );
+
+/**
+ * How long an aggregated job survives without being seen again. Six weeks is
+ * past the point where an Indian posting is usually still live, and well past
+ * the rotation gap between two runs of the same query.
+ */
+const STALE_SEARCH_DAYS = 45;
 
 export async function runIngest(
   db: SupabaseClient,
@@ -155,17 +163,28 @@ export async function runIngest(
       written += chunk.length;
     }
 
-    // Anything from this board we did not see this time has been taken down.
-    // Marked closed rather than deleted: somebody may have applied to it, and
-    // a dead link is a better answer than a missing page.
+    // Retirement means two different things depending on the source.
+    //
+    // A company board is the whole truth: a job missing from the feed has been
+    // taken down. A saved search is one page of Google's ranking, which
+    // reshuffles between runs — a job absent today is usually still open, and
+    // retiring it would empty the list within a week. So searches expire by
+    // age instead, and only after long enough that the posting is stale
+    // anyway. Marked closed rather than deleted either way: somebody may have
+    // applied, and a dead link beats a missing page.
     let retired = 0;
     if (!writeError) {
+      const cutoff =
+        source.provider === "jsearch"
+          ? new Date(Date.now() - STALE_SEARCH_DAYS * 86_400_000).toISOString()
+          : startedAt;
+
       const { data: closed } = await db
         .from("jobs")
         .update({ is_active: false, closed_at: new Date().toISOString() })
         .eq("source_id", source.id)
         .eq("is_active", true)
-        .lt("last_seen_at", startedAt)
+        .lt("last_seen_at", cutoff)
         .select("id");
       retired = closed?.length ?? 0;
     }
