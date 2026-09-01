@@ -9,7 +9,6 @@ import {
 } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
 import { JobCard } from "@/components/app/JobCard";
-import { AgentHero } from "@/components/app/AgentHero";
 import { ProfileCard } from "@/components/app/ProfileCard";
 import {
   JobCardSkeleton,
@@ -37,13 +36,12 @@ const STEPS = [
  *
  * Three columns, the way every job site in this market is laid out, because
  * that is the shape people already know how to read: who you are on the left,
- * what to do in the middle, what is happening on the right. What is different
- * is the top — the agent gets the first screen, and the columns are the
- * evidence behind whatever it just said.
+ * what to do in the middle, what is happening on the right.
  *
- * The centre column is deliberately drawn for jobs that do not exist yet.
- * Blank space would read as an unfinished product; an outline shows what is
- * arriving, and the label next to it is honest about when.
+ * The agent panel used to sit above all of this. It is gone for now — the
+ * component is still in the tree, unrendered, because the intent it captured
+ * is real and will come back with the voice agent. Until then the page opens
+ * on jobs, which is what somebody came here for.
  */
 export default async function AppHome() {
   const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
@@ -63,17 +61,6 @@ export default async function AppHome() {
   const strength = profileStrength(profile, resume);
   const knowsWhatTheyWant = hasIntent(profile);
 
-  const firstName = profile?.full_name?.split(" ")[0]?.trim();
-  // IST, because that is where the audience is. Not worth a timezone library.
-  const istHour = (new Date().getUTCHours() + 5) % 24;
-  const partOfDay = istHour < 12 ? "Good morning" : istHour < 17 ? "Good afternoon" : "Good evening";
-  const greeting = firstName ? `${partOfDay}, ${firstName}` : partOfDay;
-
-  const line = !resume
-    ? "Start with your resume — everything here is built on it."
-    : !knowsWhatTheyWant
-      ? "Tell me what you're looking for, in one line."
-      : "Tell me anything that's changed and I'll keep your matches honest.";
 
   const resumeAlert = !resume
     ? {
@@ -98,9 +85,7 @@ export default async function AppHome() {
 
   return (
     <>
-      <AgentHero greeting={greeting} line={line} gaps={gaps} hasIntent={knowsWhatTheyWant} />
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)_272px]">
+      <div className="grid gap-6 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)_272px]">
         {/* ------------------------------------------------------- left rail */}
         <aside
           className="cc-rise min-w-0 lg:sticky lg:top-20 lg:self-start"
