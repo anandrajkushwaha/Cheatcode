@@ -115,6 +115,15 @@ export function AgentOverlay({
   const [muted, setMuted] = useState(false);
   /** The keypad, for typing mid-call. Off by default: a call is for talking. */
   const [typing, setTyping] = useState(false);
+  /**
+   * Why the last call did not happen.
+   *
+   * Kept apart from the ordinary error line, which is a 0.74rem grey sentence
+   * above the composer — right for "try rewording that", useless for a call
+   * that vanished a second after it was pressed. A refused call now says so
+   * where the person was looking, and offers to try again.
+   */
+  const [callError, setCallError] = useState<string | null>(null);
 
   /** The jobs the live session may put on screen, by id. */
   const catalogue = useRef<Map<string, JobCard>>(new Map());
@@ -265,6 +274,7 @@ export function AgentOverlay({
       return;
     }
     setError(null);
+    setCallError(null);
     // The greeting is still being read when somebody presses the mic. Two
     // voices at once is the single most confusing thing a voice product does.
     hush();
@@ -272,7 +282,12 @@ export function AgentOverlay({
     const live = new LiveSession({
       onState: setLiveState,
       onLevel: setLevel,
-      onError: (m) => setError(m),
+      onError: (m) => {
+        // A failure while connecting is a call that never happened, and it
+        // needs a different, louder home than a mid-conversation hiccup.
+        if (!session.current?.live) setCallError(m);
+        else setError(m);
+      },
 
       onUserText: (text, final) => {
         if (!final) {
@@ -764,12 +779,30 @@ export function AgentOverlay({
                 <MicMark />
                 Talk to it
               </button>
-              <p
-                className="cc-lift mt-2 text-[0.76rem] text-ink-30"
-                style={{ "--d": "360ms" } as React.CSSProperties}
-              >
-                A real call — it hears you while it talks.
-              </p>
+
+              {callError ? (
+                /* A call that refused. Said here, at the size of the thing it
+                   is about — a grey line above the text box is where this used
+                   to go, and it is why "it just exits" was the whole bug
+                   report three times running. */
+                <div className="mt-4 w-full max-w-[30rem] rounded-xl border border-ink-15 bg-ink-04 px-4 py-3 text-center">
+                  <p className="text-[0.86rem] leading-relaxed text-ink">{callError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void startCall()}
+                    className="mt-2 text-[0.8rem] font-medium text-ink underline underline-offset-4 hover:no-underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                <p
+                  className="cc-lift mt-2 text-[0.76rem] text-ink-30"
+                  style={{ "--d": "360ms" } as React.CSSProperties}
+                >
+                  A real call — it hears you while it talks.
+                </p>
+              )}
 
               <div
                 className="cc-lift mt-8 flex max-w-lg flex-wrap justify-center gap-2"
