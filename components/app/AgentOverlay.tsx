@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
 import { setSoundOn, soundOn, startupChime } from "@/lib/app/agent-sound";
+import { LiveSession, type LiveState } from "@/lib/app/live-session";
+import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
 
 /**
  * The agent, full screen.
@@ -12,25 +14,30 @@ import { setSoundOn, soundOn, startupChime } from "@/lib/app/agent-sound";
  * app is swallowed by the thing you pressed, which is why the reveal's origin
  * is passed in from wherever the orb happens to be.
  *
- * Two ways in, both real today. Typing goes to Gemini, grounded in this
- * person's profile, resume and open jobs. Speaking uses the browser's own
- * speech recognition and speaks the answer back — that is not the Gemini Live
- * agent, which is still to come, and the screen says so rather than implying
- * a capability that is weeks away.
+ * One agent, two ways in. Typing goes to generateContent; speaking opens a
+ * Live API socket and is a real conversation — it hears you while it talks,
+ * and stops when you interrupt. Both are handed the same instructions from
+ * agent-brain.ts, so the thing you talk to and the thing you type at behave
+ * the same way.
+ *
+ * The browser's own speech recognition used to sit here as a stand-in. It is
+ * gone: it could hear but not listen, it could not be interrupted, and having
+ * two voice paths meant every rule had to be written twice.
  *
  * Paper, not a dark room. An immersive black surface was the obvious way to
  * make a full screen feel like a different mode, and it was wrong: the brand
- * is monochrome on white everywhere else, and one screen that ignores that
- * reads as a different product. The mode change is carried by the reveal, by
- * the pixel field, and by the size of the orb instead.
- *
- * The orb is only large while the screen is still a question. Once there is a
- * conversation, a 160px animation at the top of it is competing with the thing
- * somebody came here to read, so it shrinks to the mark beside each answer —
- * the same artwork, doing the job an avatar does.
+ * is monochrome on white everywhere else. The mode change is carried by the
+ * reveal, by the pixel field, and by the size of the orb instead.
  */
 
-type Turn = { role: "user" | "model"; text: string };
+type Turn = {
+  role: "user" | "model";
+  text: string;
+  spoken?: boolean;
+  /** Jobs the agent put on screen with this turn. */
+  jobs?: JobCard[];
+  reason?: string;
+};
 
 const OPENERS = [
   "Which of these jobs actually fit me?",
@@ -52,32 +59,80 @@ export function AgentOverlay({
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [sound, setSound] = useState(true);
-
-  // Every increment sends a ring out through the pixel field. Sending and
-  // receiving both count: the gap between them is the part of the interaction
-  // that otherwise has nothing to show.
   const [pulse, setPulse] = useState(0);
+
+  /* ------------------------------------------------------------ the call */
+
+  const [liveState, setLiveState] = useState<LiveState>("idle");
+  const [level, setLevel] = useState(0);
+  const [heard, setHeard] = useState("");   // what they are saying, mid-sentence
+  const [saying, setSaying] = useState(""); // what the agent is saying, mid-sentence
+
+  const session = useRef<LiveSession | null>(null);
+
+  /** The jobs the live session may put on screen, by id. */
+  const catalogue = useRef<Map<string, JobCard>>(new Map());
+  /** Cards the agent asked for but has not finished speaking about yet. */
+  const pendingCards = useRef<{ jobs: JobCard[]; reason?: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
-  const speech = useSpeech();
+
+  /** The conversation row, once the server has made one. */
+  const conversation = useRef<string | null>(null);
+
+  const listening = liveState === "live";
+  const connecting = liveState === "connecting";
+
+  /* ------------------------------------------------------------- keeping */
+
+  /**
+   * Write a turn down.
+   *
+   * Fire and forget: a transcript that fails to save is worth a line in the
+   * console, not an error in front of somebody mid-conversation. The server
+   * is the only thing that may write to agent_messages, which is why this is
+   * a request rather than an insert.
+   */
+  const keep = useCallback(
+    (messages: Turn[], extra: { seconds?: number; ended?: boolean; channel?: "text" | "voice" } = {}) => {
+      if (!messages.length && !extra.seconds) return;
+      void fetch("/api/app/agent/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: conversation.current,
+          channel: extra.channel ?? "text",
+          seconds: extra.seconds,
+          ended: extra.ended,
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.text,
+            spoken: !!m.spoken,
+            actions: m.jobs?.length ? { jobs: m.jobs, reason: m.reason } : null,
+          })),
+        }),
+      })
+        .then((r) => r.json())
+        .then((j: { conversationId?: string }) => {
+          if (j.conversationId) conversation.current = j.conversationId;
+        })
+        .catch(() => {
+          /* The conversation still works; only the record is lost. */
+        });
+    },
+    [],
+  );
 
   /* ------------------------------------------------------------- closing */
 
-  // Only `stop` is needed here, and it is stable — depending on the whole
-  // speech object would rebuild `close` on every interim transcript.
-  const stopListening = speech.stop;
-
   const close = useCallback(() => {
-    stopListening();
-    window.speechSynthesis?.cancel();
+    session.current?.stop();
     setClosing(true);
     // Long enough for the conceal animation; the state is thrown away after.
     window.setTimeout(onClose, 380);
-  }, [onClose, stopListening]);
+  }, [onClose]);
 
-  // Escape, separately from the arrival, so a changing handler cannot restart
-  // the things below that must happen exactly once.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
@@ -91,15 +146,12 @@ export function AgentOverlay({
   const arrived = useRef(false);
 
   useEffect(() => {
-    // The page behind must not scroll under a full-screen surface.
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const t = window.setTimeout(() => inputRef.current?.focus(), 420);
 
-    // Read once, on the way in. The preference lives in localStorage so
-    // somebody who turned it off does not get startled again tomorrow. The
-    // ref survives StrictMode's second mount in development, which would
+    // The ref survives StrictMode's second mount in development, which would
     // otherwise play the chime twice.
     if (!arrived.current) {
       arrived.current = true;
@@ -112,27 +164,94 @@ export function AgentOverlay({
     return () => {
       document.body.style.overflow = previous;
       window.clearTimeout(t);
-      window.speechSynthesis?.cancel();
+      session.current?.stop();
     };
   }, []);
 
   // Keep the newest exchange in view without yanking the page.
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns, busy]);
+  }, [turns, busy, heard, saying]);
 
-  // A finished dictation is a sent message: making somebody stop talking and
-  // then press a button is the part that makes voice feel worse than typing.
-  useEffect(() => {
-    if (speech.final) void send(speech.final);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speech.final]);
+  /* --------------------------------------------------------------- voice */
 
-  /* -------------------------------------------------------------- asking */
+  const startCall = useCallback(async () => {
+    if (session.current?.live) {
+      session.current.stop();
+      return;
+    }
+    setError(null);
+
+    const live = new LiveSession({
+      onState: setLiveState,
+      onLevel: setLevel,
+      onError: (m) => setError(m),
+
+      onUserText: (text, final) => {
+        if (!final) {
+          setHeard(text);
+          return;
+        }
+        setHeard("");
+        setTurns((t) => [...t, { role: "user", text, spoken: true }]);
+        setPulse((n) => n + 1);
+        keep([{ role: "user", text, spoken: true }], { channel: "voice" });
+      },
+
+      onAgentText: (text, final) => {
+        if (!final) {
+          setSaying(text);
+          return;
+        }
+        setSaying("");
+        // The cards the model asked for arrive on their own frame, usually
+        // before the sentence that explains them finishes. They are held and
+        // attached to the turn they belong to rather than floating loose.
+        const attached = pendingCards.current;
+        pendingCards.current = null;
+
+        const turn: Turn = { role: "model", text, spoken: true, ...(attached ?? {}) };
+        setTurns((t) => [...t, turn]);
+        setPulse((n) => n + 1);
+        keep([turn], { channel: "voice" });
+      },
+
+      onShowJobs: (show: ShowJobs) => {
+        const jobs = show.jobIds
+          .map((id) => catalogue.current.get(id))
+          .filter((j): j is JobCard => !!j);
+        if (jobs.length) pendingCards.current = { jobs, reason: show.reason };
+      },
+
+      onEnded: (seconds) => {
+        setLevel(0);
+        keep([], { seconds, ended: true, channel: "voice" });
+      },
+    });
+
+    session.current = live;
+    await live.start();
+
+    // The job list came back with the token, so a card can be drawn the
+    // instant the model names a role rather than after a round trip.
+    const cards = live.jobs;
+    if (cards) for (const j of cards) catalogue.current.set(j.id, j);
+  }, [keep]);
+
+  /* --------------------------------------------------------------- typing */
 
   async function send(text: string) {
     const message = text.trim();
     if (!message || busy) return;
+
+    // Typing while on a call is still the call — the answer comes back spoken.
+    if (session.current?.live) {
+      session.current.send(message);
+      setValue("");
+      setTurns((t) => [...t, { role: "user", text: message }]);
+      keep([{ role: "user", text: message }], { channel: "voice" });
+      return;
+    }
 
     const next: Turn[] = [...turns, { role: "user", text: message }];
     setTurns(next);
@@ -145,18 +264,28 @@ export function AgentOverlay({
       const res = await fetch("/api/app/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turns: next }),
+        body: JSON.stringify({ turns: next.map((t) => ({ role: t.role, text: t.text })) }),
       });
-      const json = (await res.json()) as { ok?: boolean; reply?: string; error?: string };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        reply?: string;
+        error?: string;
+        show?: { jobs?: JobCard[]; reason?: string };
+      };
 
       if (!res.ok || !json.ok || !json.reply) {
         setError(json.error ?? "That didn't go through.");
         return;
       }
 
-      setTurns([...next, { role: "model", text: json.reply }]);
+      const turn: Turn = {
+        role: "model",
+        text: json.reply,
+        ...(json.show?.jobs?.length ? { jobs: json.show.jobs, reason: json.show.reason } : {}),
+      };
+      setTurns([...next, turn]);
       setPulse((n) => n + 1);
-      if (sound) speak(json.reply);
+      keep([{ role: "user", text: message }, turn]);
     } catch {
       setError("Network trouble. Try again.");
     } finally {
@@ -164,20 +293,20 @@ export function AgentOverlay({
     }
   }
 
-  const listening = speech.listening;
+  /* --------------------------------------------------------------- shell */
 
   // How far the circle has to travel to swallow the screen, measured rather
   // than guessed. The CSS fallback of 160vmax is nearly half as much again as
   // the furthest corner ever is, so an eased animation spent most of its
-  // duration growing a circle that had already covered everything — the
-  // reveal was over in about 200ms of its 620. This makes the end of the
-  // animation the moment the screen is actually covered.
+  // duration growing a circle that had already covered everything.
   const radius = useMemo(() => {
     if (typeof window === "undefined") return 1600;
     const dx = Math.max(origin.x, window.innerWidth - origin.x);
     const dy = Math.max(origin.y, window.innerHeight - origin.y);
     return Math.ceil(Math.hypot(dx, dy)) + 2;
   }, [origin.x, origin.y]);
+
+  const empty = turns.length === 0 && !heard && !saying;
 
   return (
     <>
@@ -209,22 +338,22 @@ export function AgentOverlay({
         {/* The field sits behind everything and is masked out before it
             reaches the controls. Once there is a conversation it steps back to
             a third of its weight: a texture behind an empty screen is
-            atmosphere, the same texture behind a paragraph is noise. */}
+            atmosphere, the same texture behind a paragraph is noise.
+            While the call is live it answers the voice — the level comes off
+            the microphone, so the grid moves when the room does. */}
         <PixelField
           className={`cc-lift transition-opacity duration-700 ${
-            turns.length > 0 ? "opacity-35" : "opacity-100"
+            empty ? "opacity-100" : "opacity-35"
           }`}
-          energy={listening ? 1 : busy ? 0.62 : 0.12}
+          energy={listening ? Math.max(0.45, level) : busy || connecting ? 0.62 : 0.12}
           pulse={pulse}
         />
 
-        {/* Once the orb has left the middle, something has to say whose screen
-            this is. */}
-        {turns.length > 0 && (
+        {!empty && (
           <div className="absolute left-5 top-5 z-10 flex items-center gap-2.5 sm:left-7 sm:top-7">
             <OrbMark className="h-6 w-6" />
             <span className="text-[0.78rem] font-medium tracking-[-0.01em] text-ink-50">
-              Cheatcode agent
+              {listening ? "On a call" : "Cheatcode agent"}
             </span>
           </div>
         )}
@@ -244,48 +373,46 @@ export function AgentOverlay({
 
         {/* ------------------------------------------------------------ body */}
         <div className="relative mx-auto flex h-full max-w-2xl flex-col px-5 sm:px-7">
-          {/* The opening question. Sat high rather than centred: the field is
-              densest at the top, and the orb belongs inside it. */}
-          {turns.length === 0 && (
+          {empty && (
             <div
               className="cc-lift flex shrink-0 flex-col items-center pt-[13vh]"
               style={{ "--d": "180ms" } as React.CSSProperties}
             >
-              <BigOrb listening={listening} busy={busy} />
+              <BigOrb listening={listening} busy={busy || connecting} level={level} />
 
               <h2 className="mt-7 text-center text-[1.35rem] font-semibold leading-snug tracking-[-0.03em] sm:text-[1.6rem]">
-                {listening ? "Listening…" : "What do you want to know?"}
+                {connecting ? "Connecting…" : listening ? "Go ahead" : "What do you want to know?"}
               </h2>
               <p className="mt-2.5 max-w-[46ch] text-center text-[0.88rem] leading-relaxed text-ink-50">
-                I can see your resume, your profile and every job open to you right now. Speak or
-                type — whichever is easier.
+                {listening
+                  ? "Talk normally. Interrupt whenever you like — it stops when you start."
+                  : "I can see your resume, your profile and every job open to you right now. Press the mic to talk, or type."}
               </p>
 
-              <div
-                className="cc-lift mt-7 flex max-w-lg flex-wrap justify-center gap-2"
-                style={{ "--d": "380ms" } as React.CSSProperties}
-              >
-                {OPENERS.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    onClick={() => void send(o)}
-                    disabled={busy}
-                    className="rounded-full border border-ink-15 bg-paper/70 px-3.5 py-1.5 text-[0.8rem] text-ink-50 backdrop-blur-[2px] transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
+              {!listening && !connecting && (
+                <div
+                  className="cc-lift mt-7 flex max-w-lg flex-wrap justify-center gap-2"
+                  style={{ "--d": "380ms" } as React.CSSProperties}
+                >
+                  {OPENERS.map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => void send(o)}
+                      disabled={busy}
+                      className="rounded-full border border-ink-15 bg-paper/70 px-3.5 py-1.5 text-[0.8rem] text-ink-50 backdrop-blur-[2px] transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Holds the question block up against the field and the controls
-              down against the bottom edge. */}
-          {turns.length === 0 && <div className="flex-1" />}
+          {empty && <div className="flex-1" />}
 
-          {/* thread — starts below the identity mark in the corner */}
-          {turns.length > 0 && (
+          {!empty && (
             <div
               ref={threadRef}
               className="mt-[4.5rem] min-h-0 flex-1 space-y-5 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -300,12 +427,35 @@ export function AgentOverlay({
                 ) : (
                   <div key={i} className="flex gap-3">
                     <OrbMark className="mt-1 h-7 w-7 shrink-0" />
-                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink-04 px-4 py-3 text-[0.94rem] leading-relaxed text-ink">
-                      {t.text}
-                    </p>
+                    <div className="min-w-0 max-w-[85%]">
+                      <p className="whitespace-pre-wrap rounded-2xl bg-ink-04 px-4 py-3 text-[0.94rem] leading-relaxed text-ink">
+                        {t.text}
+                      </p>
+                      {!!t.jobs?.length && <Cards jobs={t.jobs} reason={t.reason} />}
+                    </div>
                   </div>
                 ),
               )}
+
+              {/* Mid-sentence, both directions. Shown greyed so it is obvious
+                  these are not yet settled — a transcript revises itself as it
+                  goes, and text that silently rewrites is unnerving. */}
+              {heard && (
+                <div className="text-right">
+                  <p className="inline-block max-w-[85%] rounded-2xl bg-ink-04 px-4 py-3 text-left text-[0.94rem] leading-relaxed text-ink-50">
+                    {heard}
+                  </p>
+                </div>
+              )}
+              {saying && (
+                <div className="flex gap-3">
+                  <OrbMark className="mt-1 h-7 w-7 shrink-0" />
+                  <p className="max-w-[85%] rounded-2xl bg-ink-04 px-4 py-3 text-[0.94rem] leading-relaxed text-ink-50">
+                    {saying}
+                  </p>
+                </div>
+              )}
+
               {busy && (
                 <div className="flex items-center gap-3">
                   <OrbMark className="h-7 w-7 shrink-0 animate-pulse" />
@@ -318,9 +468,7 @@ export function AgentOverlay({
             </div>
           )}
 
-          {error && (
-            <p className="mb-3 text-center text-[0.85rem] text-ink-50">{error}</p>
-          )}
+          {error && <p className="mb-3 text-center text-[0.85rem] text-ink-50">{error}</p>}
 
           {/* ------------------------------------------------------- controls */}
           <div
@@ -336,32 +484,41 @@ export function AgentOverlay({
             >
               <input
                 ref={inputRef}
-                value={listening && speech.interim ? speech.interim : value}
+                value={value}
                 onChange={(e) => setValue(e.target.value)}
-                disabled={busy || listening}
-                placeholder={listening ? "Listening…" : "Ask anything about your job search"}
+                disabled={busy}
+                placeholder={
+                  listening ? "…or type, and it will still answer aloud" : "Ask anything about your job search"
+                }
                 aria-label="Ask the agent"
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-[0.95rem] text-ink outline-none placeholder:text-ink-30 disabled:opacity-70"
               />
 
-              {speech.supported && (
-                <button
-                  type="button"
-                  onClick={() => (listening ? speech.stop() : speech.start())}
-                  disabled={busy}
-                  aria-label={listening ? "Stop listening" : "Speak instead"}
-                  aria-pressed={listening}
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors disabled:opacity-40 ${
-                    listening ? "bg-ink text-paper" : "text-ink-50 hover:bg-ink-04 hover:text-ink"
-                  }`}
-                >
-                  <MicMark />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => void startCall()}
+                disabled={connecting}
+                aria-label={listening ? "End the call" : "Talk to the agent"}
+                aria-pressed={listening}
+                className={`relative grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors disabled:opacity-50 ${
+                  listening ? "bg-ink text-paper" : "text-ink-50 hover:bg-ink-04 hover:text-ink"
+                }`}
+              >
+                {/* The ring is the microphone level, not a loop: it is the one
+                    honest signal that the thing is actually hearing you. */}
+                {listening && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-xl border border-ink-30"
+                    style={{ transform: `scale(${1 + level * 0.35})`, opacity: 0.25 + level * 0.5 }}
+                  />
+                )}
+                {connecting ? <Dots /> : <MicMark />}
+              </button>
 
               <button
                 type="submit"
-                disabled={busy || value.trim().length < 2 || listening}
+                disabled={busy || value.trim().length < 2}
                 className="shrink-0 rounded-xl bg-ink px-4 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity disabled:opacity-30"
               >
                 Ask
@@ -370,22 +527,21 @@ export function AgentOverlay({
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[0.74rem] text-ink-30">
               <p>
-                {speech.supported
-                  ? "Voice runs in your browser for now — the live call agent is being built."
-                  : "Voice needs Chrome or Safari; typing works everywhere."}
+                {listening
+                  ? "On a call. Press the mic again to hang up."
+                  : "Voice is a real conversation — it hears you while it talks."}
               </p>
-              {/* One switch for everything the screen does audibly — the
-                  opening chime and the spoken answers. Two switches for a
-                  screen with one voice is a settings panel nobody asked for. */}
+              {/* One switch for everything the screen does audibly. Two
+                  switches for a screen with one voice is a settings panel
+                  nobody asked for. */}
               <button
                 type="button"
-                onClick={() => {
-                  window.speechSynthesis?.cancel();
+                onClick={() =>
                   setSound((s) => {
                     setSoundOn(!s);
                     return !s;
-                  });
-                }}
+                  })
+                }
                 aria-pressed={sound}
                 className="underline underline-offset-4 transition-colors hover:text-ink"
               >
@@ -396,6 +552,35 @@ export function AgentOverlay({
         </div>
       </div>
     </>
+  );
+}
+
+/* ----------------------------------------------------------------- cards */
+
+/** The jobs the agent put on screen, because a voice cannot hand over a link. */
+function Cards({ jobs, reason }: { jobs: JobCard[]; reason?: string }) {
+  return (
+    <div className="mt-2.5">
+      {reason && <p className="mb-2 px-1 text-[0.78rem] text-ink-30">{reason}</p>}
+      <ul className="flex flex-wrap gap-2">
+        {jobs.map((j) => (
+          <li key={j.id}>
+            <a
+              href={j.apply_url}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex flex-col rounded-xl border border-ink-08 px-3.5 py-2.5 transition-colors hover:border-ink-30"
+            >
+              <span className="text-[0.84rem] font-medium leading-snug text-ink">{j.title}</span>
+              <span className="mt-0.5 text-[0.75rem] text-ink-30">
+                {j.company}
+                {j.cities.length ? ` · ${j.cities.join(", ")}` : j.is_remote ? " · Remote" : ""}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -423,7 +608,15 @@ function OrbMark({ className }: { className?: string }) {
 }
 
 /** The same artwork as the corner, at the size of a thing you talk to. */
-function BigOrb({ listening, busy }: { listening: boolean; busy: boolean }) {
+function BigOrb({
+  listening,
+  busy,
+  level,
+}: {
+  listening: boolean;
+  busy: boolean;
+  level: number;
+}) {
   const host = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -477,9 +670,11 @@ function BigOrb({ listening, busy }: { listening: boolean; busy: boolean }) {
 
       <span
         aria-hidden="true"
-        className={`relative h-full w-full overflow-hidden rounded-full transition-transform duration-500 ${
-          busy ? "scale-[0.94]" : "scale-100"
+        className={`relative h-full w-full overflow-hidden rounded-full transition-transform duration-300 ${
+          busy ? "scale-[0.94]" : ""
         }`}
+        // Breathes with the room while the call is open.
+        style={listening ? { transform: `scale(${1 + level * 0.08})` } : undefined}
       >
         <span
           ref={host}
@@ -488,140 +683,6 @@ function BigOrb({ listening, busy }: { listening: boolean; busy: boolean }) {
       </span>
     </span>
   );
-}
-
-/* ---------------------------------------------------------------- speech */
-
-/**
- * The browser's own speech recognition.
- *
- * Chrome and Safari ship it; Firefox does not, which is why every caller
- * checks `supported` before drawing a microphone. Locale is en-IN so Indian
- * names, cities and "lakh" come back spelled the way people say them.
- *
- * This is deliberately not the product's voice agent. It is speech to text in
- * the browser, free, with no audio leaving the device except as a transcript —
- * good enough to talk to the thing today, and honest about what it is.
- */
-type SpeechState = {
-  supported: boolean;
-  listening: boolean;
-  interim: string;
-  final: string | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type RecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-};
-
-type SpeechRecognitionEventLike = {
-  resultIndex: number;
-  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
-};
-
-function useSpeech(): SpeechState {
-  const [supported, setSupported] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [interim, setInterim] = useState("");
-  const [final, setFinal] = useState<string | null>(null);
-  const recognition = useRef<RecognitionLike | null>(null);
-
-  useEffect(() => {
-    const w = window as unknown as {
-      SpeechRecognition?: new () => RecognitionLike;
-      webkitSpeechRecognition?: new () => RecognitionLike;
-    };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-
-    setSupported(true);
-    const r = new Ctor();
-    r.lang = "en-IN";
-    r.continuous = false;
-    r.interimResults = true;
-
-    r.onresult = (e) => {
-      let live = "";
-      let done = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i];
-        if (res.isFinal) done += res[0].transcript;
-        else live += res[0].transcript;
-      }
-      if (live) setInterim(live);
-      if (done.trim()) {
-        setInterim("");
-        setFinal(done.trim());
-      }
-    };
-    r.onerror = () => setListening(false);
-    r.onend = () => {
-      setListening(false);
-      setInterim("");
-    };
-
-    recognition.current = r;
-    return () => {
-      r.onresult = null;
-      r.onerror = null;
-      r.onend = null;
-      try {
-        r.abort();
-      } catch {
-        /* already stopped */
-      }
-    };
-  }, []);
-
-  const start = useCallback(() => {
-    setFinal(null);
-    setInterim("");
-    try {
-      recognition.current?.start();
-      setListening(true);
-    } catch {
-      /* start() throws if it is already running */
-    }
-  }, []);
-
-  const stop = useCallback(() => {
-    try {
-      recognition.current?.stop();
-    } catch {
-      /* not running */
-    }
-    setListening(false);
-  }, []);
-
-  // Memoised because callers put this object in dependency arrays. Returned
-  // as a fresh literal it changed identity on every render, which made every
-  // effect that depended on it re-run on every render — including the one
-  // that opens the surface, which then set state, which rendered again.
-  return useMemo(
-    () => ({ supported, listening, interim, final, start, stop }),
-    [supported, listening, interim, final, start, stop],
-  );
-}
-
-/** Reads an answer back. Cancels anything mid-sentence first. */
-function speak(text: string) {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text.slice(0, 700));
-  u.lang = "en-IN";
-  u.rate = 1.02;
-  synth.speak(u);
 }
 
 /* ------------------------------------------------------------------ bits */

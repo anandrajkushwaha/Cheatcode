@@ -68,5 +68,29 @@ export async function POST(request: Request) {
   const result = await agentReply({ turns, profile, resume, jobs });
   if (!result.ok) return bad(result.error, 502);
 
-  return Response.json({ ok: true, reply: result.reply });
+  // Resolve the ids the model asked for against the list it was given, and
+  // send back only what a card needs. Ids it invented resolve to nothing,
+  // which is the point: the client cannot render a job that does not exist.
+  const show = result.show
+    ? {
+        reason: result.show.reason,
+        jobs: result.show.jobIds
+          .map((id) => jobs.find((j) => j.id === id))
+          .filter((j): j is (typeof jobs)[number] => !!j)
+          .map((j) => ({
+            id: j.id,
+            title: j.title,
+            company: j.company,
+            cities: j.cities,
+            is_remote: j.is_remote,
+            apply_url: j.apply_url,
+          })),
+      }
+    : undefined;
+
+  return Response.json({
+    ok: true,
+    reply: result.reply,
+    ...(show?.jobs.length ? { show } : {}),
+  });
 }
