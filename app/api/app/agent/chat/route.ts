@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
-import { agentReply, type Turn } from "@/lib/app/agent-chat";
+import { agentReplyStream, type Turn } from "@/lib/app/agent-chat";
 import { getAllowance, outOfMessages, spend } from "@/lib/app/allowance";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +66,13 @@ export async function POST(request: Request) {
       // Not a paywall when the meter is simply absent — offering an upgrade
       // for our own missing migration would be worse than saying nothing.
       upgrade: allowance.configured && !allowance.paid,
-      messagesLeft: 0,
+      configured: allowance.configured,
+      // And no count either. Sending zero here put "No messages left today."
+      // underneath an error that had just said the limits table was missing:
+      // two contradictory sentences, and the more prominent one blamed the
+      // person for our own deployment. Absent has to stay absent all the way
+      // to the screen, not arrive as a zero.
+      ...(allowance.configured ? { messagesLeft: 0 } : {}),
     });
   }
 
@@ -80,37 +86,77 @@ export async function POST(request: Request) {
     limit: 12,
   }).catch(() => ({ jobs: [] }));
 
-  const result = await agentReply({ turns, profile, resume, jobs });
-  // Charged only on success. An upstream 503 is our problem, not theirs.
-  if (!result.ok) return bad(result.error, 502);
+  /**
+   * From here on the answer is streamed.
+   *
+   * Everything that could refuse — not signed in, throttled, out of
+   * messages — has already answered with a real status code above. Once we
+   * have decided to answer, the reply goes out as it is written, because the
+   * wait for a whole paragraph is what made this feel slow. A failure after
+   * this point arrives as an `error` line inside a 200, which is the honest
+   * cost of streaming and is why the client reads the body either way.
+   *
+   * Newline-delimited JSON rather than SSE: the client is our own code, not
+   * an EventSource, and one JSON object per line is far less to get wrong.
+   */
+  const encoder = new TextEncoder();
 
-  const left = await spend(user.id, { messages: 1 });
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const line = (o: unknown) => controller.enqueue(encoder.encode(JSON.stringify(o) + "\n"));
 
-  // Resolve the ids the model asked for against the list it was given, and
-  // send back only what a card needs. Ids it invented resolve to nothing,
-  // which is the point: the client cannot render a job that does not exist.
-  const show = result.show
-    ? {
-        reason: result.show.reason,
-        jobs: result.show.jobIds
-          .map((id) => jobs.find((j) => j.id === id))
-          .filter((j): j is (typeof jobs)[number] => !!j)
-          .map((j) => ({
-            id: j.id,
-            title: j.title,
-            company: j.company,
-            cities: j.cities,
-            is_remote: j.is_remote,
-            apply_url: j.apply_url,
-          })),
+      const result = await agentReplyStream({ turns, profile, resume, jobs }, (chunk) =>
+        line({ t: "delta", v: chunk }),
+      );
+
+      // Charged only on success. An upstream 503 is our problem, not theirs.
+      if (!result.ok) {
+        line({ t: "error", error: result.error });
+        controller.close();
+        return;
       }
-    : undefined;
 
-  return Response.json({
-    ok: true,
-    reply: result.reply,
-    messagesLeft: left.messagesLeft,
-    paid: left.paid,
-    ...(show?.jobs.length ? { show } : {}),
+      const left = await spend(user.id, { messages: 1 });
+
+      // Resolve the ids the model asked for against the list it was given, and
+      // send back only what a card needs. Ids it invented resolve to nothing,
+      // which is the point: the client cannot render a job that does not exist.
+      const show = result.show
+        ? {
+            reason: result.show.reason,
+            jobs: result.show.jobIds
+              .map((id) => jobs.find((j) => j.id === id))
+              .filter((j): j is (typeof jobs)[number] => !!j)
+              .map((j) => ({
+                id: j.id,
+                title: j.title,
+                company: j.company,
+                cities: j.cities,
+                is_remote: j.is_remote,
+                apply_url: j.apply_url,
+              })),
+          }
+        : undefined;
+
+      line({
+        t: "done",
+        reply: result.reply,
+        configured: left.configured,
+        ...(left.configured ? { messagesLeft: left.messagesLeft } : {}),
+        paid: left.paid,
+        ...(show?.jobs.length ? { show } : {}),
+      });
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      // Tells a proxy in front of us not to sit on the bytes until the end,
+      // which would undo the entire point of streaming.
+      "X-Accel-Buffering": "no",
+    },
   });
 }

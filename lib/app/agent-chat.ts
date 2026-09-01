@@ -1,7 +1,7 @@
 import "server-only";
 import { systemInstruction, TOOLS, type Grounding } from "@/lib/app/agent-brain";
 import { readShowJobs, type ShowJobs } from "@/lib/app/agent-types";
-import { llmChat, type Turn } from "@/lib/app/llm";
+import { llmChat, llmChatStream, type ChatOk as LlmOk, type LlmFail, type Turn } from "@/lib/app/llm";
 
 /**
  * The agent's answer, in text.
@@ -32,19 +32,40 @@ export type ChatFail = { ok: false; error: string };
 export async function agentReply(
   input: { turns: Turn[] } & Grounding,
 ): Promise<ChatOk | ChatFail> {
-  const turns = input.turns
-    .filter((t) => t.text.trim())
-    .slice(-MAX_TURNS)
-    .map((t) => ({ role: t.role, text: t.text.slice(0, MAX_CHARS) }));
+  return finish(await llmChat(request(input)));
+}
 
-  const result = await llmChat({
+/**
+ * The same reply, arriving as it is written.
+ *
+ * `onDelta` gets each new fragment. What comes back at the end is identical
+ * to `agentReply` — the cards in particular are only known once the turn is
+ * complete, because a job the model was still deciding to mention is not a
+ * job to put on screen.
+ */
+export async function agentReplyStream(
+  input: { turns: Turn[] } & Grounding,
+  onDelta: (chunk: string) => void,
+): Promise<ChatOk | ChatFail> {
+  return finish(await llmChatStream(request(input), onDelta));
+}
+
+/** What goes up, built once so the two paths cannot drift. */
+function request(input: { turns: Turn[] } & Grounding) {
+  return {
     system: systemInstruction("text", input),
-    turns,
+    turns: input.turns
+      .filter((t) => t.text.trim())
+      .slice(-MAX_TURNS)
+      .map((t) => ({ role: t.role, text: t.text.slice(0, MAX_CHARS) })),
     tools: TOOLS,
     temperature: 0.4,
     maxTokens: 400,
-  });
+  };
+}
 
+/** What comes back, read once for the same reason. */
+function finish(result: LlmOk | LlmFail): ChatOk | ChatFail {
   if (!result.ok) return { ok: false, error: result.error };
 
   // A turn can carry both prose and a tool call; the prose is the answer and

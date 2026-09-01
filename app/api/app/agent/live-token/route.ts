@@ -41,7 +41,14 @@ export async function POST() {
   // free — it is refused when its trial is spent, which is a different
   // sentence and a much better one to read the first time you press the mic.
   if (allowance.voiceLeft < MIN_VOICE_SECONDS) {
-    return bad(outOfVoice(allowance), 402, { upgrade: !allowance.paid, remaining: 0 });
+    // 402 only when there is a meter to be out of. A missing limits table is
+    // a 503 and never offers an upgrade — selling Pro to somebody because we
+    // failed to run a migration is the worst version of this screen.
+    return bad(outOfVoice(allowance), allowance.configured ? 402 : 503, {
+      upgrade: allowance.configured && !allowance.paid,
+      configured: allowance.configured,
+      ...(allowance.configured ? { remaining: 0 } : {}),
+    });
   }
 
   // The same jobs the Jobs page would show them, so the agent never talks

@@ -93,9 +93,25 @@ export function setSoundOn(on: boolean): void {
  */
 let current: HTMLAudioElement | null = null;
 
+/**
+ * Which request is still wanted.
+ *
+ * `hush()` can only stop a sound that has started, and the greeting spends
+ * most of its life not having started: a timeout is waiting, then a fetch is
+ * in flight, and only then is there an <audio> element to pause. Closing the
+ * screen in that window used to do nothing at all, so the agent carried on
+ * talking to an empty room.
+ *
+ * So every request takes a ticket, hush() invalidates all outstanding
+ * tickets, and each step checks its own before doing anything audible.
+ */
+let generation = 0;
+
 export async function say(text: string): Promise<void> {
   if (typeof window === "undefined" || !soundOn()) return;
   hush();
+  const mine = generation;
+  const stale = () => mine !== generation;
 
   try {
     const res = await fetch("/api/app/agent/speak", {
@@ -103,9 +119,13 @@ export async function say(text: string): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
+    if (stale()) return;
 
     if (res.ok && res.headers.get("Content-Type")?.startsWith("audio/")) {
-      const url = URL.createObjectURL(await res.blob());
+      const blob = await res.blob();
+      if (stale()) return;
+
+      const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       current = audio;
       // Revoked on both paths: a blob URL that is never released holds the
@@ -113,13 +133,24 @@ export async function say(text: string): Promise<void> {
       const done = () => URL.revokeObjectURL(url);
       audio.onended = done;
       audio.onerror = done;
-      await audio.play();
+
+      await audio.play().catch(() => {
+        /* Paused by hush() mid-start, or autoplay refused. Neither is an error. */
+      });
+
+      // play() resolving is not the end of the story — hush() can land in the
+      // moment between asking and hearing.
+      if (stale()) {
+        audio.pause();
+        done();
+      }
       return;
     }
   } catch {
     /* Fall through to the browser's voice. */
   }
 
+  if (stale()) return;
   browserSay(text);
 }
 
@@ -148,9 +179,17 @@ function browserSay(text: string): void {
   synth.speak(u);
 }
 
-/** Stop anything mid-sentence. Called when a real conversation starts. */
+/**
+ * Stop anything mid-sentence, and anything about to start one.
+ *
+ * Called when a real conversation begins and when the screen closes. The
+ * generation bump is the half that matters on close: a greeting that is still
+ * being fetched has nothing to pause, and without this it would arrive a
+ * second later and start talking over a page nobody is looking at.
+ */
 export function hush(): void {
   if (typeof window === "undefined") return;
+  generation++;
   window.speechSynthesis?.cancel();
   if (current) {
     current.pause();

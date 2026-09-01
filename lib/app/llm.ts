@@ -110,83 +110,252 @@ export type ToolBlock = {
 
 /* ----------------------------------------------------------------- chat */
 
-export async function llmChat(input: {
+export type ChatInput = {
   system: string;
   turns: Turn[];
   tools?: ToolBlock[];
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
-}): Promise<ChatOk | LlmFail> {
-  const p = provider();
-  const key = p && apiKey(p);
-  if (!p || !key) return { ok: false, error: "The agent isn't switched on yet.", status: 503 };
+};
 
-  const turns = input.turns.filter((t) => t.text.trim());
-  if (!turns.length) return { ok: false, error: "Nothing to answer.", status: 400 };
-
-  const temperature = input.temperature ?? 0.4;
-  const maxTokens = input.maxTokens ?? 400;
+export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
+  const ready = prepare(input);
+  if (!ready.ok) return ready.fail;
+  const { p, key, turns } = ready;
 
   const result = await send({
     provider: p,
     key,
     pin: pin(p),
     timeoutMs: input.timeoutMs ?? 25_000,
-    build: (model, drop) =>
-      p === "openai"
-        ? {
-            url: `${OPENAI_BASE}/responses`,
-            headers: openaiHeaders(key),
-            body: JSON.stringify({
-              model,
-              instructions: input.system,
-              input: turns.map((t) => ({
-                role: t.role === "model" ? "assistant" : "user",
-                content: t.text,
-              })),
-              ...(input.tools && !drop.has("tools")
-                ? { tools: toolsForOpenAI(input.tools) }
-                : {}),
-              ...(drop.has("temperature") ? {} : { temperature }),
-              // Reasoning models spend output tokens thinking before they say
-              // anything, so a 400-token cap can be consumed entirely by
-              // reasoning and return an empty answer. The floor is headroom,
-              // not a budget — billing follows what is actually used, and the
-              // instructions already ask for two or three sentences.
-              ...(drop.has("maxTokens")
-                ? {}
-                : { max_output_tokens: Math.max(maxTokens, 1500) }),
-              store: process.env.OPENAI_STORE === "1",
-            }),
-          }
-        : {
-            url: `${GEMINI_BASE}/${model}:generateContent`,
-            headers: geminiHeaders(key),
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: input.system }] },
-              contents: turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
-              ...(input.tools && !drop.has("tools") ? { tools: input.tools } : {}),
-              generationConfig: {
-                ...(drop.has("temperature") ? {} : { temperature }),
-                ...(drop.has("maxTokens") ? {} : { maxOutputTokens: maxTokens }),
-              },
-            }),
-          },
+    build: chatBody(p, input, turns, false),
   });
 
   if (!result.ok) return failure(result, p);
 
-  const read = p === "openai" ? readOpenAI(result.json) : readGemini(result.json);
+  const json = await result.res.json().catch(() => null);
+  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
   if (!read.text && !read.calls.length) {
     console.error(
       `llm: ${p}/${result.model} returned nothing usable`,
-      JSON.stringify(result.json).slice(0, 600),
+      JSON.stringify(json).slice(0, 600),
     );
     return { ok: false, error: "The model returned nothing.", status: 502 };
   }
 
   return { ok: true, ...read, provider: p, model: result.model };
+}
+
+/**
+ * The same answer, but arriving as it is written.
+ *
+ * Latency here is not really latency, it is silence: a good answer that takes
+ * four seconds feels broken and the same answer that starts in one feels
+ * quick, because the wait is spent reading rather than watching a dot. The
+ * total is barely different; the experience is not comparable.
+ *
+ * Tool calls are read from the final event rather than from the delta stream.
+ * The event names for streamed function arguments have changed spelling more
+ * than once, and the completed response object has not — a job card that
+ * silently stops appearing is a worse failure than a slightly later one.
+ *
+ * `onDelta` is called with each new fragment, never the accumulated text, so
+ * a caller can append rather than re-render everything.
+ */
+export async function llmChatStream(
+  input: ChatInput,
+  onDelta: (chunk: string) => void,
+): Promise<ChatOk | LlmFail> {
+  const ready = prepare(input);
+  if (!ready.ok) return ready.fail;
+  const { p, key, turns } = ready;
+
+  const result = await send({
+    provider: p,
+    key,
+    pin: pin(p),
+    timeoutMs: input.timeoutMs ?? 25_000,
+    build: chatBody(p, input, turns, true),
+  });
+
+  if (!result.ok) return failure(result, p);
+
+  let text = "";
+  let calls: ToolCall[] = [];
+  let upstreamError: string | null = null;
+
+  try {
+    for await (const frame of sse(result.res)) {
+      if (frame === "[DONE]") break;
+
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(frame) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+
+      if (p === "openai") {
+        const type = event.type as string | undefined;
+        if (type === "response.output_text.delta") {
+          const delta = event.delta;
+          if (typeof delta === "string" && delta) {
+            text += delta;
+            onDelta(delta);
+          }
+        } else if (type === "response.completed" || type === "response.incomplete") {
+          const read = readOpenAI(event.response);
+          calls = read.calls;
+          // The assembled response is the authority. Deltas can be missed at
+          // the edges of a chunk boundary; this cannot.
+          if (read.text) text = read.text;
+        } else if (type === "error" || type === "response.failed") {
+          upstreamError = JSON.stringify(event).slice(0, 300);
+        }
+      } else {
+        // Gemini streams whole GenerateContentResponse chunks, so the same
+        // reader works — it just has to be told to append rather than replace.
+        const read = readGemini(event);
+        if (read.text) {
+          text += read.text;
+          onDelta(read.text);
+        }
+        if (read.calls.length) calls = calls.concat(read.calls);
+      }
+    }
+  } catch (e) {
+    // The stream broke partway. Whatever arrived is still a real answer, and
+    // showing it beats replacing it with an apology.
+    console.error(`llm: ${p}/${result.model} stream broke —`, String(e).slice(0, 200));
+    if (!text) return { ok: false, error: "The answer was cut off. Ask again.", status: 502 };
+  }
+
+  if (upstreamError) console.error(`llm: ${p}/${result.model} streamed an error`, upstreamError);
+
+  if (!text && !calls.length) {
+    console.error(`llm: ${p}/${result.model} streamed nothing usable`, upstreamError ?? "");
+    return { ok: false, error: "The model returned nothing.", status: 502 };
+  }
+
+  return { ok: true, text, calls, provider: p, model: result.model };
+}
+
+/* ------------------------------------------------------- shared plumbing */
+
+type Ready =
+  | { ok: true; p: Provider; key: string; turns: Turn[] }
+  | { ok: false; fail: LlmFail };
+
+/** The two refusals both chat paths share, decided once. */
+function prepare(input: ChatInput): Ready {
+  const p = provider();
+  const key = p && apiKey(p);
+  if (!p || !key) {
+    return { ok: false, fail: { ok: false, error: "The agent isn't switched on yet.", status: 503 } };
+  }
+  const turns = input.turns.filter((t) => t.text.trim());
+  if (!turns.length) {
+    return { ok: false, fail: { ok: false, error: "Nothing to answer.", status: 400 } };
+  }
+  return { ok: true, p, key, turns };
+}
+
+/**
+ * One request body for both paths.
+ *
+ * Streaming used to be a second copy of this, and a second copy is how the
+ * streamed agent quietly ends up with different tools or a different
+ * temperature from the typed one.
+ */
+function chatBody(p: Provider, input: ChatInput, turns: Turn[], stream: boolean) {
+  const temperature = input.temperature ?? 0.4;
+  const maxTokens = input.maxTokens ?? 400;
+  const key = apiKey(p)!;
+
+  return (model: string, drop: Set<Drop>): Built =>
+    p === "openai"
+      ? {
+          url: `${OPENAI_BASE}/responses`,
+          headers: openaiHeaders(key),
+          body: JSON.stringify({
+            model,
+            instructions: input.system,
+            input: turns.map((t) => ({
+              role: t.role === "model" ? "assistant" : "user",
+              content: t.text,
+            })),
+            ...(input.tools && !drop.has("tools") ? { tools: toolsForOpenAI(input.tools) } : {}),
+            ...(drop.has("temperature") ? {} : { temperature }),
+            // A reasoning model thinks before it says anything, and on a
+            // two-sentence answer to "any React jobs in Pune" that thinking is
+            // most of the wait. Low rather than minimal: minimal is not on
+            // every model, and being refused would drop the field entirely and
+            // land back on the slow default.
+            ...(drop.has("reasoning") ? {} : { reasoning: { effort: "low" } }),
+            // Reasoning models spend output tokens thinking before they say
+            // anything, so a 400-token cap can be consumed entirely by
+            // reasoning and return an empty answer. The floor is headroom, not
+            // a budget — billing follows what is actually used, and the
+            // instructions already ask for two or three sentences.
+            ...(drop.has("maxTokens") ? {} : { max_output_tokens: Math.max(maxTokens, 1500) }),
+            store: process.env.OPENAI_STORE === "1",
+            ...(stream ? { stream: true } : {}),
+          }),
+        }
+      : {
+          url: `${GEMINI_BASE}/${model}:${
+            stream ? "streamGenerateContent?alt=sse" : "generateContent"
+          }`,
+          headers: geminiHeaders(key),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: input.system }] },
+            contents: turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+            ...(input.tools && !drop.has("tools") ? { tools: input.tools } : {}),
+            generationConfig: {
+              ...(drop.has("temperature") ? {} : { temperature }),
+              ...(drop.has("maxTokens") ? {} : { maxOutputTokens: maxTokens }),
+            },
+          }),
+        };
+}
+
+/**
+ * Server-sent events, one payload at a time.
+ *
+ * Both providers stream in this format. Frames are separated by a blank line
+ * and a frame can carry comments and other fields we do not want, so only
+ * `data:` lines are yielded — and a frame can be split across two network
+ * chunks, which is the bug every hand-written SSE reader has at least once.
+ */
+async function* sse(res: Response): AsyncGenerator<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+
+      let split: number;
+      while ((split = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        for (const line of frame.split("\n")) {
+          if (line.startsWith("data:")) yield line.slice(5).trim();
+        }
+      }
+    }
+  } finally {
+    // A stream abandoned without cancelling holds the connection open until
+    // it times out, which on a serverless function is billed time.
+    await reader.cancel().catch(() => {});
+  }
 }
 
 /* -------------------------------------------------------- structured JSON */
@@ -274,12 +443,13 @@ export async function llmJson(input: {
 
   if (!result.ok) return failure(result, p);
 
-  const read = p === "openai" ? readOpenAI(result.json) : readGemini(result.json);
+  const json = await result.res.json().catch(() => null);
+  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
   const raw = read.text.trim();
   if (!raw) {
     console.error(
       `llm: ${p}/${result.model} returned no JSON`,
-      JSON.stringify(result.json).slice(0, 600),
+      JSON.stringify(json).slice(0, 600),
     );
     return { ok: false, error: "The model returned nothing usable.", status: 502 };
   }
@@ -304,11 +474,11 @@ function strip(raw: string): string {
 /* ------------------------------------------------------------- transport */
 
 /** Fields we can remove from a request when the provider rejects it. */
-type Drop = "temperature" | "maxTokens" | "schema" | "tools";
+type Drop = "temperature" | "maxTokens" | "schema" | "tools" | "reasoning";
 
 type Built = { url: string; headers: Record<string, string>; body: string };
 
-type SendOk = { ok: true; json: unknown; model: string };
+type SendOk = { ok: true; res: Response; model: string };
 type SendFail = {
   ok: false;
   status: number;
@@ -365,7 +535,10 @@ async function send(o: {
 
     if (res.ok) {
       remember(o.provider, model);
-      return { ok: true, json: await res.json().catch(() => null), model };
+      // The Response itself, unread. A streaming caller needs the body as it
+      // arrives, and parsing it here would be the one thing that makes
+      // streaming impossible.
+      return { ok: true, res, model };
     }
 
     lastStatus = res.status;
@@ -461,6 +634,7 @@ async function send(o: {
  */
 function adaptation(body: string): Drop | null {
   const b = body.toLowerCase();
+  if (/\breasoning\b/.test(b)) return "reasoning";
   if (/temperature/.test(b)) return "temperature";
   if (/max_output_tokens|maxoutputtokens|max_tokens/.test(b)) return "maxTokens";
   if (/json_schema|response_?schema|text\.format|response_format|\bschema\b/.test(b)) {

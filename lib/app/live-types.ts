@@ -69,4 +69,6 @@ export type Ticket = {
   jobs?: JobCard[];
   error?: string;
   upgrade?: boolean;
+  /** False when this server has no limits table, so there is nothing to count. */
+  configured?: boolean;
 };

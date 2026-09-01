@@ -30,6 +30,23 @@ import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
  * reveal, by the pixel field, and by the size of the orb instead.
  */
 
+/**
+ * One line of the streamed answer.
+ *
+ * The route sends newline-delimited JSON: any number of `delta` lines, then
+ * exactly one `done` or one `error`.
+ */
+type Finished = {
+  t?: "done";
+  reply?: string;
+  show?: { jobs?: JobCard[]; reason?: string };
+  configured?: boolean;
+  messagesLeft?: number;
+  paid?: boolean;
+};
+
+type Line = Finished | { t: "delta"; v?: string } | { t: "error"; error?: string };
+
 type Turn = {
   role: "user" | "model";
   text: string;
@@ -62,6 +79,14 @@ export function AgentOverlay({
   const [messagesLeft, setMessagesLeft] = useState<number | null>(null);
   const [voiceLeft, setVoiceLeft] = useState<number | null>(null);
   const [upgrade, setUpgrade] = useState(false);
+  /**
+   * Whether this server has a meter at all.
+   *
+   * Not the same question as how much is left, and conflating them is a
+   * mistake this file has now made twice: an unmetered server reports zero,
+   * and zero reads on screen as "you have used everything up".
+   */
+  const [metered, setMetered] = useState(true);
   /** The greeting, on screen. Replaces the stock question once it arrives. */
   const [heading, setHeading] = useState("What do you want to know?");
   const [pulse, setPulse] = useState(0);
@@ -132,6 +157,10 @@ export function AgentOverlay({
   /* ------------------------------------------------------------- closing */
 
   const close = useCallback(() => {
+    // Both, and in this order. The unmount effect also does this, but it runs
+    // 380ms later when the conceal animation finishes — long enough for a
+    // greeting to arrive and start talking after the screen has visibly gone.
+    hush();
     session.current?.stop();
     setClosing(true);
     // Long enough for the conceal animation; the state is thrown away after.
@@ -259,6 +288,7 @@ export function AgentOverlay({
 
     if (typeof live.remaining === "number") setVoiceLeft(live.remaining);
     if (live.upgrade) setUpgrade(true);
+    if (!live.metered) setMetered(false);
 
     // The job list came back with the token, so a card can be drawn the
     // instant the model names a role rather than after a round trip.
@@ -295,30 +325,120 @@ export function AgentOverlay({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ turns: next.map((t) => ({ role: t.role, text: t.text })) }),
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        reply?: string;
-        error?: string;
-        upgrade?: boolean;
-        messagesLeft?: number;
-        show?: { jobs?: JobCard[]; reason?: string };
-      };
-
-      if (typeof json.messagesLeft === "number") setMessagesLeft(json.messagesLeft);
-
-      if (!res.ok || !json.ok || !json.reply) {
+      // A refusal — not signed in, throttled, out of messages — is still an
+      // ordinary JSON body with a real status code. Only an answer streams.
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          upgrade?: boolean;
+          configured?: boolean;
+          messagesLeft?: number;
+        };
+        // A server with no limits table has no count to report, and treating
+        // its silence as zero is what put "No messages left today." under an
+        // error saying the table was missing.
+        if (json.configured === false) setMetered(false);
+        else if (typeof json.messagesLeft === "number") {
+          setMetered(true);
+          setMessagesLeft(json.messagesLeft);
+        }
         setError(json.error ?? "That didn't go through.");
         // 402 is the paywall, and it is the one failure worth pointing
         // somewhere rather than just apologising for.
         if (json.upgrade) setUpgrade(true);
         return;
       }
+
       setUpgrade(false);
+
+      /**
+       * The answer, as it is written.
+       *
+       * A turn is appended the moment the first fragment lands and then grown
+       * in place, so the screen has something to read within a second instead
+       * of a dot that pulses for four. `settled` guards the finally block:
+       * only a stream that never produced anything should be rolled back.
+       */
+      let streamed = "";
+      let placed = false;
+      // A holder rather than two `let`s: TypeScript does not track assignments
+      // made inside the reader callback, and would narrow both to null.
+      const out: { done: Finished | null; failed: string | null } = {
+        done: null,
+        failed: null,
+      };
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const consume = (raw: string) => {
+        const trimmed = raw.trim();
+        if (!trimmed) return;
+        let event: Line;
+        try {
+          event = JSON.parse(trimmed) as Line;
+        } catch {
+          return;
+        }
+
+        if (event.t === "delta" && event.v) {
+          streamed += event.v;
+          if (!placed) {
+            placed = true;
+            setBusy(false); // there is something on screen now
+            setTurns([...next, { role: "model", text: streamed }]);
+          } else {
+            setTurns((all) => {
+              const copy = [...all];
+              copy[copy.length - 1] = { ...copy[copy.length - 1], text: streamed };
+              return copy;
+            });
+          }
+        } else if (event.t === "done") {
+          out.done = event as Finished;
+        } else if (event.t === "error") {
+          out.failed = event.error ?? "That didn't go through.";
+        }
+      };
+
+      if (reader) {
+        for (;;) {
+          const { done: finished, value } = await reader.read();
+          if (finished) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) !== -1) {
+            consume(buffer.slice(0, nl));
+            buffer = buffer.slice(nl + 1);
+          }
+        }
+        consume(buffer);
+      }
+
+      const { done, failed } = out;
+
+      if (done?.configured === false) setMetered(false);
+      else if (typeof done?.messagesLeft === "number") {
+        setMetered(true);
+        setMessagesLeft(done.messagesLeft);
+      }
+
+      if (failed || !done) {
+        // Nothing usable arrived. Take the half-written turn back off the
+        // screen rather than leaving a sentence that stops mid-word.
+        if (placed) setTurns(next);
+        setError(failed ?? "That didn't go through.");
+        return;
+      }
 
       const turn: Turn = {
         role: "model",
-        text: json.reply,
-        ...(json.show?.jobs?.length ? { jobs: json.show.jobs, reason: json.show.reason } : {}),
+        // The finished reply, not the accumulated deltas — it is the one the
+        // server actually recorded, and on a provider that never streamed a
+        // fragment it is the only one there is.
+        text: done.reply ?? streamed,
+        ...(done.show?.jobs?.length ? { jobs: done.show.jobs, reason: done.show.reason } : {}),
       };
       setTurns([...next, turn]);
       setPulse((n) => n + 1);
@@ -360,6 +480,7 @@ export function AgentOverlay({
         : "On a call. Press the mic again to hang up.";
     }
     if (upgrade) return null; // the error line already carries it
+    if (!metered) return null; // nothing to count, and the error line says why
     if (messagesLeft !== null && messagesLeft <= 3) {
       return messagesLeft === 0
         ? "No messages left today."

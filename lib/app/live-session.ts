@@ -45,6 +45,14 @@ export class LiveSession {
   /** True when the refusal was a paywall rather than a fault. */
   upgrade = false;
 
+  /**
+   * False when the server has no limits table.
+   *
+   * Kept apart from `remaining` because "no meter" and "nothing left" want
+   * completely different sentences on screen.
+   */
+  metered = true;
+
   /** Which provider answered. Useful in a bug report, harmless otherwise. */
   provider: "openai" | "gemini" | null = null;
 
@@ -82,6 +90,7 @@ export class LiveSession {
       ticket = (await res.json()) as Ticket;
       if (!res.ok || !ticket.ok || !ticket.token) {
         this.upgrade = !!ticket.upgrade;
+        this.metered = ticket.configured !== false;
         this.fail(ticket.error ?? "Could not start a voice session.");
         return;
       }
