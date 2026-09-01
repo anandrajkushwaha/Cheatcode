@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NavLink } from "@/components/app/NavLink";
+import { AgentOrb } from "@/components/app/AgentOrb";
 import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/supabase/app";
 import { appAuthConfigured } from "@/lib/supabase/app-env";
@@ -102,7 +103,12 @@ APP_SUPABASE_SECRET_KEY=`}
 
       <main className="container-app py-8 sm:py-10">{children}</main>
 
-      <footer className="container-app mt-12 border-t border-ink-08 py-8 text-[0.78rem] text-ink-30">
+      {/* Outside main so it never inherits a page's padding or stacking
+          context — a fixed element inside a transformed ancestor stops being
+          fixed, and that bug only shows up on the one page that animates. */}
+      <AgentOrb />
+
+      <footer className="container-app mt-12 border-t border-ink-08 py-8 pb-28 text-[0.78rem] text-ink-30 sm:pb-8">
         Signed in as {name}.{" "}
         <Link href="/" className="underline underline-offset-4 hover:text-ink">
           Back to the site

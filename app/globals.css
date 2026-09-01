@@ -471,3 +471,71 @@
     radial-gradient(130% 100% at 50% -30%, color-mix(in srgb, var(--color-sky-1) 22%, transparent) 0%, transparent 62%),
     linear-gradient(180deg, color-mix(in srgb, var(--color-sky-2) 10%, var(--color-paper)) 0%, var(--color-paper) 78%);
 }
+
+/* ---------------------------------------------------------------
+   The agent's full-screen surface.
+
+   Opening it is a circular reveal from wherever the orb sits, so the
+   page does not cut to a new screen — it is swallowed by the thing you
+   pressed. That is the whole reason the origin is a custom property:
+   the animation has to start at the orb, and the orb moves between
+   breakpoints.
+   --------------------------------------------------------------- */
+
+@keyframes cc-reveal {
+  from { clip-path: circle(0px at var(--ox, 90%) var(--oy, 90%)); }
+  to   { clip-path: circle(var(--r, 160vmax) at var(--ox, 90%) var(--oy, 90%)); }
+}
+
+@keyframes cc-conceal {
+  from { clip-path: circle(var(--r, 160vmax) at var(--ox, 90%) var(--oy, 90%)); }
+  to   { clip-path: circle(0px at var(--ox, 90%) var(--oy, 90%)); }
+}
+
+/* Not an expo ease. Expo puts four fifths of the growth in the first
+   third, so the circle was already past the far corner while most of
+   the duration was still running — the reveal read as a cut. This curve
+   keeps the edge moving across the screen for the whole of it. */
+.cc-reveal  { animation: cc-reveal  0.56s cubic-bezier(0.32, 0.06, 0.16, 1) forwards; }
+.cc-conceal { animation: cc-conceal 0.36s cubic-bezier(0.5, 0, 0.75, 0.4) forwards; }
+
+/* The scrim the reveal travels across. A paper circle opening over a
+   paper page has no edge of its own; this gives it one. It is the only
+   reason the animation is visible at all, which is why it survived the
+   removal of everything else painted behind that surface. */
+@keyframes cc-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cc-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+.cc-fade-in  { animation: cc-fade-in  0.16s ease-out forwards; }
+.cc-fade-out { animation: cc-fade-out 0.3s ease-in 0.1s forwards; }
+
+/* Content inside the surface arrives after the reveal has passed it. */
+@keyframes cc-lift {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cc-lift {
+  opacity: 0;
+  animation: cc-lift 0.5s var(--ease-out-expo) forwards;
+  animation-delay: var(--d, 260ms);
+}
+
+/* Listening: three rings leaving the orb. Only ever shown while the
+   microphone is actually open. */
+@keyframes cc-ping {
+  from { transform: scale(1);   opacity: 0.55; }
+  to   { transform: scale(1.8); opacity: 0; }
+}
+
+.cc-ping { animation: cc-ping 2.4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-reveal,
+  .cc-conceal { animation: none; clip-path: none; }
+  .cc-conceal { opacity: 0; }
+  .cc-ping { animation: none; }
+  .cc-fade-in  { animation: none; opacity: 1; }
+  .cc-fade-out { animation: none; opacity: 0; }
+  .cc-lift { animation: none; opacity: 1; transform: none; }
+}
