@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Written before parsing, so a Gemini failure still leaves the person with a
+  // Written before parsing, so a model failure still leaves the person with a
   // saved resume and an ATS score rather than nothing at all.
   const { data: inserted, error: insertError } = await supabase
     .from("resumes")

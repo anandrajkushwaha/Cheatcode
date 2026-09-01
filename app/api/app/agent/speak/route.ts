@@ -7,7 +7,8 @@ export const maxDuration = 30;
 /**
  * Text in, audio out.
  *
- * Sits between the browser and ElevenLabs so the key stays here. It is also
+ * Sits between the browser and the voice provider so the key stays here — and
+ * which provider that is, is tts.ts's decision, not this route's. It is also
  * the only place that can say no: signed in, one request at a time, and a
  * hard cap on length — every character is billed, so an unbounded text field
  * pointed at this route is a bill someone else writes for us.

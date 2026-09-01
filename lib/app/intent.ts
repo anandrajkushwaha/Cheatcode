@@ -1,4 +1,5 @@
 import "server-only";
+import { llmJson } from "@/lib/app/llm";
 import { CANONICAL_CITIES } from "@/lib/geo/cities";
 
 /**
@@ -16,8 +17,12 @@ import { CANONICAL_CITIES } from "@/lib/geo/cities";
  * null so an existing value is never overwritten by a guess.
  */
 
-const MODEL = process.env.GEMINI_INTENT_MODEL ?? "gemini-flash-latest";
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+/**
+ * An override for this one call, if you want intent reading on a different
+ * model from the conversation. Unset is the normal case: whichever provider
+ * is configured picks its own model.
+ */
+const MODEL = process.env.INTENT_MODEL ?? process.env.GEMINI_INTENT_MODEL ?? null;
 
 /** Long enough for a rambling sentence, short enough that nobody pastes a resume in. */
 const MAX_CHARS = 600;
@@ -83,56 +88,25 @@ type Ok = { ok: true; intent: Intent };
 type Fail = { ok: false; error: string };
 
 export async function readIntent(sentence: string): Promise<Ok | Fail> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return { ok: false, error: "Intent reading isn't switched on yet." };
-
   const clean = sentence.trim().slice(0, MAX_CHARS);
   if (clean.length < 3) return { ok: false, error: "Tell me a little more than that." };
 
-  let response: Response;
-  try {
-    response = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
-        contents: [{ role: "user", parts: [{ text: clean }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: SCHEMA,
-          temperature: 0,
-          // The answer is six short fields. A cap keeps a runaway
-          // generation from becoming a bill.
-          maxOutputTokens: 400,
-        },
-      }),
-      // Someone is watching a cursor blink. Fifteen seconds is already long.
-      signal: AbortSignal.timeout(15_000),
-    });
-  } catch (e) {
-    const timedOut = e instanceof Error && e.name === "TimeoutError";
-    return {
-      ok: false,
-      error: timedOut ? "That took too long. Try again." : "Could not reach the model.",
-    };
-  }
+  const result = await llmJson({
+    system: INSTRUCTIONS,
+    user: clean,
+    schema: SCHEMA,
+    name: "job_intent",
+    pin: MODEL,
+    temperature: 0,
+    // The answer is six short fields. A cap keeps a runaway generation from
+    // becoming a bill.
+    maxTokens: 400,
+    // Someone is watching a cursor blink. Fifteen seconds is already long.
+    timeoutMs: 15_000,
+  });
 
-  if (!response.ok) {
-    if (response.status === 429) return { ok: false, error: "Too many requests. One moment." };
-    return { ok: false, error: `The model returned ${response.status}.` };
-  }
-
-  const json = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) return { ok: false, error: "The model returned nothing usable." };
-
-  try {
-    return { ok: true, intent: coerce(JSON.parse(raw)) };
-  } catch {
-    return { ok: false, error: "The model's answer wasn't valid JSON." };
-  }
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, intent: coerce(result.data) };
 }
 
 /* ----------------------------------------------------------------- shaping */

@@ -1,5 +1,6 @@
 import "server-only";
 import type { ParsedResume } from "@/lib/app/account";
+import { llmJson } from "@/lib/app/llm";
 
 /**
  * Turn resume text into structured fields.
@@ -8,8 +9,8 @@ import type { ParsedResume } from "@/lib/app/account";
  * against a blob of text, and the agent cannot ask a useful question without
  * knowing what someone already does. Everything downstream reads these fields.
  *
- * Gemini Flash rather than a rules engine, because resumes have no format:
- * dates appear six ways, titles are invented, and Indian service-company
+ * A model rather than a rules engine, because resumes have no format: dates
+ * appear six ways, titles are invented, and Indian service-company
  * designations ("Systems Engineer") mean something different from the market
  * title. A model handles that; regexes do not.
  *
@@ -18,8 +19,11 @@ import type { ParsedResume } from "@/lib/app/account";
  * number where a string belongs, or forty skills of one character each.
  */
 
-const MODEL = process.env.GEMINI_PARSE_MODEL ?? "gemini-flash-latest";
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+/**
+ * An override for this one call. Unset is the normal case — whichever
+ * provider is configured picks its own model.
+ */
+const MODEL = process.env.PARSE_MODEL ?? process.env.GEMINI_PARSE_MODEL ?? null;
 
 /** Trimmed hard: a resume beyond this is a portfolio, and tokens cost money. */
 const MAX_CHARS = 24_000;
@@ -86,11 +90,6 @@ type ParseOk = { ok: true; parsed: ParsedResume; model: string };
 type ParseFail = { ok: false; error: string };
 
 export async function parseResume(text: string): Promise<ParseOk | ParseFail> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    return { ok: false, error: "GEMINI_API_KEY is not set, so resumes can't be read yet." };
-  }
-
   const clean = text.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (clean.length < 120) {
     return {
@@ -101,57 +100,21 @@ export async function parseResume(text: string): Promise<ParseOk | ParseFail> {
     };
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
-        contents: [{ role: "user", parts: [{ text: clean.slice(0, MAX_CHARS) }] }],
-        generationConfig: {
-          // Structured output: the model is constrained to the schema rather
-          // than asked politely for JSON and hoped at.
-          responseMimeType: "application/json",
-          responseSchema: SCHEMA,
-          temperature: 0,
-        },
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-  } catch (e) {
-    const timedOut = e instanceof Error && e.name === "TimeoutError";
-    return {
-      ok: false,
-      error: timedOut ? "Reading the resume took too long. Try again." : "Could not reach Gemini.",
-    };
-  }
+  // Structured output: the model is constrained to the schema rather than
+  // asked politely for JSON and hoped at.
+  const result = await llmJson({
+    system: INSTRUCTIONS,
+    user: clean.slice(0, MAX_CHARS),
+    schema: SCHEMA,
+    name: "parsed_resume",
+    pin: MODEL,
+    temperature: 0,
+    timeoutMs: 45_000,
+  });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    if (response.status === 429) {
-      return { ok: false, error: "Gemini is rate limiting us right now. Try again in a minute." };
-    }
-    if (response.status === 400 && /API key/i.test(body)) {
-      return { ok: false, error: "The Gemini API key was rejected." };
-    }
-    return { ok: false, error: `Gemini returned ${response.status}.` };
-  }
+  if (!result.ok) return { ok: false, error: result.error };
 
-  const json = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) return { ok: false, error: "Gemini returned nothing usable." };
-
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: "Gemini's answer wasn't valid JSON." };
-  }
-
-  return { ok: true, parsed: coerce(data), model: MODEL };
+  return { ok: true, parsed: coerce(result.data), model: result.model };
 }
 
 /* ----------------------------------------------------------------- shaping */

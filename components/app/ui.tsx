@@ -60,7 +60,7 @@ export function Stat({ label, value, hint }: { label: string; value: string | nu
  * either renders or it explains what it costs — one component, one decision.
  *
  * This is presentation only. It hides a panel; it does not protect anything.
- * The server has to check the plan again before spending money on a Gemini
+ * The server has to check the plan again before spending money on a model
  * call, because a determined person can always render the page without it.
  */
 export function PaidOnly({
