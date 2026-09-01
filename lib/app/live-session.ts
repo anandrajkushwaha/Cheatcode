@@ -175,6 +175,18 @@ export class LiveSession {
     this.transport?.sendText(text);
   }
 
+  /**
+   * Stop sending audio without hanging up.
+   *
+   * Disabling the track rather than stopping it: a stopped track cannot be
+   * restarted, and on WebRTC it would have to be renegotiated with the far
+   * end. Disabled sends silence, which is exactly what mute means — and it
+   * also means the server's turn detection correctly hears nothing.
+   */
+  setMuted(muted: boolean): void {
+    this.stream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  }
+
   private set(state: LiveState): void {
     this.state = state;
     this.on.onState?.(state);

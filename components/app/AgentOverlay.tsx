@@ -100,6 +100,22 @@ export function AgentOverlay({
 
   const session = useRef<LiveSession | null>(null);
 
+  /* ------------------------------------------------------------ call mode */
+
+  /**
+   * A call is its own screen, not a mic icon in a text box.
+   *
+   * The mic used to be a 40px glyph sitting inside the composer, which meant
+   * the one thing this product does that nothing else does was the least
+   * visible control on the page. Pressing it now takes the screen over the way
+   * a call does: a timer, a caption, mute, and a way to hang up — so it is
+   * obvious what state you are in and obvious how to leave it.
+   */
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [muted, setMuted] = useState(false);
+  /** The keypad, for typing mid-call. Off by default: a call is for talking. */
+  const [typing, setTyping] = useState(false);
+
   /** The jobs the live session may put on screen, by id. */
   const catalogue = useRef<Map<string, JobCard>>(new Map());
   /** Cards the agent asked for but has not finished speaking about yet. */
@@ -215,6 +231,26 @@ export function AgentOverlay({
       session.current?.stop();
     };
   }, []);
+
+  /**
+   * The clock, while the call is up.
+   *
+   * Counted here rather than derived from the session's start time because
+   * this is the number somebody watches to decide whether they are about to
+   * run out — it has to advance every second, visibly, even if nothing is
+   * being said.
+   */
+  useEffect(() => {
+    if (liveState !== "live") {
+      setCallSeconds(0);
+      setMuted(false);
+      setTyping(false);
+      return;
+    }
+    setCallSeconds(0);
+    const id = window.setInterval(() => setCallSeconds((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [liveState]);
 
   // Keep the newest exchange in view without yanking the page.
   useEffect(() => {
@@ -472,12 +508,35 @@ export function AgentOverlay({
    * ten on somebody's first message makes a free tier feel like a trap; the
    * number appears when it starts to matter and when it has run out.
    */
+  /** Connecting counts as being in a call: the screen must not flicker back. */
+  const inCall = listening || connecting;
+
+  /**
+   * One line, whoever is speaking.
+   *
+   * Live text wins over settled text, because during a call the interesting
+   * thing is always the sentence in progress. When nobody is mid-sentence the
+   * agent's last answer stays up, so the screen is never blank between turns.
+   */
+  const captionIsMine = !saying && !!heard;
+  const caption =
+    saying ||
+    heard ||
+    [...turns].reverse().find((t) => t.role === "model")?.text ||
+    "";
+
+  /** The most recent set of cards, for the call screen. */
+  const lastCards = (() => {
+    const t = [...turns].reverse().find((x) => x.jobs?.length);
+    return t ? { jobs: t.jobs!, reason: t.reason } : null;
+  })();
+
   const footnote = (() => {
     if (listening) {
       const mins = voiceLeft === null ? null : Math.floor(voiceLeft / 60);
       return mins !== null && mins <= 2
-        ? `About ${Math.max(1, mins)} min of voice left. Press the mic to hang up.`
-        : "On a call. Press the mic again to hang up.";
+        ? `About ${Math.max(1, mins)} min of voice left.`
+        : null;
     }
     if (upgrade) return null; // the error line already carries it
     if (!metered) return null; // nothing to count, and the error line says why
@@ -530,11 +589,14 @@ export function AgentOverlay({
           pulse={pulse}
         />
 
-        {!empty && (
+        {/* Not during a call: the call screen already says what it is, in
+            larger type, four lines below. Two labels saying the same thing is
+            how a screen starts to feel unconsidered. */}
+        {!empty && !inCall && (
           <div className="absolute left-5 top-5 z-10 flex items-center gap-2.5 sm:left-7 sm:top-7">
             <OrbMark className="h-6 w-6" />
             <span className="text-[0.78rem] font-medium tracking-[-0.01em] text-ink-50">
-              {listening ? "On a call" : "Cheatcode agent"}
+              Cheatcode agent
             </span>
           </div>
         )}
@@ -554,40 +616,177 @@ export function AgentOverlay({
 
         {/* ------------------------------------------------------------ body */}
         <div className="relative mx-auto flex h-full max-w-2xl flex-col px-5 sm:px-7">
+          {inCall ? (
+            /* ------------------------------------------------------- a call */
+            <div className="flex h-full flex-col items-center justify-center pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+              <BigOrb listening={listening} busy={connecting} level={level} />
+
+              <p className="mt-7 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+                {connecting ? "Connecting" : muted ? "Muted" : "On a call"}
+              </p>
+              {/* Tabular numerals so the seconds do not shuffle the minutes
+                  sideways every tick. */}
+              <p className="mt-1.5 text-[1.7rem] font-semibold tabular-nums tracking-[-0.02em] text-ink">
+                {clock(callSeconds)}
+              </p>
+
+              {/* One caption, whoever is speaking. Two columns of transcript
+                  during a call is a chat window with audio bolted on; a call
+                  shows the last thing said and gets out of the way. */}
+              <div className="mt-8 flex min-h-[5.5rem] w-full max-w-[34rem] items-start justify-center px-2">
+                {caption ? (
+                  <p
+                    className={`line-clamp-4 text-center text-[1rem] leading-relaxed ${
+                      captionIsMine ? "text-ink-50" : "text-ink"
+                    }`}
+                  >
+                    {captionIsMine && (
+                      <span className="mr-1.5 text-[0.72rem] uppercase tracking-[0.12em] text-ink-30">
+                        You
+                      </span>
+                    )}
+                    {caption}
+                  </p>
+                ) : (
+                  <p className="text-center text-[0.9rem] leading-relaxed text-ink-30">
+                    {connecting
+                      ? "Getting the line ready…"
+                      : muted
+                        ? "You are muted. It cannot hear you."
+                        : "Talk normally. Interrupt whenever you like — it stops when you start."}
+                  </p>
+                )}
+              </div>
+
+              {/* Cards still land during a call, because a voice cannot hand
+                  over a link. Only the most recent set: a call is not a place
+                  to scroll. */}
+              {!!lastCards?.jobs.length && (
+                <div className="w-full max-w-[34rem]">
+                  <Cards jobs={lastCards.jobs} reason={lastCards.reason} center />
+                </div>
+              )}
+
+              {typing && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void send(value);
+                  }}
+                  className="mt-7 flex w-full max-w-[34rem] items-center gap-2 rounded-2xl border border-ink-15 bg-paper p-1.5 pl-4 focus-within:border-ink-30"
+                >
+                  <input
+                    ref={inputRef}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="Type it instead — the answer still comes back aloud"
+                    aria-label="Type to the agent during the call"
+                    className="min-w-0 flex-1 bg-transparent py-2.5 text-[0.95rem] text-ink outline-none placeholder:text-ink-30"
+                  />
+                  <button
+                    type="submit"
+                    disabled={value.trim().length < 2}
+                    className="shrink-0 rounded-xl bg-ink px-4 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity disabled:opacity-30"
+                  >
+                    Send
+                  </button>
+                </form>
+              )}
+
+              {/* ------------------------------------------------- controls */}
+              <div className="mt-9 flex items-center gap-7">
+                <CallControl
+                  label={muted ? "Unmute" : "Mute"}
+                  active={muted}
+                  disabled={connecting}
+                  onClick={() => {
+                    const next = !muted;
+                    setMuted(next);
+                    session.current?.setMuted(next);
+                  }}
+                >
+                  {muted ? <MicOffMark /> : <MicMark />}
+                </CallControl>
+
+                <button
+                  type="button"
+                  onClick={() => session.current?.stop()}
+                  aria-label="End the call"
+                  className="grid h-16 w-16 place-items-center rounded-full bg-ink text-paper transition-transform hover:scale-[1.04] active:scale-[0.97]"
+                >
+                  <EndCallMark />
+                </button>
+
+                <CallControl
+                  label={typing ? "Hide" : "Type"}
+                  active={typing}
+                  onClick={() => setTyping((t) => !t)}
+                >
+                  <KeyboardMark />
+                </CallControl>
+              </div>
+
+              {footnote && (
+                <p className="mt-7 text-center text-[0.74rem] text-ink-30">{footnote}</p>
+              )}
+
+              {error && (
+                <p className="mt-4 text-center text-[0.85rem] text-ink-50">{error}</p>
+              )}
+            </div>
+          ) : (
+            <>
           {empty && (
             <div
               className="cc-lift flex shrink-0 flex-col items-center pt-[13vh]"
               style={{ "--d": "180ms" } as React.CSSProperties}
             >
-              <BigOrb listening={listening} busy={busy || connecting} level={level} />
+              <BigOrb listening={false} busy={busy} level={0} />
 
               <h2 className="mt-7 text-center text-[1.35rem] font-semibold leading-snug tracking-[-0.03em] sm:text-[1.6rem]">
-                {connecting ? "Connecting…" : listening ? "Go ahead" : heading}
+                {heading}
               </h2>
               <p className="mt-2.5 max-w-[46ch] text-center text-[0.88rem] leading-relaxed text-ink-50">
-                {listening
-                  ? "Talk normally. Interrupt whenever you like — it stops when you start."
-                  : "I can see your resume, your profile and every job open to you right now. Press the mic to talk, or type."}
+                I can see your resume, your profile and every job open to you
+                right now. Talk to me, or type.
               </p>
 
-              {!listening && !connecting && (
-                <div
-                  className="cc-lift mt-7 flex max-w-lg flex-wrap justify-center gap-2"
-                  style={{ "--d": "380ms" } as React.CSSProperties}
-                >
-                  {OPENERS.map((o) => (
-                    <button
-                      key={o}
-                      type="button"
-                      onClick={() => void send(o)}
-                      disabled={busy}
-                      className="rounded-full border border-ink-15 bg-paper/70 px-3.5 py-1.5 text-[0.8rem] text-ink-50 backdrop-blur-[2px] transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
-                    >
-                      {o}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* The call, as a first-class thing to do rather than a glyph in
+                  the text box. Talking to it is the one thing this does that
+                  a search box cannot, and it was the least visible control on
+                  the screen. */}
+              <button
+                type="button"
+                onClick={() => void startCall()}
+                className="cc-lift mt-7 inline-flex items-center gap-2.5 rounded-full bg-ink px-5 py-3 text-[0.9rem] font-medium text-paper transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{ "--d": "330ms" } as React.CSSProperties}
+              >
+                <MicMark />
+                Talk to it
+              </button>
+              <p
+                className="cc-lift mt-2 text-[0.76rem] text-ink-30"
+                style={{ "--d": "360ms" } as React.CSSProperties}
+              >
+                A real call — it hears you while it talks.
+              </p>
+
+              <div
+                className="cc-lift mt-8 flex max-w-lg flex-wrap justify-center gap-2"
+                style={{ "--d": "430ms" } as React.CSSProperties}
+              >
+                {OPENERS.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => void send(o)}
+                    disabled={busy}
+                    className="rounded-full border border-ink-15 bg-paper/70 px-3.5 py-1.5 text-[0.8rem] text-ink-50 backdrop-blur-[2px] transition-colors hover:border-ink-30 hover:text-ink disabled:opacity-40"
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -687,33 +886,22 @@ export function AgentOverlay({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 disabled={busy}
-                placeholder={
-                  listening ? "…or type, and it will still answer aloud" : "Ask anything about your job search"
-                }
+                placeholder="Ask anything about your job search"
                 aria-label="Ask the agent"
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-[0.95rem] text-ink outline-none placeholder:text-ink-30 disabled:opacity-70"
               />
 
+              {/* Labelled, not a lone glyph. An unlabelled microphone inside a
+                  text box reads as dictation — as if it will type your words
+                  into the field — which is the opposite of what it does. */}
               <button
                 type="button"
                 onClick={() => void startCall()}
-                disabled={connecting}
-                aria-label={listening ? "End the call" : "Talk to the agent"}
-                aria-pressed={listening}
-                className={`relative grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors disabled:opacity-50 ${
-                  listening ? "bg-ink text-paper" : "text-ink-50 hover:bg-ink-04 hover:text-ink"
-                }`}
+                aria-label="Start a call with the agent"
+                className="flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2.5 text-[0.85rem] font-medium text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
               >
-                {/* The ring is the microphone level, not a loop: it is the one
-                    honest signal that the thing is actually hearing you. */}
-                {listening && (
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 rounded-xl border border-ink-30"
-                    style={{ transform: `scale(${1 + level * 0.35})`, opacity: 0.25 + level * 0.5 }}
-                  />
-                )}
-                {connecting ? <Dots /> : <MicMark />}
+                <MicMark />
+                <span className="hidden sm:inline">Talk</span>
               </button>
 
               <button
@@ -734,6 +922,8 @@ export function AgentOverlay({
               <p className="mt-3 text-center text-[0.74rem] text-ink-30">{footnote}</p>
             )}
           </div>
+            </>
+          )}
         </div>
       </div>
     </>
@@ -743,11 +933,20 @@ export function AgentOverlay({
 /* ----------------------------------------------------------------- cards */
 
 /** The jobs the agent put on screen, because a voice cannot hand over a link. */
-function Cards({ jobs, reason }: { jobs: JobCard[]; reason?: string }) {
+function Cards({
+  jobs,
+  reason,
+  center,
+}: {
+  jobs: JobCard[];
+  reason?: string;
+  /** Centred on the call screen, where everything else is. */
+  center?: boolean;
+}) {
   return (
-    <div className="mt-2.5">
+    <div className={`mt-2.5 ${center ? "text-center" : ""}`}>
       {reason && <p className="mb-2 px-1 text-[0.78rem] text-ink-30">{reason}</p>}
-      <ul className="flex flex-wrap gap-2">
+      <ul className={`flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
         {jobs.map((j) => (
           <li key={j.id}>
             <a
@@ -872,6 +1071,54 @@ function BigOrb({
 
 /* ------------------------------------------------------------------ bits */
 
+/** mm:ss. Hours are not a case this product has. */
+function clock(total: number): string {
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+/**
+ * A round control on the call screen.
+ *
+ * Labelled underneath rather than by tooltip: a call is a place where people
+ * reach for a button without reading it, and an unlabelled circle is a guess.
+ */
+function CallControl({
+  label,
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className="group flex w-16 flex-col items-center gap-2 disabled:opacity-40"
+    >
+      <span
+        className={`grid h-12 w-12 place-items-center rounded-full border transition-colors ${
+          active
+            ? "border-ink-30 bg-ink-08 text-ink"
+            : "border-ink-15 text-ink-50 group-hover:border-ink-30 group-hover:text-ink"
+        }`}
+      >
+        {children}
+      </span>
+      <span className="text-[0.68rem] leading-none text-ink-30">{label}</span>
+    </button>
+  );
+}
+
 function Dots() {
   return (
     <span className="ml-1 inline-flex gap-0.5">
@@ -892,6 +1139,58 @@ function MicMark() {
       <rect x="7.4" y="2.6" width="5.2" height="9.6" rx="2.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
       <path
         d="M4.6 9.4a5.4 5.4 0 0 0 10.8 0M10 14.8V17.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** The same microphone with a line through it, so muted reads at a glance. */
+function MicOffMark() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="7.4" y="2.6" width="5.2" height="9.6" rx="2.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M4.6 9.4a5.4 5.4 0 0 0 10.8 0M10 14.8V17.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path d="M3.4 3.4l13.2 13.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * A handset, tipped.
+ *
+ * The universally understood "hang up" shape, and worth keeping literal: this
+ * is the one control somebody presses in a hurry.
+ */
+function EndCallMark() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <g transform="rotate(135 12 12)">
+        <path
+          d="M6.6 3.5c.7 0 1.3.5 1.5 1.2l.6 2.3c.1.6-.1 1.2-.6 1.5l-1.2.9a11 11 0 0 0 5.7 5.7l.9-1.2c.4-.5 1-.7 1.5-.6l2.3.6c.7.2 1.2.8 1.2 1.5v2.2c0 .9-.8 1.6-1.7 1.5C8.4 18.4 3.6 13.6 3.1 5.2 3 4.3 3.7 3.5 4.6 3.5z"
+          fill="currentColor"
+        />
+      </g>
+    </svg>
+  );
+}
+
+/** For typing mid-call. */
+function KeyboardMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="2.2" y="5" width="15.6" height="10" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M5.4 8h.01M8 8h.01M10.6 8h.01M13.2 8h.01M6.6 11h6.8"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
