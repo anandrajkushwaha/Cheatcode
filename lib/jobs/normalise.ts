@@ -9,7 +9,7 @@ import { readPlace, type City } from "@/lib/geo/cities";
  * search, not matching, not the agent — knows which board a job came from.
  */
 export type NormalisedJob = {
-  provider: "greenhouse" | "lever" | "ashby";
+  provider: "greenhouse" | "lever" | "ashby" | "jsearch";
   external_id: string;
   title: string;
   company: string;

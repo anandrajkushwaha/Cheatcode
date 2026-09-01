@@ -10,7 +10,7 @@ import { assemble, type NormalisedJob, type Money } from "@/lib/jobs/normalise";
  * gets switched off and nothing else in the product changes.
  */
 
-export type Provider = "greenhouse" | "lever" | "ashby";
+export type Provider = "greenhouse" | "lever" | "ashby" | "jsearch";
 
 export type FetchResult =
   | { ok: true; jobs: NormalisedJob[] }
@@ -58,6 +58,8 @@ export async function fetchBoard(
       return lever(slug, companyName);
     case "ashby":
       return ashby(slug, companyName);
+    case "jsearch":
+      return { ok: false, error: "Use fetchSearch for saved queries" };
   }
 }
 
@@ -268,4 +270,138 @@ function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&");
+}
+
+
+/* --------------------------------------------------------------- jsearch */
+
+type JsJob = {
+  job_id?: string;
+  job_title?: string;
+  employer_name?: string;
+  job_apply_link?: string;
+  job_google_link?: string;
+  job_city?: string;
+  job_state?: string;
+  job_country?: string;
+  job_is_remote?: boolean;
+  job_employment_type?: string;
+  job_employment_types?: string[];
+  job_description?: string;
+  job_posted_at_datetime_utc?: string;
+  job_posted_at_timestamp?: number;
+  job_min_salary?: number;
+  job_max_salary?: number;
+  job_salary_currency?: string;
+  job_salary_period?: string;
+};
+
+/**
+ * One saved search against Google for Jobs, via JSearch.
+ *
+ * This is the only provider that costs money per call — the free tier is 200
+ * requests a month — so the caller decides how many run per night, and each
+ * one is a whole query rather than a whole company.
+ *
+ * Everything here is read defensively. JSearch is itself reading Google, so a
+ * field that exists in the documentation can be missing from any given record,
+ * and one absent salary must not discard a whole page of results.
+ */
+export async function fetchSearch(opts: {
+  query: string;
+  country?: string | null;
+  remote?: boolean;
+}): Promise<FetchResult> {
+  const key = process.env.JSEARCH_API_KEY;
+  if (!key) return { ok: false, error: "JSEARCH_API_KEY is not set" };
+
+  const query = opts.query.trim().slice(0, 120);
+  if (!query) return { ok: false, error: "Empty query" };
+
+  const url = new URL("https://api.openwebninja.com/jsearch/search-v2");
+  url.searchParams.set("query", query);
+  url.searchParams.set("country", (opts.country ?? "in").toLowerCase().slice(0, 2));
+  url.searchParams.set("page", "1");
+  url.searchParams.set("num_pages", "1");
+  // A month-old posting on an aggregator is usually already filled.
+  url.searchParams.set("date_posted", "month");
+  if (opts.remote) url.searchParams.set("work_from_home", "true");
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "x-api-key": key, Accept: "application/json" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      cache: "no-store",
+    });
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "TimeoutError";
+    return { ok: false, error: timedOut ? "Timed out" : "Could not reach JSearch" };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, error: "JSearch rejected the API key" };
+  }
+  if (res.status === 429) {
+    return { ok: false, error: "Monthly JSearch quota is used up" };
+  }
+  if (!res.ok) return { ok: false, error: `JSearch returned ${res.status}` };
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    return { ok: false, error: "JSearch did not return JSON" };
+  }
+
+  const raw = (payload as { data?: JsJob[] })?.data;
+  if (!Array.isArray(raw)) return { ok: false, error: "No data array in the response" };
+
+  const jobs: NormalisedJob[] = [];
+  for (const j of raw) {
+    const built = assemble({
+      provider: "jsearch",
+      external_id: String(j.job_id ?? ""),
+      title: j.job_title ?? "",
+      company: j.employer_name ?? "",
+      locations: [
+        [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ") || null,
+        j.job_is_remote ? "Remote" : null,
+      ],
+      employmentRaw: j.job_employment_types?.[0] ?? j.job_employment_type ?? null,
+      descriptionText: j.job_description ?? null,
+      // job_apply_link goes to whoever posted it; the Google link is the
+      // fallback, and either is better than a listing you cannot apply to.
+      apply_url: j.job_apply_link || j.job_google_link || "",
+      posted_at:
+        j.job_posted_at_datetime_utc ??
+        (typeof j.job_posted_at_timestamp === "number"
+          ? new Date(j.job_posted_at_timestamp * 1000).toISOString()
+          : null),
+      money: jsearchMoney(j),
+    });
+    if (built) jobs.push(built);
+  }
+  return { ok: true, jobs };
+}
+
+/**
+ * JSearch sends a number and, separately, a currency that is sometimes absent.
+ * A salary without a currency is worse than none — ₹18L and $18K are the same
+ * digits — so an unlabelled number is dropped.
+ */
+function jsearchMoney(j: JsJob): Money | undefined {
+  const min = typeof j.job_min_salary === "number" ? j.job_min_salary : null;
+  const max = typeof j.job_max_salary === "number" ? j.job_max_salary : null;
+  if (min === null && max === null) return undefined;
+  const currency = (j.job_salary_currency ?? "").trim().toUpperCase();
+  if (!currency) return undefined;
+
+  const period = (j.job_salary_period ?? "").toLowerCase();
+  return {
+    min,
+    max,
+    currency,
+    period: period.includes("year") ? "year" : period.includes("month") ? "month" : period || null,
+  };
 }
