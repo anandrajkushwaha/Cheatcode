@@ -4,6 +4,7 @@ import { getAllowance, outOfVoice, MIN_VOICE_SECONDS } from "@/lib/app/allowance
 import { searchJobs } from "@/lib/jobs/query";
 import { systemInstruction } from "@/lib/app/agent-brain";
 import { liveProvider, mintTicket } from "@/lib/app/live-ticket";
+import { isOwnerEmail } from "@/lib/analytics/owner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -60,7 +61,24 @@ export async function POST() {
   }).catch(() => ({ jobs: [] }));
 
   const ticket = await mintTicket(systemInstruction("voice", { profile, resume, jobs }));
-  if (!ticket.ok) return bad(ticket.error, ticket.status);
+  if (!ticket.ok) {
+    /**
+     * The owner gets the provider's own words; everybody else gets a sentence.
+     *
+     * "Voice couldn't start. The server log has the reason." is the correct
+     * thing to tell a job seeker and a useless thing to tell the person who
+     * can fix it — and telling them to go and read a serverless log is how a
+     * ten-second bug becomes a three-round conversation. The gate is the same
+     * owner-email list the analytics exclusion uses.
+     */
+    const owner = isOwnerEmail(user.email);
+    return bad(
+      owner && ticket.detail
+        ? `${ticket.error} — ${ticket.upstreamStatus ?? ""} ${ticket.detail}`.trim()
+        : ticket.error,
+      ticket.status,
+    );
+  }
 
   return Response.json({
     ok: true,

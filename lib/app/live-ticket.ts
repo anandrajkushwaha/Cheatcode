@@ -119,7 +119,10 @@ function session(model: string, instruction: string): Record<string, unknown> {
       },
       output: { voice: OPENAI_VOICE, speed: 1 },
     },
-    tools: toolsForOpenAI(TOOLS),
+    // Realtime takes the same tool shape as the Responses API minus `strict`,
+    // which it does not know about — and one unknown key fails the whole
+    // session, not just the field.
+    tools: toolsForOpenAI(TOOLS).map(({ strict: _strict, ...tool }) => tool),
     tool_choice: "auto",
   };
 }
@@ -286,7 +289,15 @@ function unknownParameter(body: string): string | null {
  * different product, and failing loudly is better than answering as one.
  */
 function remove(sessionBody: Record<string, unknown>, path: string): boolean {
-  const parts = path.replace(/^session\./, "").split(".");
+  // "tools[0].strict" is one step into an array and one into an object. Left
+  // unsplit it matched nothing, the adaptation gave up, and a fixable refusal
+  // became a dead call.
+  const parts = path
+    .replace(/^session\./, "")
+    .replace(/\[(\d+)\]/g, ".$1")
+    .split(".")
+    .filter(Boolean);
+
   if (parts.length === 1 && ["model", "type", "instructions", "tools"].includes(parts[0])) {
     return false;
   }
@@ -319,6 +330,9 @@ function prune(root: Record<string, unknown>, parts: string[]): void {
     }
     const key = parts[depth - 1];
     const child = node[key];
+    // Never prune out of an array: deleting an element leaves a hole, which
+    // serialises as null and is a worse request than an empty object.
+    if (Array.isArray(node)) return;
     if (child && typeof child === "object" && Object.keys(child).length === 0) delete node[key];
     else return;
   }
