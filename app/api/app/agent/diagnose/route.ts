@@ -1,8 +1,11 @@
 import { getSessionUser } from "@/lib/supabase/app";
+import { APP_SUPABASE_URL } from "@/lib/supabase/app-env";
+import { getAllowance, MIN_VOICE_SECONDS } from "@/lib/app/allowance";
 import { provider } from "@/lib/app/llm";
 import { pinnedOpenAI, rankOpenAI } from "@/lib/app/openai-models";
 import { pinned as pinnedGemini } from "@/lib/app/gemini-models";
 import { liveProvider, mintTicket } from "@/lib/app/live-ticket";
+import { isOwnerEmail } from "@/lib/analytics/owner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,6 +40,38 @@ export const maxDuration = 60;
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return Response.json({ ok: false, error: "Not signed in" }, { status: 401 });
+
+  /**
+   * Which database, which person, what the meter says.
+   *
+   * Added after an hour was lost to a refusal that made no sense: the SQL
+   * editor reported twenty minutes of voice left while the app insisted there
+   * was none. Every explanation for that is invisible from a screenshot —
+   * the app reading a different Supabase project than the one being edited,
+   * the session belonging to a second account with the same name, a profile
+   * row that never got a plan.
+   *
+   * So this reports the three facts that separate those cases, from inside
+   * the deployed app, as the signed-in user, against the database it is
+   * actually talking to. The host is named; no key is ever included.
+   */
+  const account = {
+    signedInAs: user.email ?? null,
+    userId: user.id,
+    /** Host only. Which project answers is the question; the key is not. */
+    database: APP_SUPABASE_URL?.replace(/^https?:\/\//, "").split(".")[0] ?? "not configured",
+    /**
+     * True when the app has been pointed at a project of its own. If this is
+     * false, the app is on the website's original project — and SQL run in
+     * the other one changes nothing here.
+     */
+    usingSeparateAppProject: Boolean(process.env.NEXT_PUBLIC_APP_SUPABASE_URL),
+    treatedAsOwner: isOwnerEmail(user.email),
+    ownerListConfigured: Boolean(process.env.ANALYTICS_OWNER_EMAILS?.trim()),
+    /** Exactly what the voice gate reads, from the same function it calls. */
+    allowance: await getAllowance(user.id, user.email),
+    minimumToStartACall: MIN_VOICE_SECONDS,
+  };
 
   const p = provider();
   const live = liveProvider();
@@ -81,22 +116,24 @@ export async function GET() {
   if (!p) {
     return Response.json({
       ok: false,
+      account,
       voice,
       error: "Neither OPENAI_API_KEY nor GEMINI_API_KEY is set on the server.",
     });
   }
 
-  return p === "openai" ? diagnoseOpenAI(voice) : diagnoseGemini(voice);
+  return p === "openai" ? diagnoseOpenAI(voice, account) : diagnoseGemini(voice, account);
 }
 
 /* ---------------------------------------------------------------- openai */
 
-async function diagnoseOpenAI(voice: Record<string, unknown>) {
+async function diagnoseOpenAI(voice: Record<string, unknown>, account: Record<string, unknown>) {
   const key = process.env.OPENAI_API_KEY!;
   const base = process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1";
 
   const report: Record<string, unknown> = {
     provider: "openai",
+    account,
     voice,
     keyLength: key.length,
     keyStartsWith: key.slice(0, 3),
@@ -240,13 +277,14 @@ function openaiVerdict(status: number): string {
 
 /* ---------------------------------------------------------------- gemini */
 
-async function diagnoseGemini(voice: Record<string, unknown>) {
+async function diagnoseGemini(voice: Record<string, unknown>, account: Record<string, unknown>) {
   const key = process.env.GEMINI_API_KEY!;
   const base =
     process.env.GEMINI_API_BASE ?? "https://generativelanguage.googleapis.com/v1beta/models";
 
   const report: Record<string, unknown> = {
     provider: "gemini",
+    account,
     voice,
     keyLength: key.length,
     keyStartsWith: key.slice(0, 4),
