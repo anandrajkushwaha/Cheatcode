@@ -229,7 +229,10 @@ async function extractDocx(file: File): Promise<ResumeFacts> {
 
   // Paragraph and line breaks become newlines; <w:t> holds the actual text.
   const text = xml
-    .replace(/<w:p[ >]/g, "\n<w:p ")
+    // The delimiter is put back rather than swallowed. It survived here only
+    // because a Word paragraph always has a nested tag before its text; the
+    // same line in the ODT reader ate the first words of every paragraph.
+    .replace(/<w:p([ >])/g, "\n<w:p$1")
     .replace(/<w:br\s*\/?>/g, "\n")
     .replace(/<w:tab\s*\/?>/g, " ")
     .replace(/<[^>]+>/g, "")

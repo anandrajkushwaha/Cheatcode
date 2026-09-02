@@ -358,6 +358,102 @@ async function* sse(res: Response): AsyncGenerator<string> {
   }
 }
 
+/* -------------------------------------------------------------- reading */
+
+/**
+ * What a picture says.
+ *
+ * Only ever reached for a scan or a photo — something with no text layer to
+ * extract. A separate function rather than an option on llmChat because the
+ * shape of the request is genuinely different (content becomes an array of
+ * parts) and because this one should never carry tools, history or a
+ * personality: it is a transcription, and a model that starts being helpful
+ * about a resume it was asked to type out is a bug.
+ *
+ * Images arrive as data URLs, which is how both providers want them and how
+ * the browser already has them.
+ */
+export async function llmVision(input: {
+  system: string;
+  text: string;
+  images: string[];
+  maxTokens?: number;
+  timeoutMs?: number;
+}): Promise<ChatOk | LlmFail> {
+  const p = provider();
+  const key = p && apiKey(p);
+  if (!p || !key) return { ok: false, error: "Reading isn't switched on yet.", status: 503 };
+  if (!input.images.length) return { ok: false, error: "Nothing to read.", status: 400 };
+
+  const maxTokens = input.maxTokens ?? 4000;
+
+  const result = await send({
+    provider: p,
+    key,
+    pin: pin(p),
+    timeoutMs: input.timeoutMs ?? 90_000,
+    build: (model, drop) =>
+      p === "openai"
+        ? {
+            url: `${OPENAI_BASE}/responses`,
+            headers: openaiHeaders(key),
+            body: JSON.stringify({
+              model,
+              instructions: input.system,
+              input: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "input_text", text: input.text },
+                    ...input.images.map((image_url) => ({ type: "input_image", image_url })),
+                  ],
+                },
+              ],
+              // Transcription, not deliberation. Whatever thinking budget the
+              // model has is better spent on the characters.
+              ...(drop.has("reasoning") ? {} : { reasoning: { effort: "low" } }),
+              ...(drop.has("maxTokens") ? {} : { max_output_tokens: Math.max(maxTokens, 2000) }),
+              store: process.env.OPENAI_STORE === "1",
+            }),
+          }
+        : {
+            url: `${GEMINI_BASE}/${model}:generateContent`,
+            headers: geminiHeaders(key),
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: input.system }] },
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    { text: input.text },
+                    ...input.images.map((url) => {
+                      const [head, data] = url.split(",", 2);
+                      const mimeType = head.match(/data:([^;]+)/)?.[1] ?? "image/jpeg";
+                      return { inlineData: { mimeType, data: data ?? "" } };
+                    }),
+                  ],
+                },
+              ],
+              generationConfig: {
+                ...(drop.has("temperature") ? {} : { temperature: 0 }),
+                ...(drop.has("maxTokens") ? {} : { maxOutputTokens: maxTokens }),
+              },
+            }),
+          },
+  });
+
+  if (!result.ok) return failure(result, p);
+
+  const json = await result.res.json().catch(() => null);
+  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
+  if (!read.text) {
+    console.error(`llm: ${p}/${result.model} read nothing from ${input.images.length} image(s)`);
+    return { ok: false, error: "Nothing readable came off that.", status: 502 };
+  }
+
+  return { ok: true, text: read.text, calls: [], provider: p, model: result.model };
+}
+
 /* -------------------------------------------------------- structured JSON */
 
 export async function llmJson(input: {

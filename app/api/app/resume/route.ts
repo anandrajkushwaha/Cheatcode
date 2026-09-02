@@ -13,6 +13,15 @@ type Body = {
   text?: string;
   atsScore?: number;
   atsResult?: unknown;
+  /**
+   * Make this the one the agent talks about.
+   *
+   * Set when a file is handed to the agent in conversation. Somebody who has
+   * just dropped a document in front of it and asked "what do you think"
+   * means *this* document — grounding the answer on a resume they uploaded
+   * last month would be answering a question nobody asked.
+   */
+  primary?: boolean;
 };
 
 /**
@@ -73,7 +82,13 @@ export async function POST(request: Request) {
     .from("resumes")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
+
   if ((count ?? 0) <= 1) {
+    await supabase.from("resumes").update({ is_primary: true }).eq("id", id);
+  } else if (body.primary) {
+    // Clear first, then set. The unique index allows exactly one primary row
+    // per person, so doing it the other way round fails on the constraint.
+    await supabase.from("resumes").update({ is_primary: false }).eq("user_id", user.id);
     await supabase.from("resumes").update({ is_primary: true }).eq("id", id);
   }
 

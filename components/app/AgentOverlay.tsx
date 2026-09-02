@@ -6,6 +6,7 @@ import { PixelField } from "@/components/app/PixelField";
 import { hush, say, soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
 import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
+import { readAnyFile, ReadError, ExtractError } from "@/lib/app/read-file";
 
 /**
  * The agent, full screen.
@@ -46,6 +47,12 @@ type Finished = {
 };
 
 type Line = Finished | { t: "delta"; v?: string } | { t: "error"; error?: string };
+
+/** A file handed over mid-conversation, and where it has got to. */
+type Attachment =
+  | { phase: "reading"; name: string }
+  | { phase: "saving"; name: string }
+  | { phase: "error"; name: string; message: string };
 
 type Turn = {
   role: "user" | "model";
@@ -124,6 +131,22 @@ export function AgentOverlay({
    * where the person was looking, and offers to try again.
    */
   const [callError, setCallError] = useState<string | null>(null);
+
+  /* ------------------------------------------------------------ the file */
+
+  /**
+   * A document somebody handed over mid-conversation.
+   *
+   * Reading it is two waits with nothing to look at — pulling text out of a
+   * PDF, then saving and parsing it — so it gets a chip that says which stage
+   * it is at. A file that fails says why on the chip and nowhere else: the
+   * failure is about that file, not about the conversation.
+   */
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [dragging, setDragging] = useState(false);
+  /** dragenter/dragleave fire for every child; only the balance matters. */
+  const dragDepth = useRef(0);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   /** The jobs the live session may put on screen, by id. */
   const catalogue = useRef<Map<string, JobCard>>(new Map());
@@ -501,6 +524,112 @@ export function AgentOverlay({
     }
   }
 
+  /* ------------------------------------------------------------- the file */
+
+  /**
+   * Read a dropped file, save it, and let the agent open on it.
+   *
+   * Reading happens in the browser wherever the file has text in it, so a
+   * document with somebody's phone number and salary history on it never
+   * reaches a server that does not need it. Only a scan or a photo — where
+   * there is no text to find — goes anywhere, and the chip says so.
+   *
+   * It is then saved through the ordinary resume route, which parses it,
+   * scores it and fills the blank profile fields, so a resume that arrived in
+   * the conversation is the same resume as one uploaded on the resume page.
+   */
+  const attach = useCallback(
+    async (file: File) => {
+      if (busy) return;
+      setAttachment({ phase: "reading", name: file.name });
+      setError(null);
+
+      let read: Awaited<ReturnType<typeof readAnyFile>>;
+      try {
+        read = await readAnyFile(file);
+      } catch (e) {
+        setAttachment({
+          phase: "error",
+          name: file.name,
+          message:
+            e instanceof ReadError || e instanceof ExtractError
+              ? e.message
+              : "Something went wrong reading that file. Try a PDF.",
+        });
+        return;
+      }
+
+      if (read.text.replace(/\s/g, "").length < 120) {
+        setAttachment({
+          phase: "error",
+          name: file.name,
+          message: "There's almost nothing in that file to read.",
+        });
+        return;
+      }
+
+      setAttachment({ phase: "saving", name: file.name });
+
+      // Scored only when the file had a layout to measure. A score derived
+      // from our transcription of a photograph would be a number about us.
+      let atsScore: number | undefined;
+      let atsResult: unknown;
+      if (read.facts) {
+        try {
+          const { analyseResume } = await import("@/lib/tools/ats");
+          const result = analyseResume(read.facts);
+          atsScore = result.score;
+          atsResult = result;
+        } catch {
+          /* The resume is still worth saving without a score. */
+        }
+      }
+
+      try {
+        const res = await fetch("/api/app/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.name.split(".").pop()?.toLowerCase(),
+            text: read.text,
+            atsScore,
+            atsResult,
+            // They handed this one over just now; it is the one to talk about.
+            primary: true,
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok || !json.ok) throw new Error(json.error ?? "Could not save that.");
+      } catch (e) {
+        setAttachment({
+          phase: "error",
+          name: file.name,
+          message: e instanceof Error ? e.message : "Could not save that file.",
+        });
+        return;
+      }
+
+      setAttachment(null);
+
+      // The agent now has it in front of it. Opening the conversation rather
+      // than leaving a chip sitting there is the whole point of dropping a
+      // file into a chat.
+      const opener = read.read
+        ? `I've attached my resume (${file.name}). It's a ${read.kind}, so you had to read the pages — take a look.`
+        : `I've attached my resume (${file.name}). Take a look.`;
+      await send(opener);
+    },
+    // `send` is declared below and is stable for the life of the component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [busy],
+  );
+
+  const pick = useCallback((files: FileList | null) => {
+    const file = files?.[0];
+    if (file) void attach(file);
+  }, [attach]);
+
   /* --------------------------------------------------------------- shell */
 
   // How far the circle has to travel to swallow the screen, measured rather
@@ -579,6 +708,28 @@ export function AgentOverlay({
         role="dialog"
         aria-modal="true"
         aria-label="Cheatcode agent"
+        // The whole screen is the drop target. A 200px dashed rectangle is a
+        // thing you have to aim at; a screen is a thing you let go over.
+        onDragEnter={(e) => {
+          if (!e.dataTransfer?.types?.includes("Files")) return;
+          e.preventDefault();
+          dragDepth.current += 1;
+          setDragging(true);
+        }}
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
+        }}
+        onDragLeave={() => {
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (dragDepth.current === 0) setDragging(false);
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer?.files?.length) return;
+          e.preventDefault();
+          dragDepth.current = 0;
+          setDragging(false);
+          pick(e.dataTransfer.files);
+        }}
         className={`fixed inset-0 z-[60] overflow-hidden bg-paper text-ink ${
           closing ? "cc-conceal" : "cc-reveal"
         }`}
@@ -590,6 +741,21 @@ export function AgentOverlay({
           } as React.CSSProperties
         }
       >
+        {/* While a file is over the window. Covers everything, including the
+            call screen, because dropping a resume mid-call is a reasonable
+            thing to do and refusing it would be a rule with no reason. */}
+        {dragging && (
+          <div className="absolute inset-0 z-30 grid place-items-center bg-paper/92 backdrop-blur-[3px]">
+            <div className="pointer-events-none flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-ink-30 px-10 py-9">
+              <ClipMark className="h-7 w-7 text-ink-50" />
+              <p className="text-[1rem] font-medium text-ink">Drop it here</p>
+              <p className="max-w-[26ch] text-center text-[0.8rem] leading-relaxed text-ink-30">
+                PDF, Word, ODT, RTF, text — or a photo of it.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* The field sits behind everything and is masked out before it
             reaches the controls. Once there is a conversation it steps back to
             a third of its weight: a texture behind an empty screen is
@@ -615,6 +781,22 @@ export function AgentOverlay({
             </span>
           </div>
         )}
+
+        {/* One input for the paperclip in either screen. `accept` is generous
+            on purpose: the reader works out what a file is from its bytes, and
+            a narrow accept list is how somebody with a .odt concludes the
+            product cannot read their resume. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.docx,.odt,.rtf,.txt,.md,.html,.csv,image/*"
+          className="hidden"
+          onChange={(e) => {
+            pick(e.target.files);
+            // So the same file can be picked twice in a row.
+            e.target.value = "";
+          }}
+        />
 
         {/* ----------------------------------------------------------- close */}
         <button
@@ -739,6 +921,10 @@ export function AgentOverlay({
                 >
                   <KeyboardMark />
                 </CallControl>
+              </div>
+
+              <div className="mt-6 w-full max-w-[30rem]">
+                <AttachmentChip attachment={attachment} onDismiss={() => setAttachment(null)} />
               </div>
 
               {footnote && (
@@ -907,19 +1093,43 @@ export function AgentOverlay({
             className="cc-lift shrink-0 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             style={{ "--d": "300ms" } as React.CSSProperties}
           >
+            <AttachmentChip attachment={attachment} onDismiss={() => setAttachment(null)} />
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 void send(value);
               }}
-              className="flex items-center gap-2 rounded-2xl border border-ink-15 bg-paper p-1.5 pl-4 transition-colors focus-within:border-ink-30"
+              className="flex items-center gap-2 rounded-2xl border border-ink-15 bg-paper p-1.5 pl-2 transition-colors focus-within:border-ink-30"
             >
+              {/* A paperclip, where a paperclip is. The drop target covers the
+                  whole screen, but nobody discovers a drop target — they look
+                  for this. */}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy || attachment?.phase === "reading" || attachment?.phase === "saving"}
+                aria-label="Attach your resume"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink disabled:opacity-40"
+              >
+                <ClipMark />
+              </button>
+
               <input
                 ref={inputRef}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
+                // A screenshot on the clipboard is a file too, and pasting one
+                // is what people try before they look for a button.
+                onPaste={(e) => {
+                  const file = Array.from(e.clipboardData?.files ?? [])[0];
+                  if (file) {
+                    e.preventDefault();
+                    void attach(file);
+                  }
+                }}
                 disabled={busy}
-                placeholder="Ask anything about your job search"
+                placeholder="Ask anything, or attach your resume"
                 aria-label="Ask the agent"
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-[0.95rem] text-ink outline-none placeholder:text-ink-30 disabled:opacity-70"
               />
@@ -960,6 +1170,87 @@ export function AgentOverlay({
         </div>
       </div>
     </>
+  );
+}
+
+/* ------------------------------------------------------------ attachment */
+
+/**
+ * The file, while it is being dealt with.
+ *
+ * Two waits with nothing to look at — pulling the text out, then saving and
+ * parsing it — so it says which one it is in. A failure stays on the chip
+ * rather than becoming a conversation error, because it is about the file:
+ * the thing to do next is send a different one, not reword a question.
+ */
+function AttachmentChip({
+  attachment,
+  onDismiss,
+}: {
+  attachment: Attachment | null;
+  onDismiss: () => void;
+}) {
+  if (!attachment) return null;
+
+  return (
+    <div
+      className={`mb-3 flex items-start gap-3 rounded-xl border px-3.5 py-2.5 ${
+        attachment.phase === "error" ? "border-ink-15 bg-ink-04" : "border-ink-08 bg-ink-04"
+      }`}
+    >
+      <ClipMark className="mt-0.5 shrink-0 text-ink-30" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[0.84rem] font-medium text-ink">{attachment.name}</p>
+        <p className="mt-0.5 text-[0.76rem] leading-relaxed text-ink-50">
+          {attachment.phase === "reading" ? (
+            <>
+              Reading it
+              <Dots />
+            </>
+          ) : attachment.phase === "saving" ? (
+            <>
+              Saving it to your profile
+              <Dots />
+            </>
+          ) : (
+            attachment.message
+          )}
+        </p>
+      </div>
+      {attachment.phase === "error" && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="shrink-0 rounded-lg p-1 text-ink-30 transition-colors hover:text-ink"
+        >
+          <svg width="13" height="13" viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M5 5l10 10M15 5L5 15"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A paperclip. */
+function ClipMark({ className }: { className?: string }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" className={className} aria-hidden="true">
+      <path
+        d="M13.6 8.2 8.9 12.9a2.1 2.1 0 0 1-3-3l5.3-5.3a3.4 3.4 0 0 1 4.8 4.8l-5.3 5.3a4.7 4.7 0 0 1-6.7-6.6l4.6-4.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
