@@ -126,6 +126,33 @@ export class OpenAITransport implements Transport {
     await opened(dc, 12_000);
 
     this.startMeter();
+    this.openWith();
+  }
+
+  /**
+   * Speak first, in one line.
+   *
+   * The line itself is decided server-side and handed over whole; the model is
+   * told to say it and stop. Left to its own devices it opens with a paragraph
+   * introducing its capabilities, which is the tone of a hold message — and
+   * `max_output_tokens` is the belt to the instruction's braces, because a
+   * model that decides to elaborate is a model talking over somebody's first
+   * sentence.
+   */
+  private openWith(): void {
+    const line = this.ctx.opening?.trim();
+    if (!line || this.dc?.readyState !== "open") return;
+
+    this.dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          instructions:
+            `Say exactly this and nothing else, then stop and listen: "${line}"`,
+          max_output_tokens: 80,
+        },
+      }),
+    );
   }
 
   /* -------------------------------------------------------------- meter */

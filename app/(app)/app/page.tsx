@@ -62,25 +62,44 @@ export default async function AppHome() {
   const knowsWhatTheyWant = hasIntent(profile);
 
 
+  /**
+   * One card, three states, never two at once.
+   *
+   * The three are genuinely exclusive — there is no resume, or there is one we
+   * could not read, or there is one we could. The last of those is the only
+   * state where the builder is any use, and in that state the builder *is* the
+   * next move, so it takes the slot rather than sitting underneath a card
+   * telling somebody their score is low.
+   */
+  const parsed = Boolean(resume?.parsed) && !resume?.parse_error;
+  const score = typeof resume?.ats_score === "number" ? resume.ats_score : null;
+
   const resumeAlert = !resume
     ? {
         title: "Add your resume",
         detail: "It is what your ATS score and every match on this page is built from.",
         action: "Upload",
+        href: "/app/resume",
       }
-    : resume.parse_error
+    : !parsed
       ? {
           title: "We saved your resume but could not read it",
           detail: "Matching needs the details out of it. Try exporting a real PDF.",
           action: "Fix",
+          href: "/app/resume",
         }
-      : (resume.ats_score ?? 100) < 60
-        ? {
-            title: `Your resume scores ${resume.ats_score} out of 100`,
-            detail: "Below 60, an applicant tracking system is likely to drop it before a person looks.",
-            action: "See why",
-          }
-        : null;
+      : {
+          title:
+            score !== null
+              ? `Your resume scores ${score}. Rebuild it.`
+              : "Rebuild your resume",
+          detail:
+            score !== null && score < 60
+              ? "Below 60 an applicant tracking system is likely to drop it before a person looks. The layout is most of that, and the layout we can fix."
+              : "The same words, in a layout the software reads end to end. Free, and the file you uploaded stays as it is.",
+          action: "Open builder",
+          href: "/app/resume/builder",
+        };
 
 
   return (
@@ -101,26 +120,25 @@ export default async function AppHome() {
 
         {/* ---------------------------------------------------------- centre */}
         <div className="cc-rise min-w-0 space-y-6" style={{ "--d": "120ms" } as React.CSSProperties}>
-          {/* Only when something is actually wrong with it. A full resume card
-              on every visit repeated the left rail and took the best slot on
-              the page from the thing home is supposed to be about. */}
-          {resumeAlert && (
-            <Link
-              href="/app/resume"
-              className="cc-surface flex items-center gap-4 rounded-2xl border border-ink-08 p-4 transition-colors hover:border-ink-30 sm:p-5"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-04 text-ink-50">
-                <IconAlert />
+          {/* One line about the resume, and it is always a thing to do rather
+              than a thing to know. A full resume card on every visit repeated
+              the left rail and took the best slot on the page from the thing
+              home is supposed to be about. */}
+          <Link
+            href={resumeAlert.href}
+            className="cc-surface flex items-center gap-4 rounded-2xl border border-ink-08 p-4 transition-colors hover:border-ink-30 sm:p-5"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-04 text-ink-50">
+              {parsed ? <IconDocument /> : <IconAlert />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.92rem] font-medium">{resumeAlert.title}</span>
+              <span className="mt-0.5 block text-[0.83rem] leading-relaxed text-ink-50">
+                {resumeAlert.detail}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[0.92rem] font-medium">{resumeAlert.title}</span>
-                <span className="mt-0.5 block text-[0.83rem] leading-relaxed text-ink-50">
-                  {resumeAlert.detail}
-                </span>
-              </span>
-              <span className="shrink-0 text-[0.82rem] text-ink-30">{resumeAlert.action}</span>
-            </Link>
-          )}
+            </span>
+            <span className="shrink-0 text-[0.82rem] text-ink-30">{resumeAlert.action}</span>
+          </Link>
 
           <section className="cc-surface rounded-2xl border border-ink-08 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -171,6 +189,7 @@ export default async function AppHome() {
               {[
                 { label: "Your account", state: "on" as const },
                 { label: "Resume and ATS score", state: resume ? ("on" as const) : ("todo" as const) },
+                { label: "Resume builder", state: parsed ? ("on" as const) : ("todo" as const) },
                 {
                   label: "What you're looking for",
                   state: knowsWhatTheyWant ? ("on" as const) : ("todo" as const),
@@ -267,6 +286,29 @@ function StateMark({ state }: { state: "on" | "todo" | "soon" }) {
         stroke="var(--color-ink-15)"
         strokeWidth="1.4"
         strokeDasharray="2.4 2.4"
+      />
+    </svg>
+  );
+}
+
+/** A page with a line of writing on it. Not a warning triangle — this card is
+    an invitation now, and the icon should not argue with the words. */
+function IconDocument() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
+      <path
+        d="M5.5 3.25h6.25L15 6.5v10.25H5.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11.6 3.4v3.2H15M7.9 10h4.2M7.9 12.8h3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
       />
     </svg>
   );

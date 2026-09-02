@@ -18,7 +18,9 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { href: "/app", label: "Home" },
-  { href: "/app/resume", label: "Resume" },
+  // Exact, because the builder lives underneath it and both would light up.
+  { href: "/app/resume", label: "Resume", exact: true },
+  { href: "/app/resume/builder", label: "Builder" },
   { href: "/app/jobs", label: "Jobs" },
   { href: "/app/agent", label: "Agent" },
   { href: "/app/profile", label: "Profile" },
@@ -73,7 +75,7 @@ APP_SUPABASE_SECRET_KEY=`}
             </Link>
             <nav className="hidden items-center gap-6 sm:flex">
               {NAV.map((n) => (
-                <NavLink key={n.href} href={n.href} label={n.label} />
+                <NavLink key={n.href} href={n.href} label={n.label} exact={n.exact} />
               ))}
             </nav>
           </div>
@@ -100,7 +102,7 @@ APP_SUPABASE_SECRET_KEY=`}
 
         <nav className="container-app flex gap-5 overflow-x-auto pb-3 sm:hidden">
           {NAV.map((n) => (
-            <NavLink key={n.href} href={n.href} label={n.label} />
+            <NavLink key={n.href} href={n.href} label={n.label} exact={n.exact} />
           ))}
         </nav>
       </header>

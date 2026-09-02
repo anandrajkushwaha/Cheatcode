@@ -42,6 +42,19 @@ export type TransportContext = {
   callsUrl?: string;
   on: LiveHandlers;
   /**
+   * One line for the agent to open the call with, if any.
+   *
+   * A call that connects into silence makes everybody say "hello? can you hear
+   * me?" first, which is a poor first ten seconds. This is composed
+   * server-side from what we already know rather than generated, so it is one
+   * short sentence and cannot wander.
+   *
+   * Absent when the call is continuing a conversation that is already on
+   * screen: greeting somebody who has been typing to you for a minute is
+   * worse than saying nothing.
+   */
+  opening?: string;
+  /**
    * The connection died on its own rather than being closed by us.
    *
    * Separate from onError because the session has to be torn down and the

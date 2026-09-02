@@ -67,8 +67,15 @@ export class LiveSession {
   /**
    * @param recap What has already been said on screen. Sent with the ticket
    * so the spoken agent continues the conversation instead of starting one.
+   * @param opening One line to open with, when there is nothing to continue.
+   * Ignored when `recap` has anything in it — the two are alternatives, not
+   * companions, and saying both is how you get "hey, what's going on?"
+   * immediately after a paragraph about somebody's Razorpay bullets.
    */
-  async start(recap: { role: "user" | "model"; text: string }[] = []): Promise<void> {
+  async start(
+    recap: { role: "user" | "model"; text: string }[] = [],
+    opening?: string,
+  ): Promise<void> {
     if (this.state !== "idle" && this.state !== "closed") return;
     this.set("connecting");
 
@@ -117,6 +124,7 @@ export class LiveSession {
       model: ticket.model ?? "",
       callsUrl: ticket.callsUrl,
       on: this.on,
+      opening: recap.length ? undefined : opening,
       onDropped: (reason: string) => {
         if (this.state === "live") this.stop(reason);
       },

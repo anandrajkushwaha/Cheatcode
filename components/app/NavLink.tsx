@@ -9,10 +9,25 @@ import { usePathname } from "next/navigation";
  * is drawn on a pseudo-element so the label does not shift by a pixel when it
  * becomes active.
  */
-export function NavLink({ href, label }: { href: string; label: string }) {
+export function NavLink({
+  href,
+  label,
+  exact = false,
+}: {
+  href: string;
+  label: string;
+  /**
+   * Match this path and nothing under it.
+   *
+   * Needed where one destination sits inside another's path: the builder lives
+   * at /app/resume/builder, and without this both tabs light up on it. Prefix
+   * matching is still the default, because /app/jobs/123 is a job.
+   */
+  exact?: boolean;
+}) {
   const pathname = usePathname();
   // "/app" must not light up on "/app/jobs", but "/app/jobs/123" must.
-  const active = href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+  const active = exact || href === "/app" ? pathname === href : pathname.startsWith(href);
 
   return (
     <Link

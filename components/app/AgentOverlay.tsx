@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
-import { hush, say, soundOn, startupChime } from "@/lib/app/agent-sound";
+import { hush, soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
 import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
 import { readAnyFile, ReadError, ExtractError } from "@/lib/app/read-file";
@@ -96,6 +96,12 @@ export function AgentOverlay({
   const [metered, setMetered] = useState(true);
   /** The greeting, on screen. Replaces the stock question once it arrives. */
   const [heading, setHeading] = useState("What do you want to know?");
+  /**
+   * The line the agent opens a call with. Held rather than spoken: opening
+   * this screen is not a conversation, and being read a paragraph for pressing
+   * a button is an interruption. It is only used if a call actually starts.
+   */
+  const opening = useRef<string | null>(null);
   const [pulse, setPulse] = useState(0);
 
   /* ------------------------------------------------------------ the call */
@@ -253,16 +259,17 @@ export function AgentOverlay({
       if (soundOn()) startupChime();
       setPulse((n) => n + 1);
 
-      // The greeting speaks after the chime rather than over it. It does not
-      // become a message: putting it in the thread turned this screen into a
-      // conversation before anybody had said anything, and took the orb with
-      // it. The heading carries the name; the voice carries what it can do.
+      // Nothing is said here. The greeting used to be spoken over the chime,
+      // and it was a paragraph listing what the agent could do — the tone of a
+      // hold message, delivered to somebody who had just pressed a button and
+      // not yet asked anything. The heading carries the name, silently; the
+      // one-liner waits until there is a call for it to open.
       void fetch("/api/app/agent/hello")
         .then((r) => r.json())
-        .then((j: { ok?: boolean; heading?: string; spoken?: string }) => {
+        .then((j: { ok?: boolean; heading?: string; opening?: string }) => {
           if (!j.ok) return;
           if (j.heading) setHeading(j.heading);
-          if (j.spoken) window.setTimeout(() => void say(j.spoken!), 900);
+          if (j.opening) opening.current = j.opening;
         })
         .catch(() => {
           /* A silent agent is still a usable one. */
@@ -372,8 +379,13 @@ export function AgentOverlay({
 
     session.current = live;
     // What is on screen goes with it. Without this the spoken agent begins
-    // from nothing and asks for things it was given a minute ago.
-    await live.start(turnsRef.current.map((t) => ({ role: t.role, text: t.text })));
+    // from nothing and asks for things it was given a minute ago. When there
+    // is nothing on screen, it opens with a line instead of a silence — the
+    // session drops the opening whenever the recap has anything in it.
+    await live.start(
+      turnsRef.current.map((t) => ({ role: t.role, text: t.text })),
+      opening.current ?? undefined,
+    );
 
     if (typeof live.remaining === "number") setVoiceLeft(live.remaining);
     if (live.upgrade) setUpgrade(true);
