@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   // The gate. Checked before the model is called, because the model call is
   // the thing that costs money — refusing after it has already run bills us
   // for a message the person never gets to read.
-  const allowance = await getAllowance(user.id);
+  const allowance = await getAllowance(user.id, user.email);
   if (allowance.messagesLeft <= 0) {
     return bad(outOfMessages(allowance), allowance.configured ? 402 : 503, {
       // Not a paywall when the meter is simply absent — offering an upgrade
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
         return;
       }
 
-      const left = await spend(user.id, { messages: 1 });
+      const left = await spend(user.id, { messages: 1 }, user.email);
 
       // Resolve the ids the model asked for against the list it was given, and
       // send back only what a card needs. Ids it invented resolve to nothing,

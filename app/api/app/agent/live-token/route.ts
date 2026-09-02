@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     getProfile(),
     getPrimaryResume(),
     getPrimaryDraft(),
-    getAllowance(user.id),
+    getAllowance(user.id, user.email),
   ]);
 
   // One gate for both questions. A free account is not refused because it is

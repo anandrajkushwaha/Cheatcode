@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   // the only thing standing between this feature and an open tab.
   let left = null;
   if (seconds > 0) {
-    left = await spend(user.id, { seconds });
+    left = await spend(user.id, { seconds }, user.email);
 
     /**
      * The same seconds, recorded in money.

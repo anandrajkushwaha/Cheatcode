@@ -1,4 +1,5 @@
 import "server-only";
+import { isOwnerEmail } from "@/lib/analytics/owner";
 import { createAppAdminClient } from "@/lib/supabase/app";
 
 /**
@@ -37,6 +38,29 @@ export type Allowance = {
 
 /** Below this a call is not worth starting; it would end mid-sentence. */
 export const MIN_VOICE_SECONDS = 30;
+
+/**
+ * The account that has to be able to test the thing.
+ *
+ * Somebody has to sit on a twenty-minute call to find out whether the agent
+ * loses the thread, and doing that from a normal account means either burning
+ * a real allowance or quietly raising everybody's limits to suit one person —
+ * which is how a product's economics get set by whoever was debugging that
+ * week.
+ *
+ * So the meter still runs for owners: usage is recorded, spend rows are
+ * written, and ai_usage stays truthful about what testing cost. Only the
+ * refusal is lifted.
+ */
+function unlimited(): Allowance {
+  return {
+    configured: true,
+    paid: true,
+    messagesLeft: Number.MAX_SAFE_INTEGER,
+    voiceLeft: 60 * 60,
+    voiceIsTrial: false,
+  };
+}
 
 /**
  * No meter. What that means depends on where we are running.
@@ -87,7 +111,9 @@ function read(data: unknown): Allowance | null {
  * free run at an unmetered model — the schema not being deployed is our
  * problem, and the safe direction for our problem is "no".
  */
-export async function getAllowance(userId: string): Promise<Allowance> {
+export async function getAllowance(userId: string, email?: string | null): Promise<Allowance> {
+  if (isOwnerEmail(email)) return unlimited();
+
   const db = createAppAdminClient();
   if (!db) return UNCONFIGURED;
 
@@ -107,6 +133,7 @@ export async function getAllowance(userId: string): Promise<Allowance> {
 export async function spend(
   userId: string,
   used: { messages?: number; seconds?: number },
+  email?: string | null,
 ): Promise<Allowance> {
   const db = createAppAdminClient();
   if (!db) return UNCONFIGURED;
@@ -125,6 +152,10 @@ export async function spend(
     console.error("allowance: agent_spend failed —", error.message);
     return UNCONFIGURED;
   }
+
+  // Recorded either way — an owner's testing costs real money and should show
+  // up in the numbers. It just does not run them out.
+  if (isOwnerEmail(email)) return unlimited();
   return read(data) ?? UNCONFIGURED;
 }
 

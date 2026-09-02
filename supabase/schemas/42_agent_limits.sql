@@ -40,11 +40,20 @@ as $$
     'free_messages_day',   10,
     'free_trial_seconds',  180,
 
-    -- Pro at ₹299. 10 min/day and 120 min/month: the monthly cap is the one
-    -- that actually binds, and it exists so the worst case is ~62% of the
-    -- subscription rather than more than all of it.
+    -- Pro at ₹299.
+    --
+    -- The daily cap is 30 minutes so a real session is never cut short
+    -- mid-thought; the monthly cap is what actually bounds the bill. With
+    -- both, somebody can have four heavy days or twelve ordinary ones.
+    --
+    -- A warning attached to the monthly number, because it was written when
+    -- voice ran on Gemini Live at roughly ₹2/min, where 120 minutes is about
+    -- 80% of the subscription. On OpenAI's realtime audio it is several times
+    -- that, and this cap is then the only thing standing between a ₹299 plan
+    -- and a four-figure bill. Whichever provider voice ends up on, check this
+    -- number against the real per-minute cost in ai_usage before raising it.
     'pro_messages_day',    200,
-    'pro_voice_day',       600,
+    'pro_voice_day',       1800,
     'pro_voice_month',     7200
   )
 $$;

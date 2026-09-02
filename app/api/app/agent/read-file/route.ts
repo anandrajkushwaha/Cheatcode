@@ -87,7 +87,7 @@ export async function POST(request: Request) {
   // The same gate as everything else that costs money. Reading a scan is a
   // model call with several images attached, which is the most expensive
   // single thing this product does.
-  const allowance = await getAllowance(user.id);
+  const allowance = await getAllowance(user.id, user.email);
   if (allowance.configured && allowance.messagesLeft <= 0) {
     return Response.json(
       {
