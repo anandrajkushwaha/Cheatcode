@@ -34,6 +34,14 @@ export type Allowance = {
   voiceLeft: number;
   /** True when voiceLeft is the one-time trial rather than a daily allowance. */
   voiceIsTrial: boolean;
+  /**
+   * Which of the two paid caps is empty, when one of them is.
+   *
+   * `voiceLeft` is the smaller of the two, so on its own it cannot say whether
+   * somebody is out until midnight or out until the first of the month. Those
+   * are three weeks apart and the screen was telling everybody the first one.
+   */
+  voiceMonthLeft?: number;
 };
 
 /** Below this a call is not worth starting; it would end mid-sentence. */
@@ -89,6 +97,8 @@ type Raw = {
   messages_left?: number;
   voice_left?: number;
   voice_is_trial?: boolean;
+  voice_day_left?: number;
+  voice_month_left?: number;
 };
 
 function read(data: unknown): Allowance | null {
@@ -101,6 +111,9 @@ function read(data: unknown): Allowance | null {
     messagesLeft: r.messages_left,
     voiceLeft: r.voice_left,
     voiceIsTrial: !!r.voice_is_trial,
+    // Absent on a database that has not re-run 42_agent_limits.sql, which is
+    // why the message below treats undefined as "cannot tell" rather than 0.
+    ...(typeof r.voice_month_left === "number" ? { voiceMonthLeft: r.voice_month_left } : {}),
   };
 }
 
@@ -185,6 +198,12 @@ export function outOfVoice(a: Allowance): string {
     return a.voiceLeft === 0 && a.voiceIsTrial
       ? "Your free voice trial is used up. Pro gets you ten minutes a day."
       : "Live voice is part of Pro.";
+  }
+  // Out for the month is a different sentence from out for the day, and the
+  // difference is three weeks. Saying the wrong one to somebody who is paying
+  // is worse than saying nothing.
+  if (a.voiceMonthLeft === 0) {
+    return "That's this month's voice. It resets on the 1st — typing still works.";
   }
   return "That's today's voice. It resets at midnight — typing still works.";
 }

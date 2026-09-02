@@ -152,6 +152,13 @@ begin
         greatest(0, (lim->>'pro_voice_day')::int   - voice_today),
         greatest(0, (lim->>'pro_voice_month')::int - used_month)
       ),
+      -- Both halves, separately, because the screen has to say *which* wall
+      -- somebody hit. "It resets at midnight" is a lie when the monthly cap is
+      -- the one that bound, and a paying customer who comes back tomorrow to
+      -- the same refusal, having been told it would be gone, has been misled
+      -- by us rather than limited by us.
+      'voice_day_left',   greatest(0, (lim->>'pro_voice_day')::int   - voice_today),
+      'voice_month_left', greatest(0, (lim->>'pro_voice_month')::int - used_month),
       'voice_is_trial', false
     );
   end if;
