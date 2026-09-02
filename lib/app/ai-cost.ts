@@ -52,12 +52,34 @@ export type TokenUsage = {
 /* ------------------------------------------------------------------ rates */
 
 type Rate = {
-  /** USD per million tokens. */
+  /** Per million tokens, in `currency`. */
   input: number;
   output: number;
   audioInput?: number;
   audioOutput?: number;
+  /** Defaults to USD. Sarvam publishes its rate card in rupees. */
+  currency?: "USD" | "INR";
 };
+
+/**
+ * One number, one place, and a date on it.
+ *
+ * Sarvam bills in rupees and every other provider in dollars, so something has
+ * to reconcile them or `sum(cost_usd)` silently adds two different units
+ * together and reports a number nobody can act on.
+ *
+ * Converting at write time rather than storing mixed currencies is the
+ * deliberate choice: the alternative is a currency column, a second money
+ * column, and every query having to know about both — real accounting
+ * machinery for a table whose only job is "roughly, where is the money going".
+ * The cost of this choice is that a row is only as accurate as this constant
+ * was on the day it was written, which is why it is written down with a date
+ * rather than hidden in an expression.
+ *
+ * Worth revisiting if the rupee moves more than a few percent, or the moment
+ * anybody wants to reconcile this against an actual invoice.
+ */
+const INR_PER_USD = 88;
 
 /**
  * USD per million tokens, read from OpenAI's pricing page on 2 September 2026.
@@ -73,6 +95,28 @@ const RATES: Record<string, Rate> = {
   "gpt-5.6-luna": { input: 0.2, output: 1.2 },
   "gpt-4o-mini-transcribe": { input: 1.25, output: 5.0 },
   "gpt-realtime": { input: 4.0, output: 24.0, audioInput: 32.0, audioOutput: 64.0 },
+
+  // Gemini, read from ai.google.dev/gemini-api/docs/pricing on 2 Sep 2026.
+  // The live model is the reason to have it: its audio is roughly a fifth of
+  // what the OpenAI realtime session costs.
+  "gemini-3.1-flash-live": { input: 3.0, output: 12.0, audioInput: 3.0, audioOutput: 12.0 },
+  "gemini-3.5-flash-lite": { input: 0.3, output: 2.5 },
+  "gemini-3.1-flash-lite": { input: 0.25, output: 1.5 },
+  "gemini-3.8-flash": { input: 0.75, output: 3.75 },
+  "gemini-3.7-flash": { input: 0.75, output: 3.75 },
+
+  // Sarvam, in rupees, from docs.sarvam.ai/api-reference-docs/pricing on
+  // 2 Sep 2026. ₹4 in and ₹16 out is around a sixth of what the cheapest
+  // OpenAI tier costs for the same tokens.
+  "sarvam-105b": { input: 4, output: 16, currency: "INR" },
+  "sarvam-30b": { input: 2.5, output: 10, currency: "INR" },
+
+  // The open-weight models Sarvam serves on /v2, same page and date. These are
+  // an order of magnitude dearer than Sarvam's own, which is worth knowing:
+  // one of them reads scanned resumes, because the flagship cannot see.
+  "gemma-4-31b": { input: 36.6, output: 91.5, currency: "INR" },
+  "deepseek-v4-flash": { input: 19.8, output: 59.4, currency: "INR" },
+  "glm-5.2": { input: 128.1, output: 402.6, currency: "INR" },
 };
 
 /** Names we have already complained about, so a busy day logs once each. */
@@ -109,14 +153,17 @@ export function costOf(model: string, usage: TokenUsage): number | null {
   const rate = rateFor(model);
   if (!rate) return null;
 
-  const per = (tokens: number | undefined, usdPerMillion: number | undefined) =>
-    tokens && usdPerMillion ? (tokens / 1_000_000) * usdPerMillion : 0;
+  const per = (tokens: number | undefined, perMillion: number | undefined) =>
+    tokens && perMillion ? (tokens / 1_000_000) * perMillion : 0;
 
-  const total =
+  const native =
     per(usage.input, rate.input) +
     per(usage.output, rate.output) +
     per(usage.audioInput, rate.audioInput) +
     per(usage.audioOutput, rate.audioOutput);
+
+  // Everything is stored in dollars so one query can add the whole table up.
+  const total = rate.currency === "INR" ? native / INR_PER_USD : native;
 
   // Six decimal places, which is what the column holds. A call costing less
   // than a ten-thousandth of a cent rounds to zero, and that is fine — it is
@@ -147,10 +194,13 @@ export function readUsage(json: unknown): TokenUsage {
   const num = (v: unknown): number | undefined =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined;
 
-  // OpenAI Responses: input_tokens / output_tokens.
-  // Gemini: promptTokenCount / candidatesTokenCount.
-  const input = num(block.input_tokens) ?? num(block.promptTokenCount);
-  const output = num(block.output_tokens) ?? num(block.candidatesTokenCount);
+  // Three providers, three spellings for the same two numbers.
+  //   OpenAI Responses:  input_tokens     / output_tokens
+  //   Gemini:            promptTokenCount / candidatesTokenCount
+  //   Chat completions:  prompt_tokens    / completion_tokens   (Sarvam)
+  const input = num(block.input_tokens) ?? num(block.promptTokenCount) ?? num(block.prompt_tokens);
+  const output =
+    num(block.output_tokens) ?? num(block.candidatesTokenCount) ?? num(block.completion_tokens);
 
   // Realtime reports a per-modality breakdown; audio is the expensive half and
   // billing it as text would understate a call eightfold.

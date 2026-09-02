@@ -35,10 +35,18 @@ import {
  * for the person that they can actually act on.
  */
 
-export type Provider = "openai" | "gemini";
+export type Provider = "openai" | "gemini" | "sarvam";
 
-import { readUsage, type UsageMeta } from "@/lib/app/ai-cost";
+import { readUsage, type Feature, type UsageMeta } from "@/lib/app/ai-cost";
 import { recordUsage } from "@/lib/app/ai-usage";
+
+import {
+  discoverSarvamModel,
+  pinnedSarvam,
+  preferredSarvamModel,
+  sarvamChatUrl,
+  sarvamHeaders,
+} from "@/lib/app/sarvam-models";
 
 const OPENAI_BASE = process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1";
 const GEMINI_BASE =
@@ -59,18 +67,50 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /* ------------------------------------------------------------- provider */
 
-export function provider(): Provider | null {
-  const forced = process.env.LLM_PROVIDER?.trim().toLowerCase();
-  if (forced === "openai" || forced === "gemini") {
-    return apiKey(forced) ? forced : null;
+const PROVIDERS: Provider[] = ["openai", "gemini", "sarvam"];
+
+const isProvider = (v: string | undefined): v is Provider =>
+  Boolean(v && (PROVIDERS as string[]).includes(v));
+
+/**
+ * Who answers, and it can differ per feature.
+ *
+ * The per-feature override is what makes moving providers survivable. Pulling
+ * an entire product onto a new model in one switch means finding out about
+ * every regression at once, in production, from users. Instead the cheapest,
+ * highest-volume and most mechanical call — reading an uploaded resume into
+ * structured fields — can move on its own and be judged on its own, while the
+ * conversation stays where it is.
+ *
+ *   LLM_PROVIDER=openai
+ *   LLM_PROVIDER_RESUME_EXTRACTION=sarvam
+ *
+ * The feature names are the ones in ai-cost.ts, uppercased, which is also what
+ * the spend rows are grouped by — so the thing you measure and the thing you
+ * switch are named the same.
+ */
+export function provider(feature?: Feature): Provider | null {
+  if (feature) {
+    const perFeature = process.env[`LLM_PROVIDER_${feature.toUpperCase()}`]?.trim().toLowerCase();
+    if (isProvider(perFeature)) return apiKey(perFeature) ? perFeature : null;
   }
+
+  const forced = process.env.LLM_PROVIDER?.trim().toLowerCase();
+  if (isProvider(forced)) return apiKey(forced) ? forced : null;
+
   if (process.env.OPENAI_API_KEY?.trim()) return "openai";
   if (process.env.GEMINI_API_KEY?.trim()) return "gemini";
+  if (process.env.SARVAM_API_KEY?.trim()) return "sarvam";
   return null;
 }
 
 function apiKey(p: Provider): string | null {
-  const key = p === "openai" ? process.env.OPENAI_API_KEY : process.env.GEMINI_API_KEY;
+  const key =
+    p === "openai"
+      ? process.env.OPENAI_API_KEY
+      : p === "gemini"
+        ? process.env.GEMINI_API_KEY
+        : process.env.SARVAM_API_KEY;
   return key?.trim() || null;
 }
 
@@ -149,7 +189,7 @@ export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
   const json = await result.res.json().catch(() => null);
   bill(input.meta, p, result.model, json);
 
-  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
+  const read = readFor(p, json);
   if (!read.text && !read.calls.length) {
     console.error(
       `llm: ${p}/${result.model} returned nothing usable`,
@@ -199,6 +239,10 @@ export async function llmChatStream(
   let calls: ToolCall[] = [];
   let upstreamError: string | null = null;
   let lastGeminiChunk: unknown = null;
+  /** The usage-bearing final chunk of a chat-completions stream. */
+  let lastChatChunk: unknown = null;
+  /** Tool calls assembled across chunks, by index. */
+  const sarvamCalls: Record<number, { name: string; args: string }> = {};
 
   try {
     for await (const frame of sse(result.res)) {
@@ -211,7 +255,45 @@ export async function llmChatStream(
         continue;
       }
 
-      if (p === "openai") {
+      if (p === "sarvam") {
+        /**
+         * Chat-completions streaming: text arrives in `choices[0].delta`, and
+         * the usage block arrives on its own final chunk with an empty
+         * `choices` array. Tool call fragments also stream, but assembling
+         * partial JSON argument strings is the part every hand-written client
+         * gets wrong — so they are collected whole below, from the chunk that
+         * carries a finish_reason.
+         */
+        const chunk = event as {
+          choices?: {
+            delta?: {
+              content?: string | null;
+              tool_calls?: {
+                index?: number;
+                function?: { name?: string; arguments?: string };
+              }[];
+            };
+            finish_reason?: string | null;
+          }[];
+          usage?: unknown;
+        };
+
+        const choice = chunk.choices?.[0];
+        const piece = choice?.delta?.content;
+        if (typeof piece === "string" && piece) {
+          text += piece;
+          onDelta(piece);
+        }
+
+        for (const call of choice?.delta?.tool_calls ?? []) {
+          const at = call.index ?? 0;
+          const slot = (sarvamCalls[at] ??= { name: "", args: "" });
+          if (call.function?.name) slot.name = call.function.name;
+          if (call.function?.arguments) slot.args += call.function.arguments;
+        }
+
+        if (chunk.usage) lastChatChunk = chunk;
+      } else if (p === "openai") {
         const type = event.type as string | undefined;
         if (type === "response.output_text.delta") {
           const delta = event.delta;
@@ -255,7 +337,19 @@ export async function llmChatStream(
     if (!text) return { ok: false, error: "The answer was cut off. Ask again.", status: 502 };
   }
 
+  // Arguments stream in fragments and are only valid JSON once complete, so
+  // they are parsed here rather than per chunk.
+  for (const slot of Object.values(sarvamCalls)) {
+    if (!slot.name) continue;
+    try {
+      calls.push({ name: slot.name, args: JSON.parse(slot.args || "{}") as Record<string, unknown> });
+    } catch {
+      console.warn(`llm: unparseable streamed arguments for ${slot.name}`);
+    }
+  }
+
   if (lastGeminiChunk) bill(input.meta, p, result.model, lastGeminiChunk);
+  if (lastChatChunk) bill(input.meta, p, result.model, lastChatChunk);
 
   if (upstreamError) console.error(`llm: ${p}/${result.model} streamed an error`, upstreamError);
 
@@ -291,7 +385,7 @@ type Ready =
 
 /** The two refusals both chat paths share, decided once. */
 function prepare(input: ChatInput): Ready {
-  const p = provider();
+  const p = provider(input.meta.feature);
   const key = p && apiKey(p);
   if (!p || !key) {
     return { ok: false, fail: { ok: false, error: "The agent isn't switched on yet.", status: 503 } };
@@ -315,8 +409,23 @@ function chatBody(p: Provider, input: ChatInput, turns: Turn[], stream: boolean)
   const maxTokens = input.maxTokens ?? 400;
   const key = apiKey(p)!;
 
-  return (model: string, drop: Set<Drop>): Built =>
-    p === "openai"
+  return (model: string, drop: Set<Drop>): Built => {
+    if (p === "sarvam") {
+      return {
+        url: sarvamChatUrl(model),
+        headers: sarvamHeaders(key),
+        body: JSON.stringify({
+          model,
+          messages: chatMessages(input.system, turns),
+          ...(input.tools && !drop.has("tools") ? { tools: toolsForChat(input.tools) } : {}),
+          ...(drop.has("temperature") ? {} : { temperature }),
+          ...(drop.has("maxTokens") ? {} : { max_tokens: maxTokens }),
+          ...(stream ? { stream: true } : {}),
+        }),
+      };
+    }
+
+    return p === "openai"
       ? {
           url: `${OPENAI_BASE}/responses`,
           headers: openaiHeaders(key),
@@ -360,6 +469,7 @@ function chatBody(p: Provider, input: ChatInput, turns: Turn[], stream: boolean)
             },
           }),
         };
+  };
 }
 
 /**
@@ -423,20 +533,61 @@ export async function llmVision(input: {
   timeoutMs?: number;
   meta: UsageMeta;
 }): Promise<ChatOk | LlmFail> {
-  const p = provider();
+  const p = provider(input.meta.feature);
   const key = p && apiKey(p);
   if (!p || !key) return { ok: false, error: "Reading isn't switched on yet.", status: 503 };
   if (!input.images.length) return { ok: false, error: "Nothing to read.", status: 400 };
+
+  /**
+   * Sarvam's own models are text only, so a scan goes to an open-weight one.
+   *
+   * `sarvam-105b` cannot see. The /v2 endpoint serves models that can, and
+   * Gemma is the one documented as accepting base64 images. Those models are
+   * explicitly not tuned for Indian languages, which would matter enormously
+   * for a conversation and matters much less here: this call transcribes a
+   * page, it does not talk to anybody.
+   *
+   * Sarvam also sell a purpose-built document-understanding product. That is
+   * the better long-term home for this, and a different API shape, so it is a
+   * later job rather than a blocker today.
+   */
+  const visionModel =
+    p === "sarvam" ? process.env.SARVAM_VISION_MODEL?.trim() || "gemma-4-31b" : null;
 
   const maxTokens = input.maxTokens ?? 4000;
 
   const result = await send({
     provider: p,
     key,
-    pin: pin(p),
+    // Sarvam's flagship cannot see, so a scan is the one call that does not use
+    // the configured chat model.
+    pin: visionModel ?? pin(p),
     timeoutMs: input.timeoutMs ?? 90_000,
-    build: (model, drop) =>
-      p === "openai"
+    build: (model, drop) => {
+      if (p === "sarvam") {
+        return {
+          url: sarvamChatUrl(model),
+          headers: sarvamHeaders(key),
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: input.system },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: input.text },
+                  // Base64 data URLs, which is what the model accepts and what
+                  // the browser already produced when it shrank the pages.
+                  ...input.images.map((url) => ({ type: "image_url", image_url: { url } })),
+                ],
+              },
+            ],
+            ...(drop.has("maxTokens") ? {} : { max_tokens: maxTokens }),
+          }),
+        };
+      }
+
+      return p === "openai"
         ? {
             url: `${OPENAI_BASE}/responses`,
             headers: openaiHeaders(key),
@@ -482,7 +633,8 @@ export async function llmVision(input: {
                 ...(drop.has("maxTokens") ? {} : { maxOutputTokens: maxTokens }),
               },
             }),
-          },
+          };
+    },
   });
 
   if (!result.ok) return failure(result, p);
@@ -490,7 +642,7 @@ export async function llmVision(input: {
   const json = await result.res.json().catch(() => null);
   bill(input.meta, p, result.model, json);
 
-  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
+  const read = readFor(p, json);
   if (!read.text) {
     console.error(`llm: ${p}/${result.model} read nothing from ${input.images.length} image(s)`);
     return { ok: false, error: "Nothing readable came off that.", status: 502 };
@@ -515,7 +667,7 @@ export async function llmJson(input: {
   timeoutMs?: number;
   meta: UsageMeta;
 }): Promise<JsonOk | LlmFail> {
-  const p = provider();
+  const p = provider(input.meta.feature);
   const key = p && apiKey(p);
   if (!p || !key) return { ok: false, error: "The model isn't switched on yet.", status: 503 };
 
@@ -528,8 +680,41 @@ export async function llmJson(input: {
     // A per-call override wins; otherwise the provider-wide one.
     pin: input.pin?.trim() || pin(p),
     timeoutMs: input.timeoutMs ?? 45_000,
-    build: (model, drop) =>
-      p === "openai"
+    build: (model, drop) => {
+      if (p === "sarvam") {
+        return {
+          url: sarvamChatUrl(model),
+          headers: sarvamHeaders(key),
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "system",
+                // Same fallback as the other two: if the strict schema format
+                // is refused, the shape has to be described in words instead.
+                content: drop.has("schema")
+                  ? `${input.system}\n\nReply with a single JSON object and nothing else. It must match this JSON Schema exactly:\n${JSON.stringify(jsonSchema)}`
+                  : input.system,
+              },
+              { role: "user", content: input.user },
+            ],
+            response_format: drop.has("schema")
+              ? { type: "json_object" }
+              : {
+                  type: "json_schema",
+                  json_schema: {
+                    name: input.name,
+                    strict: true,
+                    schema: jsonSchema,
+                  },
+                },
+            ...(drop.has("temperature") ? {} : { temperature }),
+            ...(drop.has("maxTokens") ? {} : { max_tokens: input.maxTokens ?? 4000 }),
+          }),
+        };
+      }
+
+      return p === "openai"
         ? {
             url: `${OPENAI_BASE}/responses`,
             headers: openaiHeaders(key),
@@ -580,7 +765,8 @@ export async function llmJson(input: {
                   : {}),
               },
             }),
-          },
+          };
+    },
   });
 
   if (!result.ok) return failure(result, p);
@@ -588,7 +774,7 @@ export async function llmJson(input: {
   const json = await result.res.json().catch(() => null);
   bill(input.meta, p, result.model, json);
 
-  const read = p === "openai" ? readOpenAI(json) : readGemini(json);
+  const read = readFor(p, json);
   const raw = read.text.trim();
   if (!raw) {
     console.error(
@@ -823,7 +1009,13 @@ function failure(f: SendFail, p: Provider): LlmFail {
   if (f.status === 401 || f.status === 403) {
     console.error(
       `llm: ${p} rejected the key —`,
-      p === "openai" ? "check OPENAI_API_KEY" : "check GEMINI_API_KEY",
+      // Naming the wrong variable here sends somebody to check a key that was
+      // never the problem, which is worse than saying nothing.
+      p === "openai"
+        ? "check OPENAI_API_KEY"
+        : p === "sarvam"
+          ? "check SARVAM_API_KEY"
+          : "check GEMINI_API_KEY",
     );
     return { ok: false, error: "The agent isn't switched on properly yet.", status: 503 };
   }
@@ -976,22 +1168,28 @@ function toJsonSchema(node: unknown): unknown {
 /* ------------------------------------------------------- model selection */
 
 function pin(p: Provider): string | null {
-  return p === "openai" ? pinnedOpenAI() : pinnedGemini("chat");
+  if (p === "openai") return pinnedOpenAI();
+  if (p === "sarvam") return pinnedSarvam();
+  return pinnedGemini("chat");
 }
 
 function preferred(p: Provider): string {
-  return p === "openai" ? preferredOpenAIModel() : preferredGemini("chat");
+  if (p === "openai") return preferredOpenAIModel();
+  if (p === "sarvam") return preferredSarvamModel();
+  return preferredGemini("chat");
 }
 
 function remember(p: Provider, model: string): void {
   if (p === "openai") rememberOpenAIModel(model);
-  else rememberGemini("chat", model);
+  // Sarvam has nothing to remember: there is no discovery, so the model never
+  // changes out from under us and the name in the config is the name used.
+  else if (p === "gemini") rememberGemini("chat", model);
 }
 
 function discover(p: Provider, key: string, exclude: string[]): Promise<string | null> {
-  return p === "openai"
-    ? discoverOpenAIModel(key, exclude)
-    : discoverGemini(key, "chat", exclude);
+  if (p === "openai") return discoverOpenAIModel(key, exclude);
+  if (p === "sarvam") return discoverSarvamModel();
+  return discoverGemini(key, "chat", exclude);
 }
 
 /* ------------------------------------------------------------- plumbing */
@@ -1002,4 +1200,87 @@ function openaiHeaders(key: string): Record<string, string> {
 
 function geminiHeaders(key: string): Record<string, string> {
   return { "Content-Type": "application/json", "x-goog-api-key": key };
+}
+
+/**
+ * Our tool declarations in the shape chat completions wants.
+ *
+ * Not the same as `toolsForOpenAI` above, and the difference is easy to miss:
+ * the Responses API takes a flat `{type, name, parameters}` and chat
+ * completions nests it as `{type, function: {name, parameters}}`. Sending one
+ * where the other is expected is a 400 that reads like a schema problem.
+ */
+function toolsForChat(blocks: ToolBlock[]) {
+  return blocks.flatMap((b) =>
+    (b.functionDeclarations ?? [])
+      .filter((f) => f.name)
+      .map((f) => ({
+        type: "function" as const,
+        function: {
+          name: f.name!,
+          description: f.description ?? "",
+          parameters: (toJsonSchema(f.parameters ?? {}) ?? {}) as Record<string, unknown>,
+        },
+      })),
+  );
+}
+
+/**
+ * Our turns as chat-completions messages.
+ *
+ * The system prompt is a message here rather than a separate field, which is
+ * the one structural difference from both other providers.
+ */
+function chatMessages(system: string, turns: Turn[]) {
+  return [
+    { role: "system", content: system },
+    ...turns.map((t) => ({ role: t.role === "model" ? "assistant" : "user", content: t.text })),
+  ];
+}
+
+/**
+ * What came back from a chat-completions response.
+ *
+ * `content` is null on a pure tool call, and `arguments` is a JSON string
+ * rather than an object — both are the documented shape, and both are the
+ * kind of thing that silently yields an empty answer if assumed otherwise.
+ */
+/** Whichever reader this provider's response needs. */
+function readFor(p: Provider, json: unknown): { text: string; calls: ToolCall[] } {
+  if (p === "openai") return readOpenAI(json);
+  if (p === "sarvam") return readChat(json);
+  return readGemini(json);
+}
+
+function readChat(json: unknown): { text: string; calls: ToolCall[] } {
+  const j = (json ?? {}) as {
+    choices?: {
+      message?: {
+        content?: string | null;
+        tool_calls?: { function?: { name?: string; arguments?: string } }[];
+      };
+      finish_reason?: string;
+    }[];
+  };
+
+  const message = j.choices?.[0]?.message;
+  const calls: ToolCall[] = [];
+
+  for (const call of message?.tool_calls ?? []) {
+    const name = call.function?.name;
+    if (!name) continue;
+    let args: Record<string, unknown> = {};
+    try {
+      args = JSON.parse(call.function?.arguments ?? "{}") as Record<string, unknown>;
+    } catch {
+      // A model that produced unparseable arguments has not called the tool,
+      // whatever it thinks. Dropping it is better than passing junk to code
+      // that will write to somebody's resume with it.
+      console.warn(`llm: unparseable arguments for ${name}`);
+      continue;
+    }
+    calls.push({ name, args });
+  }
+
+  return { text: message?.content ?? "", calls };
 }

@@ -25,7 +25,7 @@ import { costOf, type Feature, type TokenUsage, type UsageMeta } from "@/lib/app
  */
 
 export type RecordInput = UsageMeta & {
-  provider: "openai" | "gemini";
+  provider: "openai" | "gemini" | "sarvam";
   model: string;
   usage: TokenUsage;
   /** For realtime, which is billed by wall clock as much as by tokens. */

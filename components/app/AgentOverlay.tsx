@@ -133,8 +133,13 @@ export function AgentOverlay({
 
   const [liveState, setLiveState] = useState<LiveState>("idle");
   const [level, setLevel] = useState(0);
-  const [heard, setHeard] = useState("");   // what they are saying, mid-sentence
-  const [saying, setSaying] = useState(""); // what the agent is saying, mid-sentence
+  /**
+   * What they are saying, mid-sentence.
+   *
+   * There is no counterpart for the agent. Its words are heard, not read —
+   * see `caption` below for why holding them on screen was the wrong idea.
+   */
+  const [heard, setHeard] = useState("");
 
   const session = useRef<LiveSession | null>(null);
 
@@ -340,7 +345,7 @@ export function AgentOverlay({
   // Keep the newest exchange in view without yanking the page.
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns, busy, heard, saying]);
+  }, [turns, busy, heard]);
 
   /* --------------------------------------------------------------- tools */
 
@@ -491,11 +496,10 @@ export function AgentOverlay({
       },
 
       onAgentText: (text, final) => {
-        if (!final) {
-          setSaying(text);
-          return;
-        }
-        setSaying("");
+        // Interim text is dropped on the floor: nothing renders it. The final
+        // turn is still kept, because the transcript on /app/agent should be
+        // complete even though this screen stays quiet.
+        if (!final) return;
         // The cards the model asked for arrive on their own frame, usually
         // before the sentence that explains them finishes. They are held and
         // attached to the turn they belong to rather than floating loose.
@@ -836,7 +840,19 @@ export function AgentOverlay({
     return Math.ceil(Math.hypot(dx, dy)) + 2;
   }, [origin.x, origin.y]);
 
-  const empty = turns.length === 0 && !heard && !saying;
+  /**
+   * The turns worth putting on screen.
+   *
+   * Typed turns always. Spoken ones only when they carry cards — the words
+   * were already heard, and repeating them in writing is the thing that makes
+   * a call feel like a chat window with a microphone bolted on.
+   */
+  const visible = useMemo(
+    () => turns.filter((t) => !t.spoken || !!t.jobs?.length),
+    [turns],
+  );
+
+  const empty = visible.length === 0 && !heard;
 
   /**
    * The one line under the input.
@@ -849,18 +865,19 @@ export function AgentOverlay({
   const inCall = listening || connecting;
 
   /**
-   * One line, whoever is speaking.
+   * One line, and it is only ever yours.
    *
-   * Live text wins over settled text, because during a call the interesting
-   * thing is always the sentence in progress. When nobody is mid-sentence the
-   * agent's last answer stays up, so the screen is never blank between turns.
+   * This used to show whatever was being said, either direction, and the
+   * agent's half was the bulk of it — a full-screen subtitle of a voice you
+   * are already listening to. Nobody reads and listens at once; the text wins
+   * because text sits still, and then the call is a chat window with audio
+   * bolted on.
+   *
+   * What is left is the one question somebody actually has mid-call: did it
+   * hear me correctly. So the caption carries their own words and nothing
+   * else, and goes quiet when they stop.
    */
-  const captionIsMine = !saying && !!heard;
-  const caption =
-    saying ||
-    heard ||
-    [...turns].reverse().find((t) => t.role === "model")?.text ||
-    "";
+  const caption = heard;
 
   /** The most recent set of cards, for the call screen. */
   const lastCards = (() => {
@@ -1043,15 +1060,11 @@ export function AgentOverlay({
               <div className="mt-8 flex min-h-[5.5rem] w-full max-w-[34rem] items-start justify-center px-2">
                 {caption ? (
                   <p
-                    className={`line-clamp-4 text-center text-[1rem] leading-relaxed ${
-                      captionIsMine ? "text-ink-50" : "text-ink"
-                    }`}
+                    className="line-clamp-4 text-center text-[1rem] leading-relaxed text-ink-50"
                   >
-                    {captionIsMine && (
-                      <span className="mr-1.5 text-[0.72rem] uppercase tracking-[0.12em] text-ink-30">
-                        You
-                      </span>
-                    )}
+                    <span className="mr-1.5 text-[0.72rem] uppercase tracking-[0.12em] text-ink-30">
+                      You
+                    </span>
                     {caption}
                   </p>
                 ) : (
@@ -1226,7 +1239,23 @@ export function AgentOverlay({
               ref={threadRef}
               className="mt-[4.5rem] min-h-0 flex-1 space-y-5 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {turns.map((t, i) =>
+              {/**
+                * What was said aloud is not written down here.
+                *
+                * A voice product that also prints everything it says is two
+                * products competing for the same attention: you cannot read
+                * and listen at once, and the transcript wins because text
+                * sits still. So a spoken turn leaves nothing behind on this
+                * screen — unless it produced something you have to *look* at,
+                * like job cards, which is exactly what the agent's own
+                * instructions say the screen is for.
+                *
+                * Nothing is lost: every spoken turn is still written to
+                * agent_messages and readable in full on /app/agent. This is
+                * about what competes with a live conversation, not about what
+                * is kept.
+                */}
+              {visible.map((t, i) =>
                 t.role === "user" ? (
                   <div key={i} className="text-right">
                     <p className="inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink px-4 py-3 text-left text-[0.94rem] leading-relaxed text-paper">
@@ -1256,15 +1285,6 @@ export function AgentOverlay({
                   </p>
                 </div>
               )}
-              {saying && (
-                <div className="flex gap-3">
-                  <OrbMark className="mt-1 h-7 w-7 shrink-0" />
-                  <p className="max-w-[85%] rounded-2xl bg-ink-04 px-4 py-3 text-[0.94rem] leading-relaxed text-ink-50">
-                    {saying}
-                  </p>
-                </div>
-              )}
-
               {busy && (
                 <div className="flex items-center gap-3">
                   <OrbMark className="h-7 w-7 shrink-0 animate-pulse" />

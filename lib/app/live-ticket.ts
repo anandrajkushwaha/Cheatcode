@@ -81,8 +81,26 @@ export function liveProvider(): LiveProvider | null {
 export async function mintTicket(instruction: string): Promise<Ticket> {
   const provider = liveProvider();
   if (!provider) {
+    /**
+     * Worth saying precisely, because the obvious guess is wrong.
+     *
+     * A spoken conversation needs one duplex connection that hears and speaks
+     * at the same time — that is what makes interruption work, and it is what
+     * OpenAI's Realtime API and Gemini Live each provide as a single stream.
+     * Sarvam has the two halves as separate WebSocket services, realtime
+     * speech-to-text and streaming text-to-speech, and no API that joins them.
+     *
+     * So a Sarvam-only deployment has no voice, and that is a fact about what
+     * exists rather than a key somebody forgot to set. Somebody reading this
+     * log at three in the morning should not go looking for a missing
+     * variable.
+     */
     console.error(
-      "live-ticket: neither OPENAI_API_KEY nor GEMINI_API_KEY is set, so live voice cannot start.",
+      process.env.SARVAM_API_KEY
+        ? "live-ticket: no live voice provider. Sarvam has no realtime conversation API — " +
+            "it has realtime STT and streaming TTS as separate services, which would have to " +
+            "be joined into a call loop. Set OPENAI_API_KEY or GEMINI_API_KEY for voice."
+        : "live-ticket: neither OPENAI_API_KEY nor GEMINI_API_KEY is set, so live voice cannot start.",
     );
     return { ok: false, error: "Live voice isn't switched on yet.", status: 503 };
   }
