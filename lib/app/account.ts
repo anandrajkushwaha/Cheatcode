@@ -1,6 +1,7 @@
 import "server-only";
 import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
 import type { AtsResult } from "@/lib/tools/ats";
+import { cleanResume, type Resume as ResumeContent } from "@/lib/app/resume-schema";
 
 export type Plan = "free" | "pro";
 export type PlanStatus = "inactive" | "active" | "past_due" | "cancelled";
@@ -28,27 +29,16 @@ export type Profile = {
   updated_at: string | null;
 };
 
-export type ParsedResume = {
-  full_name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  location?: string | null;
-  headline?: string | null;
-  summary?: string | null;
-  years_experience?: number | null;
-  skills?: string[];
-  roles?: {
-    title?: string | null;
-    company?: string | null;
-    start?: string | null;
-    end?: string | null;
-    is_current?: boolean;
-    highlights?: string[];
-  }[];
-  education?: { degree?: string | null; institution?: string | null; year?: string | null }[];
-  certifications?: string[];
-  links?: { label?: string | null; url?: string | null }[];
-};
+/**
+ * The resume's contents, as opposed to the row it lives in.
+ *
+ * One definition, in lib/app/resume-schema.ts, shared by the parser, the
+ * builder, the agent's tools and any form. This alias stays because most of
+ * the app already calls it `ParsedResume`, and because `Resume` below is
+ * already taken by the database row — two different things that would
+ * otherwise share a name.
+ */
+export type ParsedResume = ResumeContent;
 
 export type Resume = {
   id: string;
@@ -123,7 +113,20 @@ export async function getResumes(): Promise<Resume[]> {
     )
     .order("created_at", { ascending: false })
     .limit(20);
-  return (data ?? []) as unknown as Resume[];
+
+  /**
+   * Cleaned on the way out, not on the way in.
+   *
+   * Rows written before the schema gained projects and achievements are
+   * missing those keys entirely, and code reading `parsed.projects` would find
+   * undefined where the type promises an array. Normalising here means old
+   * rows quietly become current ones as they are read, with no migration and
+   * no version column.
+   */
+  return ((data ?? []) as unknown as Resume[]).map((r) => ({
+    ...r,
+    parsed: r.parsed ? cleanResume(r.parsed) : null,
+  }));
 }
 
 export async function getPrimaryResume(): Promise<Resume | null> {
@@ -155,7 +158,9 @@ export async function getPrimaryDraft(): Promise<ResumeDraft | null> {
     .order("updated_at", { ascending: false })
     .limit(1);
 
-  return ((data ?? [])[0] as unknown as ResumeDraft) ?? null;
+  const draft = ((data ?? [])[0] as unknown as ResumeDraft) ?? null;
+  // Same normalisation as getResumes, for the same reason.
+  return draft ? { ...draft, content: cleanResume(draft.content) } : null;
 }
 
 /**

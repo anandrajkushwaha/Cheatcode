@@ -37,6 +37,9 @@ import {
 
 export type Provider = "openai" | "gemini";
 
+import { readUsage, type UsageMeta } from "@/lib/app/ai-cost";
+import { recordUsage } from "@/lib/app/ai-usage";
+
 const OPENAI_BASE = process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1";
 const GEMINI_BASE =
   process.env.GEMINI_API_BASE ?? "https://generativelanguage.googleapis.com/v1beta/models";
@@ -117,6 +120,15 @@ export type ChatInput = {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  /**
+   * Who this call is for and what it is for.
+   *
+   * Required rather than optional, deliberately. Every model call in this
+   * product costs money, and an optional field here would mean the one call
+   * site somebody forgets is the one that never shows up in the bill. Making
+   * it required moves that from a discipline problem to a compile error.
+   */
+  meta: UsageMeta;
 };
 
 export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
@@ -135,6 +147,8 @@ export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
   if (!result.ok) return failure(result, p);
 
   const json = await result.res.json().catch(() => null);
+  bill(input.meta, p, result.model, json);
+
   const read = p === "openai" ? readOpenAI(json) : readGemini(json);
   if (!read.text && !read.calls.length) {
     console.error(
@@ -184,6 +198,7 @@ export async function llmChatStream(
   let text = "";
   let calls: ToolCall[] = [];
   let upstreamError: string | null = null;
+  let lastGeminiChunk: unknown = null;
 
   try {
     for await (const frame of sse(result.res)) {
@@ -205,6 +220,11 @@ export async function llmChatStream(
             onDelta(delta);
           }
         } else if (type === "response.completed" || type === "response.incomplete") {
+          // The usage block rides on the completed event and nowhere else, so
+          // a stream that breaks early is a call we cannot cost. That is
+          // recorded honestly as a missing row rather than an invented one.
+          bill(input.meta, p, result.model, event.response);
+
           const read = readOpenAI(event.response);
           calls = read.calls;
           // The assembled response is the authority. Deltas can be missed at
@@ -222,6 +242,10 @@ export async function llmChatStream(
           onDelta(read.text);
         }
         if (read.calls.length) calls = calls.concat(read.calls);
+        // Gemini repeats usageMetadata on every chunk with running totals, so
+        // the last one seen is the whole call. Held and written once at the
+        // end rather than a row per chunk.
+        if (event.usageMetadata) lastGeminiChunk = event;
       }
     }
   } catch (e) {
@@ -230,6 +254,8 @@ export async function llmChatStream(
     console.error(`llm: ${p}/${result.model} stream broke —`, String(e).slice(0, 200));
     if (!text) return { ok: false, error: "The answer was cut off. Ask again.", status: 502 };
   }
+
+  if (lastGeminiChunk) bill(input.meta, p, result.model, lastGeminiChunk);
 
   if (upstreamError) console.error(`llm: ${p}/${result.model} streamed an error`, upstreamError);
 
@@ -242,6 +268,22 @@ export async function llmChatStream(
 }
 
 /* ------------------------------------------------------- shared plumbing */
+
+/**
+ * Record what that call cost.
+ *
+ * One function so there is one place to look, and so the four public entry
+ * points cannot each grow their own slightly different version. It reads the
+ * usage block off whatever the provider returned and hands it on; if there is
+ * no usage block, nothing is written — a row with every column null would be
+ * an accounting entry that says nothing.
+ */
+function bill(meta: UsageMeta, p: Provider, model: string, json: unknown): void {
+  const usage = readUsage(json);
+  if (usage.input === undefined && usage.output === undefined) return;
+  recordUsage({ ...meta, provider: p, model, usage });
+}
+
 
 type Ready =
   | { ok: true; p: Provider; key: string; turns: Turn[] }
@@ -379,6 +421,7 @@ export async function llmVision(input: {
   images: string[];
   maxTokens?: number;
   timeoutMs?: number;
+  meta: UsageMeta;
 }): Promise<ChatOk | LlmFail> {
   const p = provider();
   const key = p && apiKey(p);
@@ -445,6 +488,8 @@ export async function llmVision(input: {
   if (!result.ok) return failure(result, p);
 
   const json = await result.res.json().catch(() => null);
+  bill(input.meta, p, result.model, json);
+
   const read = p === "openai" ? readOpenAI(json) : readGemini(json);
   if (!read.text) {
     console.error(`llm: ${p}/${result.model} read nothing from ${input.images.length} image(s)`);
@@ -468,6 +513,7 @@ export async function llmJson(input: {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  meta: UsageMeta;
 }): Promise<JsonOk | LlmFail> {
   const p = provider();
   const key = p && apiKey(p);
@@ -540,6 +586,8 @@ export async function llmJson(input: {
   if (!result.ok) return failure(result, p);
 
   const json = await result.res.json().catch(() => null);
+  bill(input.meta, p, result.model, json);
+
   const read = p === "openai" ? readOpenAI(json) : readGemini(json);
   const raw = read.text.trim();
   if (!raw) {

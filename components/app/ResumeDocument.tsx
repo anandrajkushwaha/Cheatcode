@@ -1,4 +1,4 @@
-import type { DraftContent } from "@/lib/app/resume-draft";
+import type { Resume as DraftContent } from "@/lib/app/resume-schema";
 
 /**
  * The document itself.
@@ -82,6 +82,24 @@ export function ResumeDocument({ content }: { content: DraftContent }) {
         </Section>
       )}
 
+      {(content.projects?.length ?? 0) > 0 && (
+        <Section title="PROJECTS">
+          {content.projects!.map((p, i) => (
+            <div key={i} className="rd-role">
+              {(p.name || p.link) && (
+                <p className="rd-role-line">{[p.name, p.link].filter(Boolean).join(" — ")}</p>
+              )}
+              {p.description && <p className="rd-body">{p.description}</p>}
+              {(p.highlights ?? [])
+                .filter((h) => h?.trim())
+                .map((h, j) => (
+                  <p key={j} className="rd-bullet">{`• ${h.trim()}`}</p>
+                ))}
+            </div>
+          ))}
+        </Section>
+      )}
+
       {(content.education?.length ?? 0) > 0 && (
         <Section title="EDUCATION">
           {content.education!.map((e, i) => (
@@ -104,6 +122,14 @@ export function ResumeDocument({ content }: { content: DraftContent }) {
       {(content.certifications?.length ?? 0) > 0 && (
         <Section title="CERTIFICATIONS">
           <p className="rd-body">{content.certifications!.join(", ")}</p>
+        </Section>
+      )}
+
+      {(content.achievements?.length ?? 0) > 0 && (
+        <Section title="ACHIEVEMENTS">
+          {content.achievements!.map((a, i) => (
+            <p key={i} className="rd-bullet">{`• ${a}`}</p>
+          ))}
         </Section>
       )}
     </article>

@@ -23,6 +23,17 @@ export type LiveHandlers = {
   onAgentText?: (text: string, final: boolean) => void;
   /** The agent asked for jobs to be put on screen. */
   onShowJobs?: (show: ShowJobs) => void;
+  /**
+   * The agent called a tool. Resolve with what it should be told.
+   *
+   * The transport waits for this before letting the model speak again, which
+   * is a short silence in the middle of a call and the correct one: a tool
+   * that changed somebody's resume has to have actually changed it before the
+   * agent says it did. Handlers must not throw — a rejected promise here
+   * would leave the model waiting for a result that never comes, which ends
+   * the conversation.
+   */
+  onTool?: (name: string, args: unknown) => Promise<unknown>;
   onState?: (state: LiveState) => void;
   /** 0..1, for anything that should move while somebody is talking. */
   onLevel?: (level: number) => void;

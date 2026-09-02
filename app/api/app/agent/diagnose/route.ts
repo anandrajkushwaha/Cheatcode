@@ -3,7 +3,6 @@ import { provider } from "@/lib/app/llm";
 import { pinnedOpenAI, rankOpenAI } from "@/lib/app/openai-models";
 import { pinned as pinnedGemini } from "@/lib/app/gemini-models";
 import { liveProvider, mintTicket } from "@/lib/app/live-ticket";
-import { ttsProvider } from "@/lib/app/tts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,7 +40,6 @@ export async function GET() {
 
   const p = provider();
   const live = liveProvider();
-  const tts = ttsProvider();
 
   /**
    * Actually try to mint a voice credential.
@@ -69,11 +67,15 @@ export async function GET() {
     liveError: ticket && !ticket.ok ? ticket.error : undefined,
     liveUpstreamStatus: ticket && !ticket.ok ? ticket.upstreamStatus : undefined,
     liveUpstreamSaid: ticket && !ticket.ok ? ticket.detail : undefined,
-    /** Who says the greeting. */
-    greeting: tts ?? "the browser's own voice — no key is set",
+    /**
+     * The agent opens a call with one line, spoken by the realtime model
+     * itself. There is no separate text-to-speech service any more — that
+     * path existed to read a greeting over the opening screen, which is not
+     * something the product does.
+     */
+    openingLine: "spoken by the live model, not synthesised separately",
     openaiKeySet: !!process.env.OPENAI_API_KEY,
     geminiKeySet: !!process.env.GEMINI_API_KEY,
-    elevenlabsKeySet: !!process.env.ELEVENLABS_API_KEY,
   };
 
   if (!p) {
@@ -197,7 +199,7 @@ async function tryOpenAI(
   if (what.tools) {
     // The same conversion the app does, so a schema the app would send is the
     // schema that gets tested.
-    const { TOOLS } = await import("@/lib/app/agent-brain");
+    const { TOOLS } = await import("@/lib/app/agent-tools");
     const { toolsForOpenAI } = await import("@/lib/app/llm");
     body.tools = toolsForOpenAI(TOOLS);
   }
@@ -351,7 +353,7 @@ async function tryGemini(
   };
 
   if (what.tools) {
-    const { TOOLS } = await import("@/lib/app/agent-brain");
+    const { TOOLS } = await import("@/lib/app/agent-tools");
     body.tools = TOOLS;
   }
   if (what.big) {

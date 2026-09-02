@@ -12,10 +12,32 @@ type State =
   | { phase: "idle" }
   | { phase: "reading"; name: string }
   | { phase: "thinking"; name: string; result: AtsResult }
-  | { phase: "done"; name: string; result: AtsResult; parsed: ParsedResume | null; parseError: string | null }
+  | {
+      phase: "done";
+      name: string;
+      result: AtsResult;
+      parsed: ParsedResume | null;
+      parseError: string | null;
+      /** What the upload changed in the resume being built, if anything. */
+      absorbed?: { added: string[]; kept: string[] };
+    }
   | { phase: "error"; message: string };
 
 const ACCEPT = ".pdf,.docx,.txt";
+
+/** "work history and education", from the field names the server sends back. */
+const LABELS: Record<string, string> = {
+  roles: "work history",
+  education: "education",
+  projects: "projects",
+  links: "links",
+};
+
+function readable(fields: string[]): string {
+  const words = fields.map((f) => LABELS[f] ?? f);
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
 
 /**
  * Upload once, get two things.
@@ -93,6 +115,7 @@ export function ResumeUpload({ hasExisting }: { hasExisting: boolean }) {
           result,
           parsed: json.parsed ?? null,
           parseError: json.parseError ?? null,
+          absorbed: json.absorbed,
         });
         router.refresh();
       } catch (e) {
@@ -210,8 +233,28 @@ export function ResumeUpload({ hasExisting }: { hasExisting: boolean }) {
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-ink-08 pt-5">
                 <BuildDraftButton label="Fix it →" />
                 <p className="max-w-[40ch] text-[0.82rem] leading-relaxed text-ink-30">
-                  We&apos;ll rebuild it in a layout the software can read, starting from what
-                  you&apos;ve already written. Your original file is untouched.
+                  {/* When they had already started a resume — usually by talking
+                      to the agent — say what this file changed and, more
+                      importantly, what it did not. Nothing they said is ever
+                      overwritten by a file, and that is worth stating rather
+                      than leaving them to discover. */}
+                  {state.absorbed?.kept?.length ? (
+                    <>
+                      Added to the resume you&apos;re building. Your{" "}
+                      {readable(state.absorbed.kept)} was already there, so we left it as you
+                      had it.
+                    </>
+                  ) : state.absorbed?.added?.length ? (
+                    <>
+                      Added to the resume you&apos;re building. Open it to see the layout an ATS
+                      can actually read.
+                    </>
+                  ) : (
+                    <>
+                      We&apos;ll rebuild it in a layout the software can read, starting from what
+                      you&apos;ve already written. Your original file is untouched.
+                    </>
+                  )}
                 </p>
               </div>
             )}

@@ -56,6 +56,16 @@ export class LiveSession {
   /** Which provider answered. Useful in a bug report, harmless otherwise. */
   provider: "openai" | "gemini" | null = null;
 
+  /**
+   * The model this call actually connected to.
+   *
+   * Not the same as what we asked for: the registry discovers a name when the
+   * first guess is not on the key. Reported back when the call is billed, so
+   * the cost row names the model that answered rather than the one we hoped
+   * for.
+   */
+  model: string | null = null;
+
   constructor(private readonly on: LiveHandlers) {}
 
   get live(): boolean {
@@ -117,6 +127,7 @@ export class LiveSession {
     this.jobs = Array.isArray(ticket.jobs) ? ticket.jobs : [];
     this.remaining = typeof ticket.remaining === "number" ? ticket.remaining : null;
     this.provider = ticket.provider ?? "gemini";
+    this.model = ticket.model ?? null;
 
     const context = {
       stream: this.stream,

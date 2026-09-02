@@ -42,7 +42,7 @@ export class OpenAITransport implements Transport {
    * it while a response is still running is rejected as an active response,
    * which would turn a working tool call into an error nobody can see.
    */
-  private pending = new Map<string, string>();
+  private pending = new Map<string, { name: string; args: string }>();
   private shown = new Set<string>();
 
   constructor(private readonly ctx: TransportContext) {}
@@ -239,7 +239,7 @@ export class OpenAITransport implements Transport {
       /* ---- tools */
       case "response.function_call_arguments.done":
         if (msg.call_id) {
-          this.pending.set(msg.call_id, msg.arguments ?? "{}");
+          this.pending.set(msg.call_id, { name: msg.name ?? "", args: msg.arguments ?? "{}" });
           this.show(msg.call_id, msg.name, msg.arguments);
         }
         break;
@@ -247,10 +247,10 @@ export class OpenAITransport implements Transport {
       case "response.done":
         for (const item of msg.response?.output ?? []) {
           if (item.type !== "function_call" || !item.call_id) continue;
-          this.pending.set(item.call_id, item.arguments ?? "{}");
+          this.pending.set(item.call_id, { name: item.name ?? "", args: item.arguments ?? "{}" });
           this.show(item.call_id, item.name, item.arguments);
         }
-        this.answerCalls();
+        void this.answerCalls();
         break;
 
       case "error":
@@ -259,7 +259,13 @@ export class OpenAITransport implements Transport {
     }
   }
 
-  /** Put the cards on screen, once per call. */
+  /**
+   * Put the cards on screen, once per call.
+   *
+   * Separate from the tool result, and ahead of it: the cards can be drawn
+   * from what is already in the browser, so they appear while the agent is
+   * still talking rather than after the round trip below.
+   */
   private show(callId: string, name?: string, args?: string): void {
     if (name !== "show_jobs" || this.shown.has(callId)) return;
     this.shown.add(callId);
@@ -272,28 +278,55 @@ export class OpenAITransport implements Transport {
   }
 
   /**
-   * Tell the model its tool ran, then let it carry on talking.
+   * Run the tools, tell the model what happened, then let it carry on.
    *
-   * The cards are already in the client, so there is nothing to fetch — which
-   * matters, because a tool call that waits on a round trip is a pause in the
-   * middle of somebody speaking.
+   * This used to answer every call with `{result: "shown"}` immediately,
+   * which was honest when the only tool put cards on screen from data the
+   * browser already had. It is a lie for a tool that writes to a database: an
+   * agent that says "saved that" before the save has happened will eventually
+   * say it after one has failed.
+   *
+   * So the results are awaited. That is a pause of a few hundred milliseconds
+   * in the middle of a conversation, and it is the right pause — the
+   * alternative is a resume that does not contain what somebody was just told
+   * it contains.
    */
-  private answerCalls(): void {
+  private async answerCalls(): Promise<void> {
     if (!this.pending.size || this.dc?.readyState !== "open") return;
 
-    for (const callId of this.pending.keys()) {
+    const calls = [...this.pending.entries()];
+    this.pending.clear();
+
+    const results = await Promise.all(
+      calls.map(async ([callId, call]) => {
+        try {
+          const output = (await this.ctx.on.onTool?.(call.name, call.args)) ?? { ok: true };
+          return { callId, output };
+        } catch (e) {
+          // A handler that throws must not strand the model waiting: it gets
+          // a failure it can talk about instead of silence it cannot.
+          console.error(`live: tool ${call.name} threw —`, String(e).slice(0, 200));
+          return { callId, output: { ok: false, summary: "That did not work." } };
+        }
+      }),
+    );
+
+    // The call may have ended while the tools ran. Sending into a closed
+    // channel throws, and there is nobody left to tell anyway.
+    if (this.closed || this.dc?.readyState !== "open") return;
+
+    for (const { callId, output } of results) {
       this.dc.send(
         JSON.stringify({
           type: "conversation.item.create",
           item: {
             type: "function_call_output",
             call_id: callId,
-            output: JSON.stringify({ result: "shown" }),
+            output: JSON.stringify(output),
           },
         }),
       );
     }
-    this.pending.clear();
 
     // One response for however many calls were just answered. Two would have
     // the agent say the same thing twice.

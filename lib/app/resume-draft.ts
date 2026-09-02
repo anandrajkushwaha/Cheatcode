@@ -1,5 +1,11 @@
-import type { ParsedResume, Profile, Resume } from "@/lib/app/account";
+import type { Profile, Resume } from "@/lib/app/account";
 import { analyseResume, type AtsResult, type ResumeFacts } from "@/lib/tools/ats";
+import {
+  cleanResume,
+  emptyResume,
+  resumeIsEmpty,
+  type Resume as ResumeContent,
+} from "@/lib/app/resume-schema";
 
 /**
  * A resume as data, not as a file.
@@ -16,7 +22,7 @@ import { analyseResume, type AtsResult, type ResumeFacts } from "@/lib/tools/ats
  * blank editor is the second door, never the front one.
  */
 
-export type DraftContent = ParsedResume;
+export type DraftContent = ResumeContent;
 
 /* ------------------------------------------------------------------ seed */
 
@@ -29,22 +35,19 @@ export type DraftContent = ParsedResume;
  * document being edited, and the profile is a summary of it.
  */
 export function seedFromResume(resume: Resume | null, profile: Profile | null): DraftContent {
-  const p = resume?.parsed ?? {};
+  const p = resume?.parsed;
+  const base = emptyResume();
 
-  return {
-    full_name: p.full_name ?? profile?.full_name ?? null,
-    email: p.email ?? null,
-    phone: p.phone ?? null,
-    location: p.location ?? profile?.preferred_cities?.[0] ?? null,
-    headline: p.headline ?? profile?.current_title ?? null,
-    summary: p.summary ?? null,
-    years_experience: p.years_experience ?? profile?.years_experience ?? null,
-    skills: p.skills?.length ? p.skills : (resume?.skills ?? []),
-    roles: p.roles ?? [],
-    education: p.education ?? [],
-    certifications: p.certifications ?? [],
-    links: p.links ?? [],
-  };
+  return cleanResume({
+    ...base,
+    ...(p ?? {}),
+    full_name: p?.full_name ?? profile?.full_name ?? null,
+    location: p?.location ?? profile?.preferred_cities?.[0] ?? null,
+    headline: p?.headline ?? profile?.current_title ?? null,
+    years_experience: p?.years_experience ?? profile?.years_experience ?? null,
+    target_role: p?.target_role ?? profile?.target_roles?.[0] ?? null,
+    skills: p?.skills?.length ? p.skills : (resume?.skills ?? []),
+  });
 }
 
 /* ------------------------------------------------------------------ text */
@@ -101,6 +104,21 @@ export function draftToText(c: DraftContent): string {
     }
   }
 
+  // Projects sit between experience and education: for a fresher they are the
+  // strongest thing on the page, and putting education first would lead with
+  // the weakest section a reader looks at.
+  if (c.projects?.length) {
+    out.push("", "PROJECTS");
+    for (const p of c.projects) {
+      const line = [p.name, p.link].filter(Boolean).join(" — ");
+      if (line) out.push("", line);
+      if (p.description) out.push(p.description);
+      for (const h of p.highlights ?? []) {
+        if (h?.trim()) out.push(`• ${h.trim()}`);
+      }
+    }
+  }
+
   if (c.education?.length) {
     out.push("", "EDUCATION");
     for (const e of c.education) {
@@ -116,6 +134,13 @@ export function draftToText(c: DraftContent): string {
 
   if (c.certifications?.length) {
     out.push("", "CERTIFICATIONS", c.certifications.join(", "));
+  }
+
+  // One per line rather than comma-joined: an achievement is a sentence, and
+  // three of them run together read as one long one.
+  if (c.achievements?.length) {
+    out.push("", "ACHIEVEMENTS");
+    for (const a of c.achievements) out.push(`• ${a}`);
   }
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -165,104 +190,13 @@ export function scoreDraft(c: DraftContent): AtsResult {
  * What comes back from a browser is not to be trusted, and what comes back
  * from a model is to be trusted even less.
  *
- * Caps rather than rejections: somebody who pasted forty skills should get
- * the first forty kept, not an error telling them to count. The one thing
- * that is dropped outright is a role or a bullet with nothing in it, because
- * an empty row renders as a gap in a PDF somebody is about to send out.
+ * One line now. This used to be ninety, duplicating the parser's cleaner with
+ * slightly different limits — which is how the two of them came to disagree
+ * about a graduation year typed into the years-of-experience box: one clamped
+ * it to fifty years, the other dropped it. There is one cleaner now, in
+ * resume-schema.ts, and this is the name the builder calls it by.
  */
-export function cleanDraft(input: unknown): DraftContent {
-  const d = (input ?? {}) as Record<string, unknown>;
-
-  const text = (v: unknown, max: number): string | null => {
-    if (typeof v !== "string") return null;
-    const s = v.trim().replace(/\s+/g, " ");
-    return s ? s.slice(0, max) : null;
-  };
-
-  const list = (v: unknown, max: number, each: number): string[] => {
-    if (!Array.isArray(v)) return [];
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const item of v) {
-      const s = text(item, each);
-      if (!s) continue;
-      const key = s.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(s);
-      if (out.length >= max) break;
-    }
-    return out;
-  };
-
-  const roles = (Array.isArray(d.roles) ? d.roles : [])
-    .slice(0, 12)
-    .map((r) => {
-      const row = (r ?? {}) as Record<string, unknown>;
-      return {
-        title: text(row.title, 100),
-        company: text(row.company, 100),
-        start: text(row.start, 30),
-        end: text(row.end, 30),
-        is_current: row.is_current === true,
-        // 700 rather than 220: a bullet being edited is allowed to be long
-        // and bad on the way to being short and good.
-        highlights: list(row.highlights, 12, 700),
-      };
-    })
-    .filter((r) => r.title || r.company || r.highlights.length);
-
-  const education = (Array.isArray(d.education) ? d.education : [])
-    .slice(0, 8)
-    .map((e) => {
-      const row = (e ?? {}) as Record<string, unknown>;
-      return {
-        degree: text(row.degree, 120),
-        institution: text(row.institution, 120),
-        year: text(row.year, 20),
-      };
-    })
-    .filter((e) => e.degree || e.institution);
-
-  const links = (Array.isArray(d.links) ? d.links : [])
-    .slice(0, 6)
-    .map((l) => {
-      const row = (l ?? {}) as Record<string, unknown>;
-      return { label: text(row.label, 40), url: text(row.url, 200) };
-    })
-    .filter((l) => l.url);
-
-  /**
-   * Out of range is dropped, not clamped.
-   *
-   * Clamping turned a graduation year typed into the wrong box — 2019 — into
-   * fifty years of experience, silently, and a wrong number that looks
-   * deliberate is worse than a blank one. The same reasoning as `bounded()`
-   * in intent.ts, and the same mistake avoided.
-   */
-  const raw = d.years_experience;
-  const years =
-    typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 50
-      ? Math.round(raw * 10) / 10
-      : null;
-
-  return {
-    full_name: text(d.full_name, 120),
-    email: text(d.email, 160),
-    phone: text(d.phone, 40),
-    location: text(d.location, 120),
-    headline: text(d.headline, 160),
-    summary: text(d.summary, 1200),
-    years_experience: years,
-    skills: list(d.skills, 40, 60),
-    roles,
-    education,
-    certifications: list(d.certifications, 12, 120),
-    links,
-  };
-}
+export const cleanDraft = cleanResume;
 
 /** Is there enough here to render a document somebody would send? */
-export function draftIsEmpty(c: DraftContent): boolean {
-  return !c.full_name && !c.roles?.length && !c.education?.length && !c.skills?.length;
-}
+export const draftIsEmpty = resumeIsEmpty;

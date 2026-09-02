@@ -1,5 +1,7 @@
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { spend } from "@/lib/app/allowance";
+import { recordVoiceCall } from "@/lib/app/ai-usage";
+import { preferredOpenAIModel } from "@/lib/app/openai-models";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -30,6 +32,8 @@ type Incoming = {
   seconds?: unknown;
   ended?: unknown;
   messages?: unknown;
+  /** Which realtime model actually answered, for costing. */
+  model?: unknown;
 };
 
 type Message = { role: "user" | "model"; content: string; spoken?: boolean; actions?: unknown };
@@ -56,7 +60,30 @@ export async function POST(request: Request) {
   // billed for a conversation than given away an unbilled one — the meter is
   // the only thing standing between this feature and an open tab.
   let left = null;
-  if (seconds > 0) left = await spend(user.id, { seconds });
+  if (seconds > 0) {
+    left = await spend(user.id, { seconds });
+
+    /**
+     * The same seconds, recorded in money.
+     *
+     * The realtime session bills through a WebRTC connection the server never
+     * touches, so there is no response body with a usage block in it — the
+     * duration the browser reports is all there is. It is the number we
+     * already bill the allowance against, so costing it changes no trust
+     * assumption: it is bounded above by MAX_SECONDS_PER_REPORT either way.
+     */
+    recordVoiceCall({
+      userId: user.id,
+      sessionId: typeof body.conversationId === "string" ? body.conversationId : null,
+      // What the client says it connected to, falling back to what we would
+      // have asked for. Never blank: an unnamed model cannot be priced.
+      model:
+        typeof body.model === "string" && body.model.trim()
+          ? body.model.trim().slice(0, 80)
+          : preferredOpenAIModel("realtime"),
+      seconds,
+    });
+  }
 
   let conversationId =
     typeof body.conversationId === "string" && body.conversationId ? body.conversationId : null;

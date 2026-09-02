@@ -50,6 +50,24 @@ export function preferredOpenAIModel(kind: Kind = "chat"): string {
   return pinnedOpenAI(kind) ?? cached.get(kind) ?? FIRST_GUESS[kind];
 }
 
+/**
+ * What turns the caller's speech into text during a call.
+ *
+ * Deliberately not a `Kind`. The two kinds above participate in discovery and
+ * ranking — if the name is wrong, the request 404s and we go and find a better
+ * one. This name is passed *inside* the realtime session object, where a wrong
+ * value is refused as part of a larger request that would have failed anyway,
+ * so ranking transcription models would be machinery with nothing to do.
+ *
+ * It lives here rather than inline in live-ticket.ts for one reason: this file
+ * is where somebody looks when they want to know which models this product
+ * uses, and a name that is only written in the middle of a session builder is
+ * a name nobody finds.
+ */
+export function transcribeModel(): string {
+  return process.env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe";
+}
+
 export function rememberOpenAIModel(model: string, kind: Kind = "chat"): void {
   cached.set(kind, model);
 }

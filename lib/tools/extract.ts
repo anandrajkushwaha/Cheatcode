@@ -1,40 +1,194 @@
 /**
- * Pulls text and layout facts out of a resume file, entirely in the browser.
+ * Everything that turns a file into text, in one place.
  *
- * Nothing is uploaded. That is a deliberate product decision as much as a
- * technical one — people are being asked to hand over a document with their
- * phone number and salary history on it, and the honest version of that is a
- * tool that never receives the file at all.
+ * Nothing is uploaded unless it has to be. That is a deliberate product
+ * decision as much as a technical one — people are being asked to hand over a
+ * document with their phone number and salary history on it, and the honest
+ * version of that is a tool that never receives the file at all. Text comes
+ * out of PDFs, Word files, ODT, RTF, HTML and anything that looks like text,
+ * entirely in the browser.
+ *
+ * The one exception is a document with no text in it: a scan, or a photograph.
+ * Those can only be read by looking at them, which means a model, which means
+ * the pages leave the device. So that path is opt-in — a caller passes a
+ * `transcribe` function or it does not get one. The public ATS checker does
+ * not pass one, and its refusal ("an ATS gets nothing from an image") is not a
+ * limitation but the correct answer to the question being asked.
+ *
+ * This used to be two modules with two format tables, two size caps and two
+ * error types: this one, and lib/app/read-file.ts, which handled everything
+ * this one did plus four more formats and delegated the overlap back here.
+ * A format supported in one and not the other was a bug waiting for the right
+ * upload, and it happened — .odt worked in a conversation and failed on the
+ * resume page.
  */
 
 import type { ResumeFacts } from "./ats";
 
 export class ExtractError extends Error {}
 
-const MAX_BYTES = 8 * 1024 * 1024;
+/** Under this much text, a document is a picture of one. */
+const TOO_LITTLE_TEXT = 200;
 
-export async function extractResume(file: File): Promise<ResumeFacts> {
-  if (file.size > MAX_BYTES) {
-    throw new ExtractError("That file is over 8 MB. Export a lighter PDF and try again.");
+/** Enough for a two-page resume. More than that is not a CV. */
+const MAX_TRANSCRIBE_PAGES = 4;
+
+const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
+
+export type ExtractOptions = {
+  /**
+   * Recover text by looking at the pages, for files that have none.
+   *
+   * Given data URLs, returns what they say. Callers that cannot spend a model
+   * call — anonymous tools, anything unmetered — leave this out, and scans and
+   * photographs are then refused with an explanation rather than read.
+   */
+  transcribe?: (images: string[]) => Promise<string>;
+  /** Render a PDF's pages to images, needed only alongside `transcribe`. */
+  render?: (file: File, limit: number) => Promise<string[]>;
+  maxBytes?: number;
+};
+
+export type Extracted = ResumeFacts & {
+  /** What it turned out to be, for the line shown to the person. */
+  kind: string;
+  /** True when the text was recovered by looking rather than by reading. */
+  transcribed: boolean;
+  /**
+   * Whether the layout facts are real.
+   *
+   * Only PDFs and DOCX have a measurable layout. Everything else gets
+   * estimated page counts and a single column by assumption, and scoring that
+   * would produce a number about our transcription rather than about their
+   * document.
+   */
+  scorable: boolean;
+};
+
+export async function extractResume(
+  file: File,
+  options: ExtractOptions = {},
+): Promise<Extracted> {
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  if (file.size > maxBytes) {
+    throw new ExtractError(
+      `That file is over ${Math.round(maxBytes / (1024 * 1024))} MB. Send a lighter version and I'll read it.`,
+    );
   }
+  if (file.size === 0) throw new ExtractError("That file is empty.");
 
   const name = file.name.toLowerCase();
+  const ext = name.slice(name.lastIndexOf(".") + 1);
+  const mime = file.type.toLowerCase();
 
-  if (name.endsWith(".pdf")) return extractPdf(file);
-  if (name.endsWith(".docx")) return extractDocx(file);
-  if (name.endsWith(".txt")) return extractTxt(file);
+  /* ------------------------------------------------------------- pictures */
 
-  if (name.endsWith(".doc")) {
+  if (mime.startsWith("image/") || /^(png|jpe?g|webp|heic|heif|gif|bmp|tiff?)$/.test(ext)) {
+    if (!options.transcribe) {
+      throw new ExtractError(
+        "That's an image. An ATS gets exactly nothing from an image — which is itself " +
+          "the answer. Export a real PDF from your editor.",
+      );
+    }
+    return loose(await options.transcribe([await toDataUrl(file)]), "image", "txt", true);
+  }
+
+  /* ------------------------------------------------------------------ pdf */
+
+  if (ext === "pdf" || mime === "application/pdf") {
+    const facts = await extractPdf(file);
+    if (facts.text.replace(/\s/g, "").length >= TOO_LITTLE_TEXT) {
+      return { ...facts, kind: "PDF", transcribed: false, scorable: true };
+    }
+
+    // Nothing to find, because there is nothing there: a scan.
+    if (!options.transcribe || !options.render) {
+      throw new ExtractError(
+        "Almost no text came out of that file. It is very likely an image or a scan — " +
+          "which is exactly what an applicant tracking system sees too. Export a real " +
+          "PDF from your editor and try again.",
+      );
+    }
+
+    const pages = await options.render(file, MAX_TRANSCRIBE_PAGES);
+    if (!pages.length) {
+      throw new ExtractError("That PDF has no text in it and its pages could not be rendered.");
+    }
+    // "pdf" and not "txt": it genuinely is a PDF, and the one check that
+    // reads fileType should see what the person actually has.
+    return loose(await options.transcribe(pages), "scanned PDF", "pdf", true);
+  }
+
+  /* ----------------------------------------------------------------- docx */
+
+  if (ext === "docx" || mime.includes("wordprocessingml")) {
+    const facts = await extractDocx(file);
+    return { ...facts, kind: "DOCX", transcribed: false, scorable: true };
+  }
+
+  /* --------------------------------------------------- the rest, as text */
+
+  if (ext === "odt" || mime.includes("opendocument.text")) {
+    return loose(await extractOdt(file), "ODT", "txt", false);
+  }
+
+  if (ext === "rtf" || mime.includes("rtf")) {
+    return loose(stripRtf(await file.text()), "RTF", "txt", false);
+  }
+
+  if (/^(html?|xhtml)$/.test(ext) || mime.includes("html")) {
+    return loose(stripHtml(await file.text()), "HTML", "txt", false);
+  }
+
+  if (ext === "doc") {
     throw new ExtractError(
-      "The old .doc format can't be read in a browser — and most parsers struggle with it too. Open it and save as .docx or PDF.",
+      "The old .doc format can't be read in a browser. Open it and save as .docx or PDF — " +
+        "worth doing anyway, since a lot of application systems can't read .doc either.",
     );
   }
-  if (/\.(png|jpe?g|webp|heic)$/.test(name)) {
-    throw new ExtractError(
-      "That's an image. An ATS gets exactly nothing from an image — which is itself the answer. Export a real PDF from your editor.",
-    );
+
+  // Markdown, plain text, CSV, JSON, a pasted LaTeX source. Rather than keeping
+  // a list of extensions that will always be one short, this reads the bytes
+  // and asks whether they look like text.
+  const guess = await file.text().catch(() => "");
+  if (looksLikeText(guess)) {
+    return loose(guess, ext ? ext.toUpperCase() : "text", "txt", false);
   }
-  throw new ExtractError("Upload a PDF, DOCX or TXT file.");
+
+  throw new ExtractError(
+    `I can't read a ${ext ? `.${ext} ` : ""}file. Send a PDF, DOCX, ODT, RTF, text file, or a photo of it.`,
+  );
+}
+
+/**
+ * Facts for something with no measurable layout.
+ *
+ * Page count is estimated from word count and the column count is assumed to
+ * be one, which is why `scorable` is false: these numbers describe our reading
+ * of the file, not the file. An ATS score built on them would be a number
+ * about us.
+ */
+function loose(
+  text: string,
+  kind: string,
+  fileType: ResumeFacts["fileType"],
+  transcribed: boolean,
+): Extracted {
+  const clean = text.trim();
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  const pages = Math.max(1, Math.round(words / 500));
+  const chars = clean.replace(/\s/g, "").length;
+
+  return {
+    text: clean,
+    fileType,
+    pages,
+    charsPerPage: Array.from({ length: pages }, () => Math.round(chars / pages)),
+    multiColumnPages: 0,
+    kind,
+    transcribed,
+    scorable: false,
+  };
 }
 
 // ------------------------------------------------------------------- PDF
@@ -261,17 +415,175 @@ async function extractDocx(file: File): Promise<ResumeFacts> {
   };
 }
 
-// ------------------------------------------------------------------- TXT
+/* ------------------------------------------ the formats that are just text */
 
-async function extractTxt(file: File): Promise<ResumeFacts> {
-  const text = (await file.text()).trim();
-  const words = text.split(/\s+/).filter(Boolean).length;
-  const pages = Math.max(1, Math.round(words / 500));
-  return {
-    text,
-    fileType: "txt",
-    pages,
-    charsPerPage: Array.from({ length: pages }, () => Math.round(text.replace(/\s/g, "").length / pages)),
-    multiColumnPages: 0,
-  };
+
+/** Mostly printable, not much of it binary rubble. */
+function looksLikeText(s: string): boolean {
+  if (s.trim().length < 20) return false;
+  const sample = s.slice(0, 4000);
+  // eslint-disable-next-line no-control-regex
+  const odd = (sample.match(/[\u0000-\u0008\u000e-\u001f\ufffd]/g) ?? []).length;
+  return odd / sample.length < 0.02;
+}
+
+/* -------------------------------------------------------------------- odt */
+
+/** An ODT is a zip with the text in content.xml, the same shape as a DOCX. */
+async function extractOdt(file: File): Promise<string> {
+  const { unzipSync, strFromU8 } = await import("fflate");
+
+  let xml: string;
+  try {
+    const zip = unzipSync(new Uint8Array(await file.arrayBuffer()));
+    const content = zip["content.xml"];
+    if (!content) throw new Error("no content.xml");
+    xml = strFromU8(content);
+  } catch {
+    throw new ExtractError("That ODT couldn't be opened. Try exporting it as a PDF.");
+  }
+
+  const text = xml
+    // The delimiter is put back. Consuming it turned "<text:p>" into an
+    // unterminated tag, and the tag-stripper below then ate the paragraph's
+    // first words along with it — which read as "that ODT had no text in it".
+    .replace(/<text:p([ >])/g, "\n<text:p$1")
+    .replace(/<text:line-break\s*\/?>/g, "\n")
+    .replace(/<text:tab\s*\/?>/g, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!text) throw new ExtractError("That ODT had no text in it.");
+  return text;
+}
+
+/* -------------------------------------------------------------------- rtf */
+
+/**
+ * RTF, without a parser.
+ *
+ * Control words go, escaped hex becomes its character, braces go, and what is
+ * left is the text. Not a general RTF implementation — a resume is prose in a
+ * handful of paragraphs, and the shapes that would defeat this (embedded
+ * objects, tables of images) are shapes that carry no text anyway.
+ */
+function stripRtf(rtf: string): string {
+  const text = dropGroups(rtf, /^(pict|object|fonttbl|colortbl|stylesheet|info|generator|listtable|revtbl)$/i)
+    .replace(/\\par[d]?\b/g, "\n")
+    .replace(/\\line\b/g, "\n")
+    .replace(/\\tab\b/g, " ")
+    .replace(/\\'([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\u(-?\d+)\??/g, (_, n) => String.fromCharCode(Number(n) & 0xffff))
+    .replace(/\\[a-z]+-?\d* ?/gi, "")
+    .replace(/[{}]/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!text) throw new ExtractError("That RTF had no text in it.");
+  return text;
+}
+
+/**
+ * Remove whole RTF groups by their leading control word.
+ *
+ * A regex cannot do this: `{\\fonttbl{\\f0 Times New Roman;}}` nests, and a
+ * non-greedy match stops at the first closing brace — which left the font
+ * names sitting in the middle of somebody's resume. Braces are counted
+ * instead, and an escaped brace does not count.
+ */
+function dropGroups(rtf: string, names: RegExp): string {
+  const kept: string[] = [];
+  let i = 0;
+  let from = 0;
+
+  while (i < rtf.length) {
+    if (rtf[i] !== "{") {
+      i++;
+      continue;
+    }
+
+    const word = rtf.slice(i, i + 40).match(/^\{(?:\\\*)?\\([a-z]+)/i)?.[1];
+    if (!word || !names.test(word)) {
+      i++;
+      continue;
+    }
+
+    kept.push(rtf.slice(from, i));
+
+    let depth = 0;
+    let j = i;
+    for (; j < rtf.length; j++) {
+      const c = rtf[j];
+      if (c === "\\") {
+        j++; // an escape takes the next character with it, brace or not
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          j++;
+          break;
+        }
+      }
+    }
+
+    i = j;
+    from = j;
+  }
+
+  kept.push(rtf.slice(from));
+  return kept.join("");
+}
+
+/* ------------------------------------------------------------------- html */
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * A photo, shrunk to something worth uploading.
+ *
+ * Phone cameras produce 4000px images of an A4 page. Everything above about
+ * 2000px on the long edge is detail the model does not use and the person pays
+ * for in upload time.
+ */
+async function toDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new ExtractError("That image couldn't be opened. Try a PNG or a JPEG.");
+
+  const longest = Math.max(bitmap.width, bitmap.height);
+  const scale = longest > 2000 ? 2000 / longest : 1;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext("2d");
+  if (!context) throw new ExtractError("This browser can't process that image.");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  return canvas.toDataURL("image/jpeg", 0.85);
 }

@@ -1,6 +1,7 @@
 import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
 import { parseResume, flatten } from "@/lib/app/parse-resume";
 import { fillProfileFromResume } from "@/lib/app/autofill";
+import { absorbUpload } from "@/lib/app/resume-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -92,7 +93,11 @@ export async function POST(request: Request) {
     await supabase.from("resumes").update({ is_primary: true }).eq("id", id);
   }
 
-  const parsed = await parseResume(text);
+  const parsed = await parseResume(text, {
+    feature: "resume_extraction",
+    userId: user.id,
+    sessionId: id,
+  });
 
   if (!parsed.ok) {
     await supabase.from("resumes").update({ parse_error: parsed.error }).eq("id", id);
@@ -121,7 +126,37 @@ export async function POST(request: Request) {
   // tab. Only blank fields are filled — see the module for why that matters.
   const filled = await fillProfileFromResume(supabase, user.id, parsed.parsed);
 
-  return Response.json({ ok: true, id, parsed: parsed.parsed, parseError: null, filled });
+  /**
+   * And into the resume they are actually building.
+   *
+   * Without this an upload stopped here. A draft is seeded from the primary
+   * resume only at the moment it is created, so somebody who talked to the
+   * agent first — and therefore already had a draft — could upload a file and
+   * watch it change nothing at all.
+   *
+   * Conservative on purpose: it fills blanks and unions skills, and never
+   * overwrites work history somebody described out loud a minute ago. What it
+   * left alone comes back in `kept` so the person can be told rather than
+   * left to notice.
+   */
+  let absorbed: { added: string[]; kept: string[] } | null = null;
+  try {
+    const result = await absorbUpload(user.id, parsed.parsed, id);
+    absorbed = { added: result.added, kept: result.kept };
+  } catch (e) {
+    // The resume is saved and scored either way. A builder that is not set up
+    // on this deployment must not turn a good upload into an error.
+    console.error("resume: could not absorb into the draft —", String(e).slice(0, 200));
+  }
+
+  return Response.json({
+    ok: true,
+    id,
+    parsed: parsed.parsed,
+    parseError: null,
+    filled,
+    ...(absorbed ? { absorbed } : {}),
+  });
 }
 
 export async function DELETE(request: Request) {

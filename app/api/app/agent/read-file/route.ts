@@ -102,6 +102,7 @@ export async function POST(request: Request) {
   }
 
   const result = await llmVision({
+    meta: { feature: "document_read", userId: user.id },
     system: INSTRUCTIONS,
     text:
       images.length > 1

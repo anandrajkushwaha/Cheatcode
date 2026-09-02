@@ -80,125 +80,15 @@ export function setSoundOn(on: boolean): void {
 }
 
 /**
- * Say something aloud.
+ * Nothing in this module speaks any more.
  *
- * Two voices, in order of preference. ElevenLabs is what the product should
- * sound like; the browser's own speechSynthesis is what it falls back to when
- * the key is missing, the quota is gone, or the network is having a bad day.
- *
- * The fallback is not a nicety. A greeting is the first thing anybody hears,
- * and silence at that moment reads as broken in a way that a slightly robotic
- * voice does not — so this never returns without having tried to make a
- * sound.
+ * There used to be a `say()` here, and a `hush()` to stop it: the agent read a
+ * greeting aloud through a TTS endpoint the moment its screen opened. That was
+ * removed when the greeting moved into the realtime call itself — one voice
+ * per conversation, and no paragraph read at somebody who has just pressed a
+ * button. The chime below is all the sound this file makes now.
  */
-let current: HTMLAudioElement | null = null;
 
-/**
- * Which request is still wanted.
- *
- * `hush()` can only stop a sound that has started, and the greeting spends
- * most of its life not having started: a timeout is waiting, then a fetch is
- * in flight, and only then is there an <audio> element to pause. Closing the
- * screen in that window used to do nothing at all, so the agent carried on
- * talking to an empty room.
- *
- * So every request takes a ticket, hush() invalidates all outstanding
- * tickets, and each step checks its own before doing anything audible.
- */
-let generation = 0;
-
-export async function say(text: string): Promise<void> {
-  if (typeof window === "undefined" || !soundOn()) return;
-  hush();
-  const mine = generation;
-  const stale = () => mine !== generation;
-
-  try {
-    const res = await fetch("/api/app/agent/speak", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (stale()) return;
-
-    if (res.ok && res.headers.get("Content-Type")?.startsWith("audio/")) {
-      const blob = await res.blob();
-      if (stale()) return;
-
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      current = audio;
-      // Revoked on both paths: a blob URL that is never released holds the
-      // whole file in memory for the life of the tab.
-      const done = () => URL.revokeObjectURL(url);
-      audio.onended = done;
-      audio.onerror = done;
-
-      await audio.play().catch(() => {
-        /* Paused by hush() mid-start, or autoplay refused. Neither is an error. */
-      });
-
-      // play() resolving is not the end of the story — hush() can land in the
-      // moment between asking and hearing.
-      if (stale()) {
-        audio.pause();
-        done();
-      }
-      return;
-    }
-  } catch {
-    /* Fall through to the browser's voice. */
-  }
-
-  if (stale()) return;
-  browserSay(text);
-}
-
-/**
- * The fallback voice.
- *
- * en-IN so Indian names and "lakh" come out the way people say them, and a
- * fraction under normal speed because a greeting that gabbles reads as
- * nervous.
- */
-function browserSay(text: string): void {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
-
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text.slice(0, 400));
-  u.lang = "en-IN";
-  u.rate = 0.98;
-  u.pitch = 1;
-
-  // Chrome loads voices asynchronously, so this is best-effort rather than
-  // awaited — a greeting that waits for a voice list is one nobody hears.
-  const voice = synth.getVoices().find((v) => v.lang === "en-IN");
-  if (voice) u.voice = voice;
-
-  synth.speak(u);
-}
-
-/**
- * Stop anything mid-sentence, and anything about to start one.
- *
- * Called when a real conversation begins and when the screen closes. The
- * generation bump is the half that matters on close: a greeting that is still
- * being fetched has nothing to pause, and without this it would arrive a
- * second later and start talking over a page nobody is looking at.
- */
-export function hush(): void {
-  if (typeof window === "undefined") return;
-  generation++;
-  window.speechSynthesis?.cancel();
-  if (current) {
-    current.pause();
-    current.src = "";
-    current = null;
-  }
-}
-
-/** Plays once, when the surface opens. */
 export function startupChime(volume = 0.09): void {
   const ac = audio();
   if (!ac) return;

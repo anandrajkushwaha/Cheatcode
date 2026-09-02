@@ -578,3 +578,14 @@
 @media (max-width: 560px) {
   .rd-fit { zoom: 0.44; }
 }
+
+/* The resume preview inside the agent, which is an A4 page in a 520px panel.
+   Scaled rather than reflowed: a preview that reflows is a preview of a
+   document nobody is going to print. `zoom` keeps the layout box in step with
+   the visual size, which `transform: scale` does not — with a transform the
+   panel would still scroll as though the page were 210mm wide. */
+.rd-panel { zoom: 0.56; }
+
+@media (max-width: 560px) {
+  .rd-panel { zoom: 0.42; }
+}

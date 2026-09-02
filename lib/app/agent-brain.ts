@@ -1,5 +1,6 @@
 import "server-only";
-import type { Profile, Resume } from "@/lib/app/account";
+import type { Profile, Resume, ResumeDraft } from "@/lib/app/account";
+import { resumeGaps } from "@/lib/app/resume-schema";
 import type { JobRow } from "@/lib/jobs/query";
 
 /**
@@ -107,10 +108,36 @@ mistake a short question for a small one. Second, many will undersell
 themselves; if their resume is better than they think, tell them that too. Not
 flattery, evidence: what in it is strong and why it is strong.
 
-What you can do today: read their resume, see their profile, search the jobs
-we have, and explain how a job fits. What you cannot do yet: apply on their
-behalf, rewrite their resume file, or speak to a recruiter — say so plainly if
-asked, rather than implying it is coming.
+Writing things down. You are not only talking to this person, you are building
+their resume as they speak. The moment you are confident of something — a job
+title, a company, a date, a project, a skill, what they want next — call
+update_resume_profile and save it. Do not collect three facts and save them
+together at the end: calls drop, tabs close, and anything not saved is a
+conversation they have to have again from the start.
+
+Because of that, the conversation has a job beyond answering. If their resume
+is thin, work out what is missing and go and get it — but one thing at a time,
+in the order that matters, and as conversation rather than as a form. "What
+were you actually doing at Zeta?" is a question. "Please provide your work
+experience, education and skills" is a form, and people close forms.
+
+Never write down something they did not say. A resume you invented is worse
+than a blank one: they will send it to an employer and be asked about it. If
+you are not sure you heard a company name correctly, ask. If they gave you a
+number in passing — "we handled about four million rows a day" — that number
+is theirs and belongs in the bullet, exactly as they said it.
+
+Ask for the awkward things in writing, not aloud. Call show_manual_input for
+email addresses, phone numbers, links and exact spellings — they are miserable
+to say and worse to hear back wrong, and a voice product that insists on them
+is one people abandon at the contact section. Two or three fields at a time,
+never a wall of boxes. Say one line telling them it is on screen, then stop:
+asking aloud as well is the thing that makes it feel like being processed.
+
+What you can do today: read and change their resume, see their profile, search
+the jobs we have, and explain how a job fits. What you cannot do yet: apply on
+their behalf or speak to a recruiter — say so plainly if asked, rather than
+implying it is coming.
 
 `;
 
@@ -120,6 +147,15 @@ export type Grounding = {
   profile: Profile | null;
   resume: Resume | null;
   jobs: JobRow[];
+  /**
+   * The resume being built, which is the live document.
+   *
+   * `resume` above is the file they uploaded — a record of something that
+   * exists elsewhere, never edited so its score stays honest. This is the one
+   * the agent changes and the one that gets printed. Where both exist, this
+   * wins: it started as a copy of that one and has moved on since.
+   */
+  draft?: ResumeDraft | null;
   /**
    * What has already been said, when this is not the start.
    *
@@ -200,7 +236,7 @@ function resumeDetail(resume: Resume): string[] {
   return out;
 }
 
-export function describe({ profile, resume, jobs, recap }: Grounding): string {
+export function describe({ profile, resume, jobs, recap, draft }: Grounding): string {
   const lines: string[] = ["--- What you know about this person ---"];
 
   if (profile) {
@@ -265,49 +301,47 @@ export function describe({ profile, resume, jobs, recap }: Grounding): string {
     );
   }
 
+  /**
+   * The resume as it stands, and what is still missing from it.
+   *
+   * This is the part that replaced eight turns of pasted conversation. A
+   * transcript is a poor memory: it grows without bound, it says the same
+   * thing three different ways, and the model has to infer the current state
+   * from a discussion of it. A structured object and a list of gaps is the
+   * state, in a tenth of the tokens, and it cannot go stale mid-call because
+   * every tool call returns a fresh one.
+   */
+  if (draft) {
+    const gaps = resumeGaps(draft.content);
+    lines.push(
+      "",
+      "--- The resume you are building with them ---",
+      `Score: ${draft.ats_score ?? "not scored"} out of 100.`,
+      JSON.stringify(draft.content),
+    );
+
+    if (gaps.length) {
+      const blocking = gaps.filter((g) => g.required);
+      lines.push(
+        "",
+        "Still missing, most important first:",
+        ...gaps.map((g) => `- ${g.field}${g.required ? " (blocking)" : ""} — ask: "${g.ask}"`),
+        "",
+        "Work through these as the conversation allows, one at a time, and save each " +
+          "answer with update_resume_profile before asking the next thing." +
+          (blocking.length
+            ? " The blocking ones must be filled before a resume can be generated at all."
+            : " Nothing is blocking — a resume can be generated whenever they ask."),
+      );
+    } else {
+      lines.push("", "Nothing is missing. What is left is the quality of the writing.");
+    }
+  }
+
   return lines.join("\n");
 }
 
 /* ----------------------------------------------------------------- tools */
-
-/**
- * The one tool, and the reason voice works at all.
- *
- * A spoken agent cannot hand over a link — reading a URL aloud is useless and
- * spelling one out is worse. So the model speaks the explanation and calls
- * this to put the actual jobs on screen as cards. That split is the whole
- * design: the voice carries the judgement, the screen carries the things you
- * click.
- */
-export const TOOLS = [
-  {
-    functionDeclarations: [
-      {
-        name: "show_jobs",
-        description:
-          "Display specific jobs on the user's screen as cards they can open and apply to. " +
-          "Call this whenever you talk about particular roles. Only ever pass ids that " +
-          "appear in the job list you were given.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            job_ids: {
-              type: "ARRAY",
-              items: { type: "STRING" },
-              description: "The ids of the jobs to show, best fit first. At most six.",
-            },
-            reason: {
-              type: "STRING",
-              description:
-                "One short line shown above the cards, saying why these. E.g. 'Closest on your Python and Postgres.'",
-            },
-          },
-          required: ["job_ids"],
-        },
-      },
-    ],
-  },
-];
 
 /* --------------------------------------------------------------- channel */
 
@@ -334,33 +368,34 @@ export function systemInstruction(channel: Channel, grounding: Grounding): strin
 }
 
 /**
- * What was already said, for a channel that cannot see it.
+ * The last thing said, so a call continues rather than restarts.
  *
- * The typed agent sends its own history with every message, so it needs none
- * of this. A spoken session cannot: its instructions are baked into a
- * credential before the socket opens, and it is handed no turns at all — so
- * pressing the mic after a conversation used to produce an agent that asked
- * for the resume it had just been given.
+ * Deliberately small, and deliberately not the memory. What this person has
+ * told us lives in the resume object above — structured, current, and the same
+ * whichever channel is reading it. This is only the immediate thread: enough
+ * that the next sentence follows on from the last one, and no more.
  *
- * Trimmed hard on purpose. This is context for continuing, not a transcript:
- * enough that the next thing said follows on, not so much that a ten-minute
- * conversation doubles the size of every spoken session.
+ * It used to be eight turns at 320 characters, and it was doing two jobs
+ * badly. As memory it grew with every exchange and made the model infer state
+ * from a discussion of it; as continuity it was four times longer than it
+ * needed to be.
  */
 function recapOf({ recap }: Grounding): string {
-  const turns = (recap ?? []).filter((t) => t.text.trim()).slice(-8);
+  const turns = (recap ?? []).filter((t) => t.text.trim()).slice(-4);
   if (!turns.length) return "";
 
   const lines = turns.map(
     (t) =>
       `${t.role === "user" ? "They said" : "You said"}: ${
-        t.text.length > 320 ? `${t.text.slice(0, 319)}…` : t.text
+        t.text.length > 200 ? `${t.text.slice(0, 199)}…` : t.text
       }`,
   );
 
   return (
-    "\n\n--- Already said, just now, in this same conversation ---\n" +
-    "Carry on from here. Do not greet them again, do not ask for anything they " +
-    "have already given you, and do not repeat advice you have already given.\n" +
+    "\n\n--- The last few things said, just now ---\n" +
+    "For continuity only — what they have actually told you is in the resume above. " +
+    "Carry on from here: do not greet them again, and do not ask for anything you " +
+    "already have.\n" +
     lines.join("\n")
   );
 }

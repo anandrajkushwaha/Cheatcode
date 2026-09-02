@@ -1,5 +1,5 @@
 import "server-only";
-import { TOOLS } from "@/lib/app/agent-brain";
+import { TOOLS } from "@/lib/app/agent-tools";
 import { toolsForOpenAI } from "@/lib/app/llm";
 import { discoverModel, pinned, preferredModel, rememberModel } from "@/lib/app/gemini-models";
 import {
@@ -7,6 +7,7 @@ import {
   pinnedOpenAI,
   preferredOpenAIModel,
   rememberOpenAIModel,
+  transcribeModel,
 } from "@/lib/app/openai-models";
 
 /**
@@ -111,7 +112,7 @@ function session(model: string, instruction: string): Record<string, unknown> {
       input: {
         // Without this there is no record of what the person said, and the
         // on-screen transcript would have to be guessed from audio.
-        transcription: { model: "gpt-4o-mini-transcribe" },
+        transcription: { model: transcribeModel() },
         // The server decides when a turn ended. Doing that in the browser
         // means every slow speaker gets talked over.
         turn_detection: { type: "server_vad", create_response: true },

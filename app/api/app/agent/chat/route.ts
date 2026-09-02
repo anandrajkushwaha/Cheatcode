@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/supabase/app";
-import { getProfile, getPrimaryResume } from "@/lib/app/account";
+import { getProfile, getPrimaryResume, getPrimaryDraft } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
 import { agentReplyStream, type Turn } from "@/lib/app/agent-chat";
 import { getAllowance, outOfMessages, spend } from "@/lib/app/allowance";
@@ -79,7 +79,13 @@ export async function POST(request: Request) {
   // The jobs the answer is allowed to talk about: the same filtered list the
   // Jobs page would show them, so the agent never mentions a role they cannot
   // then go and find.
-  const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+  // The draft is the resume the agent is allowed to change; `resume` is the
+  // file they uploaded, which it can read and must not rewrite.
+  const [profile, resume, draft] = await Promise.all([
+    getProfile(),
+    getPrimaryResume(),
+    getPrimaryDraft(),
+  ]);
   const { jobs } = await searchJobs({
     cities: (profile?.preferred_cities ?? []).slice(0, 4),
     maxYears: profile?.years_experience ?? null,
@@ -105,8 +111,16 @@ export async function POST(request: Request) {
     async start(controller) {
       const line = (o: unknown) => controller.enqueue(encoder.encode(JSON.stringify(o) + "\n"));
 
-      const result = await agentReplyStream({ turns, profile, resume, jobs }, (chunk) =>
-        line({ t: "delta", v: chunk }),
+      const result = await agentReplyStream(
+        {
+          turns,
+          profile,
+          resume,
+          draft,
+          jobs,
+          meta: { feature: "agent_chat", userId: user.id },
+        },
+        (chunk) => line({ t: "delta", v: chunk }),
       );
 
       // Charged only on success. An upstream 503 is our problem, not theirs.
@@ -145,6 +159,7 @@ export async function POST(request: Request) {
         ...(left.configured ? { messagesLeft: left.messagesLeft } : {}),
         paid: left.paid,
         ...(show?.jobs.length ? { show } : {}),
+        ...(result.actions?.length ? { actions: result.actions } : {}),
       });
       controller.close();
     },

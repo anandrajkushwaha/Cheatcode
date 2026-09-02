@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
-import { hush, soundOn, startupChime } from "@/lib/app/agent-sound";
+import { ResumePanel } from "@/components/app/ResumePanel";
+import { ManualInput } from "@/components/app/ManualInput";
+import { soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
-import type { JobCard, ShowJobs } from "@/lib/app/agent-types";
-import { readAnyFile, ReadError, ExtractError } from "@/lib/app/read-file";
+import type { JobCard, ShowJobs, ToolResult, UiAction } from "@/lib/app/agent-types";
+import type { FieldSpec, Resume } from "@/lib/app/resume-schema";
+import { readAnyFile, ExtractError } from "@/lib/app/read-file";
 
 /**
  * The agent, full screen.
@@ -40,6 +43,8 @@ import { readAnyFile, ReadError, ExtractError } from "@/lib/app/read-file";
 type Finished = {
   t?: "done";
   reply?: string;
+  /** What the tools the agent ran asked the screen to do. */
+  actions?: UiAction[];
   show?: { jobs?: JobCard[]; reason?: string };
   configured?: boolean;
   messagesLeft?: number;
@@ -103,6 +108,26 @@ export function AgentOverlay({
    */
   const opening = useRef<string | null>(null);
   const [pulse, setPulse] = useState(0);
+
+  /**
+   * The resume, beside the conversation.
+   *
+   * Opened by a tool result rather than by the model writing markup: the
+   * agent can ask for this panel and nothing else, and `revision` is bumped
+   * whenever something was saved so the panel refetches instead of showing a
+   * document that is one sentence out of date.
+   */
+  const [showResume, setShowResume] = useState(false);
+  const [revision, setRevision] = useState(0);
+
+  /**
+   * A form the agent asked for, over the conversation.
+   *
+   * The fields were resolved against the resume schema on the server, so what
+   * is held here is a list of specifications rather than anything the model
+   * wrote. Null means no form.
+   */
+  const [form, setForm] = useState<{ fields: FieldSpec[]; reason?: string } | null>(null);
 
   /* ------------------------------------------------------------ the call */
 
@@ -192,7 +217,16 @@ export function AgentOverlay({
    * a request rather than an insert.
    */
   const keep = useCallback(
-    (messages: Turn[], extra: { seconds?: number; ended?: boolean; channel?: "text" | "voice" } = {}) => {
+    (
+      messages: Turn[],
+      extra: {
+        seconds?: number;
+        ended?: boolean;
+        channel?: "text" | "voice";
+        /** The realtime model that answered, so the call can be costed. */
+        model?: string | null;
+      } = {},
+    ) => {
       if (!messages.length && !extra.seconds) return;
       void fetch("/api/app/agent/session", {
         method: "POST",
@@ -202,6 +236,7 @@ export function AgentOverlay({
           channel: extra.channel ?? "text",
           seconds: extra.seconds,
           ended: extra.ended,
+          model: extra.model ?? null,
           messages: messages.map((m) => ({
             role: m.role,
             content: m.text,
@@ -224,10 +259,9 @@ export function AgentOverlay({
   /* ------------------------------------------------------------- closing */
 
   const close = useCallback(() => {
-    // Both, and in this order. The unmount effect also does this, but it runs
-    // 380ms later when the conceal animation finishes — long enough for a
-    // greeting to arrive and start talking after the screen has visibly gone.
-    hush();
+    // Here as well as in the unmount effect, which runs 380ms later when the
+    // conceal animation finishes — a call has to end when the screen goes, not
+    // when the animation does.
     session.current?.stop();
     setClosing(true);
     // Long enough for the conceal animation; the state is thrown away after.
@@ -279,7 +313,6 @@ export function AgentOverlay({
     return () => {
       document.body.style.overflow = previous;
       window.clearTimeout(t);
-      hush();
       session.current?.stop();
     };
   }, []);
@@ -309,6 +342,123 @@ export function AgentOverlay({
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, busy, heard, saying]);
 
+  /* --------------------------------------------------------------- tools */
+
+  /**
+   * What a tool asked the screen to do.
+   *
+   * A closed set, matched by name. An action the frontend does not recognise
+   * is ignored — which is the whole point of the indirection: the model can
+   * ask for one of these, and it cannot ask for anything else.
+   */
+  const applyAction = useCallback((action: UiAction | undefined) => {
+    if (!action) return;
+    if (action.type === "SHOW_RESUME_PREVIEW") {
+      setShowResume(true);
+      setRevision((n) => n + 1);
+      return;
+    }
+    if (action.type === "SHOW_MANUAL_INPUT") {
+      setForm({ fields: action.fields, reason: action.reason });
+      return;
+    }
+    if (action.type === "SHOW_JOBS") {
+      const jobs = action.jobIds
+        .map((id) => catalogue.current.get(id))
+        .filter((j): j is JobCard => !!j);
+      if (jobs.length) pendingCards.current = { jobs, reason: action.reason };
+    }
+  }, []);
+
+  /**
+   * The agent called a tool during a live call.
+   *
+   * The browser is a courier here, not an authority: it forwards the name and
+   * arguments to the server, which decides whether that is a real tool and
+   * runs it as the signed-in user. Anything that changes data goes that way.
+   *
+   * `show_jobs` is the exception and is answered here, because the cards were
+   * sent down with the ticket and a round trip in the middle of somebody
+   * speaking is a pause they can hear.
+   */
+  const runTool = useCallback(
+    async (name: string, rawArgs: unknown): Promise<unknown> => {
+      if (name === "show_jobs") {
+        let args: unknown = {};
+        try {
+          args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
+        } catch {
+          /* An unparseable argument bag is an empty one. */
+        }
+        const ids = (args as { job_ids?: unknown }).job_ids;
+        applyAction({
+          type: "SHOW_JOBS",
+          jobIds: Array.isArray(ids) ? ids.filter((v): v is string => typeof v === "string") : [],
+          reason: (args as { reason?: string }).reason,
+        });
+        return { ok: true, summary: "Shown on screen." };
+      }
+
+      try {
+        const res = await fetch("/api/app/agent/tool", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, args: rawArgs }),
+        });
+        const result = (await res.json()) as ToolResult;
+        applyAction(result.action);
+        // The action is for us; the model is told the summary and the data.
+        return { ok: result.ok, summary: result.summary, data: result.data };
+      } catch {
+        // Never throw: the transport is waiting on this, and a rejected
+        // promise leaves the model waiting for a result that never arrives.
+        return { ok: false, summary: "That did not save — the network dropped it." };
+      }
+    },
+    [applyAction],
+  );
+
+  /**
+   * A filled-in form, saved and then mentioned to the agent.
+   *
+   * Two things have to happen and the order matters. The values go through the
+   * same store everything else writes through — so a typed email is cleaned
+   * and scored exactly like a spoken one — and only then is the agent told,
+   * because an agent that hears "saved" before the save has landed will
+   * eventually say so after one has failed.
+   *
+   * What it is told is a plain sentence, not the values. It does not need to
+   * read somebody's email address back to them, and being told the field names
+   * rather than the contents keeps a phone number out of the transcript.
+   */
+  const submitForm = useCallback(
+    async (patch: Partial<Resume>, labels: string[]) => {
+      const res = await fetch("/api/app/resume/draft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!json.ok) throw new Error(json.error ?? "That didn't save.");
+
+      setForm(null);
+      setRevision((n) => n + 1);
+
+      const said = labels.length
+        ? `[they filled in the form: ${labels.join(", ")}]`
+        : "[they closed the form without filling it in]";
+
+      // Into whichever channel is live. On a call this arrives as a typed
+      // message the agent can answer aloud without the call being interrupted.
+      if (session.current?.live) {
+        session.current.send(said);
+      } else {
+        setTurns((t) => [...t, { role: "user", text: said }]);
+      }
+    },
+    [],
+  );
+
   /* --------------------------------------------------------------- voice */
 
   const startCall = useCallback(async () => {
@@ -318,9 +468,6 @@ export function AgentOverlay({
     }
     setError(null);
     setCallError(null);
-    // The greeting is still being read when somebody presses the mic. Two
-    // voices at once is the single most confusing thing a voice product does.
-    hush();
 
     const live = new LiveSession({
       onState: setLiveState,
@@ -361,6 +508,8 @@ export function AgentOverlay({
         keep([turn], { channel: "voice" });
       },
 
+      onTool: runTool,
+
       onShowJobs: (show: ShowJobs) => {
         const jobs = show.jobIds
           .map((id) => catalogue.current.get(id))
@@ -370,7 +519,7 @@ export function AgentOverlay({
 
       onEnded: (seconds) => {
         setLevel(0);
-        keep([], { seconds, ended: true, channel: "voice" });
+        keep([], { seconds, ended: true, channel: "voice", model: live.model });
         // Optimistic, so the number on screen does not lag a whole session
         // behind. The server's answer overwrites it on the next request.
         setVoiceLeft((v) => (v === null ? null : Math.max(0, v - seconds)));
@@ -395,14 +544,13 @@ export function AgentOverlay({
     // instant the model names a role rather than after a round trip.
     const cards = live.jobs;
     if (cards) for (const j of cards) catalogue.current.set(j.id, j);
-  }, [keep]);
+  }, [keep, runTool]);
 
   /* --------------------------------------------------------------- typing */
 
   async function send(text: string) {
     const message = text.trim();
     if (!message || busy) return;
-    hush();
 
     // Typing while on a call is still the call — the answer comes back spoken.
     if (session.current?.live) {
@@ -519,6 +667,10 @@ export function AgentOverlay({
 
       const { done, failed } = out;
 
+      // Tool results reach the screen the same way in both channels: a typed
+      // action the frontend interprets, never markup from the model.
+      for (const action of done?.actions ?? []) applyAction(action);
+
       if (done?.configured === false) setMetered(false);
       else if (typeof done?.messagesLeft === "number") {
         setMetered(true);
@@ -579,7 +731,7 @@ export function AgentOverlay({
           phase: "error",
           name: file.name,
           message:
-            e instanceof ReadError || e instanceof ExtractError
+            e instanceof ExtractError
               ? e.message
               : "Something went wrong reading that file. Try a PDF.",
         });
@@ -744,6 +896,23 @@ export function AgentOverlay({
         aria-hidden="true"
         className={`fixed inset-0 z-[59] bg-ink/25 ${closing ? "cc-fade-out" : "cc-fade-in"}`}
       />
+
+      {/* Opened only by a tool result. Sits above the conversation because on
+          a phone there is no beside — the resume takes the screen while you
+          look at it, and Escape or the close button gives it back. */}
+      <ResumePanel open={showResume} revision={revision} onClose={() => setShowResume(false)} />
+
+      {/* Over the conversation rather than instead of it: the call keeps
+          running while somebody types, which is the whole point of asking in
+          writing rather than making them spell an email out loud. */}
+      {form && (
+        <ManualInput
+          fields={form.fields}
+          reason={form.reason}
+          onSubmit={submitForm}
+          onDismiss={() => setForm(null)}
+        />
+      )}
 
       <div
         role="dialog"

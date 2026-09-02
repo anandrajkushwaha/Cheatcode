@@ -1,6 +1,8 @@
 import "server-only";
 import type { ParsedResume } from "@/lib/app/account";
 import { llmJson } from "@/lib/app/llm";
+import type { UsageMeta } from "@/lib/app/ai-cost";
+import { cleanResume, type Resume } from "@/lib/app/resume-schema";
 
 /**
  * Turn resume text into structured fields.
@@ -64,7 +66,20 @@ const SCHEMA = {
         },
       },
     },
+    projects: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", nullable: true },
+          description: { type: "string", nullable: true },
+          link: { type: "string", nullable: true },
+          highlights: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
     certifications: { type: "array", items: { type: "string" } },
+    achievements: { type: "array", items: { type: "string" } },
   },
 } as const;
 
@@ -84,12 +99,20 @@ Rules:
 - headline: how this person would describe themselves in under 12 words. If the resume
   has no summary line, build one from the most recent role. Never flattery.
 - Indian service companies use internal designations (Systems Engineer, Programmer
-  Analyst, Associate). Keep the title exactly as written — do not translate it.`;
+  Analyst, Associate). Keep the title exactly as written — do not translate it.
+- projects: personal, academic or open-source work that is not a job. For a fresher this
+  is usually the strongest section on the page, so do not skip it. Keep the link if there
+  is one.
+- achievements: awards, rankings, published work, competition results. Anything with a
+  number or a name attached. Not responsibilities, and not restated bullets.`;
 
 type ParseOk = { ok: true; parsed: ParsedResume; model: string };
 type ParseFail = { ok: false; error: string };
 
-export async function parseResume(text: string): Promise<ParseOk | ParseFail> {
+export async function parseResume(
+  text: string,
+  meta: UsageMeta,
+): Promise<ParseOk | ParseFail> {
   const clean = text.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (clean.length < 120) {
     return {
@@ -103,6 +126,7 @@ export async function parseResume(text: string): Promise<ParseOk | ParseFail> {
   // Structured output: the model is constrained to the schema rather than
   // asked politely for JSON and hoped at.
   const result = await llmJson({
+    meta,
     system: INSTRUCTIONS,
     user: clean.slice(0, MAX_CHARS),
     schema: SCHEMA,
@@ -114,90 +138,7 @@ export async function parseResume(text: string): Promise<ParseOk | ParseFail> {
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  return { ok: true, parsed: coerce(result.data), model: result.model };
-}
-
-/* ----------------------------------------------------------------- shaping */
-
-const str = (v: unknown, max = 200): string | null => {
-  if (typeof v !== "string") return null;
-  const s = v.trim();
-  return s && s.toLowerCase() !== "null" ? s.slice(0, max) : null;
-};
-
-const strList = (v: unknown, max: number, itemMax = 60): string[] => {
-  if (!Array.isArray(v)) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const item of v) {
-    const s = str(item, itemMax);
-    // One-character "skills" are parsing noise, not skills.
-    if (!s || s.length < 2) continue;
-    const k = s.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(s);
-    if (out.length >= max) break;
-  }
-  return out;
-};
-
-/**
- * Force the model's answer into the shape the rest of the app expects.
- *
- * Every field is clamped. years_experience in particular: a model that misreads
- * a graduation year can return 2019, and an unclamped number would quietly
- * exclude someone from every job they are qualified for.
- */
-function coerce(input: unknown): ParsedResume {
-  const d = (input ?? {}) as Record<string, unknown>;
-
-  const yearsRaw = typeof d.years_experience === "number" ? d.years_experience : null;
-  const years =
-    yearsRaw !== null && Number.isFinite(yearsRaw)
-      ? Math.max(0, Math.min(50, Math.round(yearsRaw * 10) / 10))
-      : null;
-
-  const roles = (Array.isArray(d.roles) ? d.roles : [])
-    .slice(0, 15)
-    .map((r) => {
-      const row = (r ?? {}) as Record<string, unknown>;
-      return {
-        title: str(row.title, 120),
-        company: str(row.company, 120),
-        start: str(row.start, 20),
-        end: str(row.end, 20),
-        is_current: row.is_current === true,
-        highlights: strList(row.highlights, 8, 300),
-      };
-    })
-    .filter((r) => r.title || r.company);
-
-  const education = (Array.isArray(d.education) ? d.education : [])
-    .slice(0, 8)
-    .map((e) => {
-      const row = (e ?? {}) as Record<string, unknown>;
-      return {
-        degree: str(row.degree, 120),
-        institution: str(row.institution, 160),
-        year: str(row.year, 20),
-      };
-    })
-    .filter((e) => e.degree || e.institution);
-
-  return {
-    full_name: str(d.full_name, 120),
-    email: str(d.email, 160),
-    phone: str(d.phone, 40),
-    location: str(d.location, 120),
-    headline: str(d.headline, 160),
-    summary: str(d.summary, 800),
-    years_experience: years,
-    skills: strList(d.skills, 60),
-    roles,
-    education,
-    certifications: strList(d.certifications, 20, 160),
-  };
+  return { ok: true, parsed: cleanResume(result.data), model: result.model };
 }
 
 /** The columns matching will query, pulled out of the JSON for indexing. */

@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/supabase/app";
-import { getProfile, getPrimaryResume } from "@/lib/app/account";
+import { getProfile, getPrimaryResume, getPrimaryDraft } from "@/lib/app/account";
 import { getAllowance, outOfVoice, MIN_VOICE_SECONDS } from "@/lib/app/allowance";
 import { searchJobs } from "@/lib/jobs/query";
 import { systemInstruction } from "@/lib/app/agent-brain";
@@ -61,9 +61,10 @@ export async function POST(request: Request) {
     /* A call with no recap is still a call. */
   }
 
-  const [profile, resume, allowance] = await Promise.all([
+  const [profile, resume, draft, allowance] = await Promise.all([
     getProfile(),
     getPrimaryResume(),
+    getPrimaryDraft(),
     getAllowance(user.id),
   ]);
 
@@ -89,7 +90,9 @@ export async function POST(request: Request) {
     limit: 12,
   }).catch(() => ({ jobs: [] }));
 
-  const ticket = await mintTicket(systemInstruction("voice", { profile, resume, jobs, recap }));
+  const ticket = await mintTicket(
+    systemInstruction("voice", { profile, resume, draft, jobs, recap }),
+  );
   if (!ticket.ok) {
     /**
      * The owner gets the provider's own words; everybody else gets a sentence.
