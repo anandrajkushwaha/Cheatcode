@@ -120,6 +120,15 @@ export type Grounding = {
   profile: Profile | null;
   resume: Resume | null;
   jobs: JobRow[];
+  /**
+   * What has already been said, when this is not the start.
+   *
+   * A spoken session used to be handed nothing at all: press the mic after
+   * ten minutes of typing and the agent began from zero, asked for the resume
+   * it had just been given, and repeated advice it had already given. From
+   * the person's side that is not a fresh start, it is amnesia.
+   */
+  recap?: { role: "user" | "model"; text: string }[];
 };
 
 /**
@@ -129,7 +138,69 @@ export type Grounding = {
  * resume text is far more personal data than an answer needs, and every field
  * that goes in costs tokens on every message of every conversation.
  */
-export function describe({ profile, resume, jobs }: Grounding): string {
+/**
+ * The resume itself, not a summary of its metadata.
+ *
+ * This block used to be one line — file name, score, and a comma-separated
+ * list of skills. That is why every piece of resume advice came out generic:
+ * the agent had never seen a single bullet, so the best it could honestly say
+ * was "add metrics to your bullets", which is advice about resumes in general
+ * and not about theirs. Worse, on a call it would ask for the resume again,
+ * because from where it was sitting it genuinely did not have one.
+ *
+ * The parsed structure rather than the raw text: it is a third of the size,
+ * it is already in reading order, and it leaves the phone number and address
+ * out of a prompt that does not need them.
+ */
+function resumeDetail(resume: Resume): string[] {
+  const p = resume.parsed;
+  if (!p) return resume.skills?.length ? [`Skills read from it: ${resume.skills.join(", ")}`] : [];
+
+  const out: string[] = [];
+  const trim = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+  if (p.headline) out.push(`Headline: ${trim(p.headline, 120)}`);
+  if (p.summary) out.push(`Summary: ${trim(p.summary, 400)}`);
+
+  const roles = (p.roles ?? []).slice(0, 6);
+  if (roles.length) {
+    out.push("\nWhat their resume says they have done:");
+    for (const r of roles) {
+      const when = [r.start, r.is_current ? "present" : r.end].filter(Boolean).join(" – ");
+      out.push(
+        `  ${r.title ?? "Role"}${r.company ? ` at ${r.company}` : ""}${when ? ` (${when})` : ""}`,
+      );
+      for (const h of (r.highlights ?? []).slice(0, 6)) {
+        out.push(`    • ${trim(h, 220)}`);
+      }
+    }
+  }
+
+  const education = (p.education ?? []).slice(0, 3);
+  if (education.length) {
+    out.push(
+      `\nEducation: ${education
+        .map((e) => [e.degree, e.institution, e.year].filter(Boolean).join(", "))
+        .join(" | ")}`,
+    );
+  }
+
+  if (p.skills?.length) out.push(`Skills on it: ${p.skills.slice(0, 40).join(", ")}`);
+  if (p.certifications?.length) out.push(`Certifications: ${p.certifications.slice(0, 8).join(", ")}`);
+  if (p.links?.length) {
+    out.push(`Links on it: ${p.links.map((l) => l.label ?? l.url).filter(Boolean).join(", ")}`);
+  }
+
+  out.push(
+    "\nThose are their actual lines. When you talk about the resume, name the one you mean and " +
+      "say what is wrong with that line. \"Your Razorpay bullet about the pipeline has no number " +
+      "in it\" is advice. \"Add metrics to your bullets\" is a leaflet.",
+  );
+
+  return out;
+}
+
+export function describe({ profile, resume, jobs, recap }: Grounding): string {
   const lines: string[] = ["--- What you know about this person ---"];
 
   if (profile) {
@@ -162,7 +233,7 @@ export function describe({ profile, resume, jobs }: Grounding): string {
         resume.ats_score ?? "unscored"
       } out of 100.`,
     );
-    if (resume.skills?.length) lines.push(`Skills read from it: ${resume.skills.join(", ")}`);
+    lines.push(...resumeDetail(resume));
     if (resume.parse_error)
       lines.push(`We could not read the details out of it: ${resume.parse_error}`);
   } else {
@@ -259,5 +330,37 @@ only when you are actually listing things.`;
 
 /** The complete system instruction for a channel. */
 export function systemInstruction(channel: Channel, grounding: Grounding): string {
-  return `${INSTRUCTIONS}${channelNote(channel)}\n\n${describe(grounding)}`;
+  return `${INSTRUCTIONS}${channelNote(channel)}\n\n${describe(grounding)}${recapOf(grounding)}`;
+}
+
+/**
+ * What was already said, for a channel that cannot see it.
+ *
+ * The typed agent sends its own history with every message, so it needs none
+ * of this. A spoken session cannot: its instructions are baked into a
+ * credential before the socket opens, and it is handed no turns at all — so
+ * pressing the mic after a conversation used to produce an agent that asked
+ * for the resume it had just been given.
+ *
+ * Trimmed hard on purpose. This is context for continuing, not a transcript:
+ * enough that the next thing said follows on, not so much that a ten-minute
+ * conversation doubles the size of every spoken session.
+ */
+function recapOf({ recap }: Grounding): string {
+  const turns = (recap ?? []).filter((t) => t.text.trim()).slice(-8);
+  if (!turns.length) return "";
+
+  const lines = turns.map(
+    (t) =>
+      `${t.role === "user" ? "They said" : "You said"}: ${
+        t.text.length > 320 ? `${t.text.slice(0, 319)}…` : t.text
+      }`,
+  );
+
+  return (
+    "\n\n--- Already said, just now, in this same conversation ---\n" +
+    "Carry on from here. Do not greet them again, do not ask for anything they " +
+    "have already given you, and do not repeat advice you have already given.\n" +
+    lines.join("\n")
+  );
 }

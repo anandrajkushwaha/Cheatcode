@@ -26,11 +26,40 @@ export const maxDuration = 30;
 const bad = (error: string, status = 400, extra: Record<string, unknown> = {}) =>
   Response.json({ ok: false, error, ...extra }, { status });
 
-export async function POST() {
+export async function POST(request: Request) {
   if (!liveProvider()) return bad("Live voice isn't switched on yet.", 503);
 
   const user = await getSessionUser();
   if (!user) return bad("Not signed in", 401);
+
+  /**
+   * What was said before the mic was pressed.
+   *
+   * A spoken session gets its instructions once, baked into a credential, and
+   * is handed no history — so without this the agent starts from nothing and
+   * asks for the resume it was given two minutes ago. The browser already has
+   * the thread on screen; it sends the tail of it.
+   */
+  let recap: { role: "user" | "model"; text: string }[] = [];
+  try {
+    const body = (await request.json().catch(() => ({}))) as { turns?: unknown };
+    if (Array.isArray(body.turns)) {
+      recap = body.turns
+        .filter(
+          (t): t is { role: "user" | "model"; text: string } =>
+            !!t &&
+            typeof t === "object" &&
+            "role" in t &&
+            (t.role === "user" || t.role === "model") &&
+            "text" in t &&
+            typeof (t as { text: unknown }).text === "string",
+        )
+        .slice(-8)
+        .map((t) => ({ role: t.role, text: t.text.slice(0, 400) }));
+    }
+  } catch {
+    /* A call with no recap is still a call. */
+  }
 
   const [profile, resume, allowance] = await Promise.all([
     getProfile(),
@@ -60,7 +89,7 @@ export async function POST() {
     limit: 12,
   }).catch(() => ({ jobs: [] }));
 
-  const ticket = await mintTicket(systemInstruction("voice", { profile, resume, jobs }));
+  const ticket = await mintTicket(systemInstruction("voice", { profile, resume, jobs, recap }));
   if (!ticket.ok) {
     /**
      * The owner gets the provider's own words; everybody else gets a sentence.

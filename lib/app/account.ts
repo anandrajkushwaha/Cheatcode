@@ -1,5 +1,6 @@
 import "server-only";
 import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
+import type { AtsResult } from "@/lib/tools/ats";
 
 export type Plan = "free" | "pro";
 export type PlanStatus = "inactive" | "active" | "past_due" | "cancelled";
@@ -67,6 +68,27 @@ export type Resume = {
 };
 
 /**
+ * A resume being written, as opposed to one that was uploaded.
+ *
+ * `content` is the same shape as `resumes.parsed` on purpose — a draft begins
+ * as a copy of it. `ats_score` is stored rather than computed on read so a
+ * list screen does not have to render and re-score every draft to show a
+ * number; it is written by the route on every save, never by hand.
+ */
+export type ResumeDraft = {
+  id: string;
+  user_id: string;
+  source_resume_id: string | null;
+  title: string;
+  content: ParsedResume;
+  ats_score: number | null;
+  ats_result: AtsResult | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
  * The signed-in user's profile.
  *
  * Returns null when nobody is signed in, and — separately — null when the row
@@ -107,6 +129,33 @@ export async function getResumes(): Promise<Resume[]> {
 export async function getPrimaryResume(): Promise<Resume | null> {
   const all = await getResumes();
   return all.find((r) => r.is_primary) ?? all[0] ?? null;
+}
+
+const DRAFT_COLUMNS =
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,is_primary,created_at,updated_at";
+
+/**
+ * The draft somebody is working on.
+ *
+ * A missing table is not an error worth showing anybody a stack trace over —
+ * it means `50_resume_drafts.sql` has not been run on this deployment yet, and
+ * the page above should say "nothing here yet" rather than break. Every other
+ * failure lands in the same place, which is a real cost: a broken database
+ * looks identical to an empty one from here. It is the right trade for a read
+ * that only decides whether to show a preview.
+ */
+export async function getPrimaryDraft(): Promise<ResumeDraft | null> {
+  const supabase = await createAppServerClient();
+  if (!supabase) return null;
+
+  const { data } = await supabase
+    .from("resume_drafts")
+    .select(DRAFT_COLUMNS)
+    .order("is_primary", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  return ((data ?? [])[0] as unknown as ResumeDraft) ?? null;
 }
 
 /**

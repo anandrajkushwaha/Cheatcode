@@ -539,3 +539,42 @@
   .cc-fade-out { animation: none; opacity: 0; }
   .cc-lift { animation: none; opacity: 1; transform: none; }
 }
+
+/* ---------------------------------------------------------------- printing
+
+   One page in the app is a document rather than a screen: the resume builder.
+   Printing it is also how somebody saves it as a PDF, and the browser's own
+   print pipeline is the only export that produces a real text layer without
+   us writing a PDF writer first — which matters more than it sounds, because
+   a resume rendered as a picture scores nothing at all.
+
+   So the printed page is the document and nothing else. The app's chrome is
+   marked `no-print` at the point it is written rather than hunted for with
+   selectors here, so a new header cannot quietly start appearing in people's
+   resumes. */
+
+@page {
+  size: A4;
+  margin: 15mm 17mm;
+}
+
+@media print {
+  html, body { background: #fff; }
+  .no-print { display: none !important; }
+
+  /* The app shell's padding would be added to the page margin. */
+  main.container-app { padding: 0 !important; }
+}
+
+/* The preview at screen sizes narrower than a sheet of A4. Scrolling is the
+   fallback everywhere; `zoom` shrinks the whole document where it is
+   supported, which is nicer on a phone and harmless where it is not. */
+.rd-fit { overflow-x: auto; }
+
+@media (max-width: 880px) {
+  .rd-fit { zoom: 0.62; }
+}
+
+@media (max-width: 560px) {
+  .rd-fit { zoom: 0.44; }
+}

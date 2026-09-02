@@ -64,7 +64,11 @@ export class LiveSession {
 
   /* ------------------------------------------------------------- opening */
 
-  async start(): Promise<void> {
+  /**
+   * @param recap What has already been said on screen. Sent with the ticket
+   * so the spoken agent continues the conversation instead of starting one.
+   */
+  async start(recap: { role: "user" | "model"; text: string }[] = []): Promise<void> {
     if (this.state !== "idle" && this.state !== "closed") return;
     this.set("connecting");
 
@@ -86,7 +90,11 @@ export class LiveSession {
 
     let ticket: Ticket;
     try {
-      const res = await fetch("/api/app/agent/live-token", { method: "POST" });
+      const res = await fetch("/api/app/agent/live-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turns: recap.slice(-8) }),
+      });
       ticket = (await res.json()) as Ticket;
       if (!res.ok || !ticket.ok || !ticket.token) {
         this.upgrade = !!ticket.upgrade;

@@ -6,6 +6,7 @@ import { analyseResume, type AtsResult } from "@/lib/tools/ats";
 import { ExtractError, extractResume } from "@/lib/tools/extract";
 import type { ParsedResume } from "@/lib/app/account";
 import { Chip, ScoreRing } from "./ui";
+import { BuildDraftButton } from "./ResumeBuilderActions";
 
 type State =
   | { phase: "idle" }
@@ -76,6 +77,11 @@ export function ResumeUpload({ hasExisting }: { hasExisting: boolean }) {
             text,
             atsScore: result.score,
             atsResult: result,
+            // The file somebody just uploaded on this page is the one they
+            // mean. Without this, a second upload leaves the agent — and the
+            // builder, which seeds from the primary resume — working off a
+            // document from last month.
+            primary: true,
           }),
         });
         const json = await res.json();
@@ -195,6 +201,19 @@ export function ResumeUpload({ hasExisting }: { hasExisting: boolean }) {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* A score with no next move is just a bad mood. Most of what the
+                checks complain about is layout, and layout is the one thing we
+                can fix for somebody rather than advise them about. */}
+            {state.parsed && (
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-ink-08 pt-5">
+                <BuildDraftButton label="Fix it →" />
+                <p className="max-w-[40ch] text-[0.82rem] leading-relaxed text-ink-30">
+                  We&apos;ll rebuild it in a layout the software can read, starting from what
+                  you&apos;ve already written. Your original file is untouched.
+                </p>
+              </div>
             )}
           </div>
 

@@ -61,7 +61,11 @@ APP_SUPABASE_SECRET_KEY=`}
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-ink-08 bg-paper/90 backdrop-blur-xl">
+      {/* `no-print` here rather than a selector in the stylesheet: the resume
+          builder prints the page it is on, and the nav bar is not part of
+          anybody's resume. Marking it where it is written means a new piece of
+          chrome cannot quietly start appearing in somebody's printout. */}
+      <header className="no-print sticky top-0 z-40 border-b border-ink-08 bg-paper/90 backdrop-blur-xl">
         <div className="container-app flex h-14 items-center justify-between gap-6">
           <div className="flex items-center gap-7">
             <Link href="/app" className="text-[0.9rem] font-semibold tracking-[-0.04em]">
@@ -108,7 +112,7 @@ APP_SUPABASE_SECRET_KEY=`}
           fixed, and that bug only shows up on the one page that animates. */}
       <AgentOrb />
 
-      <footer className="container-app mt-12 border-t border-ink-08 py-8 pb-28 text-[0.78rem] text-ink-30 sm:pb-8">
+      <footer className="no-print container-app mt-12 border-t border-ink-08 py-8 pb-28 text-[0.78rem] text-ink-30 sm:pb-8">
         Signed in as {name}.{" "}
         <Link href="/" className="underline underline-offset-4 hover:text-ink">
           Back to the site

@@ -159,6 +159,19 @@ export function AgentOverlay({
   /** The conversation row, once the server has made one. */
   const conversation = useRef<string | null>(null);
 
+  /**
+   * The thread, readable from a callback that must not be rebuilt.
+   *
+   * `startCall` is memoised on `keep` alone, so reading `turns` from its
+   * closure would have handed the call whatever the thread looked like on
+   * first render — which is nothing. The recap would have shipped, been
+   * empty every time, and the bug would have looked fixed.
+   */
+  const turnsRef = useRef<Turn[]>([]);
+  useEffect(() => {
+    turnsRef.current = turns;
+  }, [turns]);
+
   const listening = liveState === "live";
   const connecting = liveState === "connecting";
 
@@ -358,7 +371,9 @@ export function AgentOverlay({
     });
 
     session.current = live;
-    await live.start();
+    // What is on screen goes with it. Without this the spoken agent begins
+    // from nothing and asks for things it was given a minute ago.
+    await live.start(turnsRef.current.map((t) => ({ role: t.role, text: t.text })));
 
     if (typeof live.remaining === "number") setVoiceLeft(live.remaining);
     if (live.upgrade) setUpgrade(true);
@@ -612,12 +627,26 @@ export function AgentOverlay({
 
       setAttachment(null);
 
-      // The agent now has it in front of it. Opening the conversation rather
-      // than leaving a chip sitting there is the whole point of dropping a
-      // file into a chat.
       const opener = read.read
         ? `I've attached my resume (${file.name}). It's a ${read.kind}, so you had to read the pages — take a look.`
         : `I've attached my resume (${file.name}). Take a look.`;
+
+      // Mid-call, the session's instructions were baked before this file
+      // existed, so the resume has to be handed over in the conversation
+      // itself. Sending only the opener would have it answer about a document
+      // it cannot see — which is the mismatch this whole change is about.
+      if (session.current?.live) {
+        session.current.send(
+          `${opener}\n\nHere is what it says, so you can talk about it now:\n${read.text.slice(0, 6000)}`,
+        );
+        setTurns((t) => [...t, { role: "user", text: opener, spoken: true }]);
+        keep([{ role: "user", text: opener, spoken: true }], { channel: "voice" });
+        return;
+      }
+
+      // The agent now has it in front of it. Opening the conversation rather
+      // than leaving a chip sitting there is the whole point of dropping a
+      // file into a chat.
       await send(opener);
     },
     // `send` is declared below and is stable for the life of the component.

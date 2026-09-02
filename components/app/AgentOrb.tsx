@@ -114,7 +114,7 @@ export function AgentOrb() {
         }}
         aria-label="Talk to the agent"
         aria-expanded={open}
-        className={`group fixed bottom-5 right-5 z-50 flex items-center gap-3 transition-opacity duration-200 sm:bottom-7 sm:right-7 ${
+        className={`no-print group fixed bottom-5 right-5 z-50 flex items-center gap-3 transition-opacity duration-200 sm:bottom-7 sm:right-7 ${
           open ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
