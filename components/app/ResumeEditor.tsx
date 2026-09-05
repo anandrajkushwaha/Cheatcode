@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ResumeDocument, type Edit } from "@/components/app/ResumeDocument";
 import { EditorToolbar } from "@/components/app/EditorToolbar";
 import { ShareDialog } from "@/components/app/ShareDialog";
-import { EMPTY_PRESENTATION, type FieldStyle, type Presentation } from "@/lib/app/resume-style";
+import {
+  EMPTY_PRESENTATION,
+  PHOTO_PATH,
+  type FieldStyle,
+  type PhotoFit,
+  type Presentation,
+} from "@/lib/app/resume-style";
 import { sectionOrder, showsPhoto, templateById } from "@/lib/app/resume-templates";
 import type { Resume } from "@/lib/app/resume-schema";
 
@@ -229,10 +235,22 @@ export function ResumeEditor({
       removeBlock: (row) => change(removeBlock(content, row)),
       moveBlock: (row, by) => change(moveBlock(content, row, by)),
       select: setSelected,
+      removePhoto: () => {
+        // The fit goes with it — keeping a zoom for a photograph that is no
+        // longer there means the next one arrives mysteriously cropped — and
+        // the slot is marked off so the monogram does not step into the hole.
+        setPhoto(null);
+        setSelected(null);
+        restyle({
+          ...styles,
+          photoFit: undefined,
+          hidden: [...new Set([...styles.hidden, PHOTO_PATH])],
+        });
+      },
     }),
     // Every handler reads `content`, so the object is rebuilt when it changes
     // or the handlers close over a stale document.
-    [content, change],
+    [content, change, styles, restyle],
   );
 
   async function save() {
@@ -312,20 +330,38 @@ export function ResumeEditor({
           setPhoto(next);
           setDirty(true);
           setSaved(null);
+          if (!next) setSelected(null);
+          restyle({
+            ...styles,
+            // Adding one un-hides the slot; removing one hides it, so the
+            // monogram never reappears as a consolation prize.
+            hidden: next
+              ? styles.hidden.filter((k) => k !== PHOTO_PATH)
+              : [...new Set([...styles.hidden, PHOTO_PATH])],
+            ...(next ? {} : { photoFit: undefined }),
+          });
         }}
         sections={sections}
         onSection={onSection}
         photoSlot={showsPhoto(templateById(template).layout)}
+        onPhotoFit={(photoFit: PhotoFit) => restyle({ ...styles, photoFit })}
       />
 
       {/* --------------------------------------------------------- canvas */}
-      <div className="min-h-0 flex-1 overflow-auto px-4 py-8 print:overflow-visible print:p-0">
+      <div
+        className="min-h-0 flex-1 overflow-auto px-4 py-8 print:overflow-visible print:p-0"
+        onMouseDown={(e) => {
+          // Only the canvas itself, never a click that landed on the page.
+          if (e.target === e.currentTarget) setSelected(null);
+        }}
+      >
         <div className="mx-auto w-fit">
           <div className="bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
             <ResumeDocument
               content={content}
               template={template}
               edit={edit}
+              selected={selected}
               styles={styles}
               photo={photo}
             />

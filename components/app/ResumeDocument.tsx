@@ -2,6 +2,8 @@ import type { Resume as DraftContent } from "@/lib/app/resume-schema";
 import {
   EMPTY_PRESENTATION,
   GOOGLE_FONTS_HREF,
+  photoCss,
+  PHOTO_PATH,
   styleToCss,
   type Presentation,
 } from "@/lib/app/resume-style";
@@ -34,7 +36,25 @@ import {
  * `sectionOrder()`; the number is not on screen yet.
  */
 
-const A4 = { width: "210mm" };
+/**
+ * A4, and the margin every page gets.
+ *
+ * The width and height were always right. The margin was not there at all,
+ * which is why a printed resume that ran onto a second page had its text
+ * clipped hard against the paper edge: with no `@page` rule the browser used
+ * its own default, and the document had no idea where the paper ended.
+ *
+ * `@page { margin: 12mm 0 }` is what actually fixes it — it is the only
+ * mechanism that puts a margin on the *continuation* pages, which is where the
+ * problem was. Vertical only, so the templates that bleed a colour to the left
+ * and right edges keep doing so.
+ *
+ * The same 12mm is applied on screen as padding, and removed again at print
+ * so it is not counted twice. That is what makes the page lines below tell the
+ * truth: 297 − 24 = 273mm of content per page, on screen and on paper.
+ */
+const A4 = { width: "210mm", height: "297mm", margin: "12mm" };
+const PAGE_CONTENT_MM = 297 - 12 * 2;
 
 /**
  * Layout classes are prefixed `rd-l-`, and that prefix is load-bearing.
@@ -81,6 +101,9 @@ export type Edit = {
   removeBlock: (row: string) => void;
   /** -1 or 1. Moving past either end does nothing. */
   moveBlock: (row: string, by: number) => void;
+
+  /** Throw the photograph away entirely — no placeholder left behind. */
+  removePhoto?: () => void;
 };
 
 /**
@@ -598,15 +621,65 @@ function contactParts(content: DraftContent) {
  * this feature needs to answer today. Initials fill the same hole in the
  * composition, cost nothing, and cannot be a picture of the wrong person.
  */
-function Monogram({ name, photo }: { name: string | null | undefined; photo?: string | null }) {
+function Monogram({
+  name,
+  photo,
+  edit,
+  styles,
+  selected,
+}: {
+  name: string | null | undefined;
+  photo?: string | null;
+  edit?: Edit;
+  styles?: Presentation;
+  selected?: boolean;
+}) {
   if (photo) {
     // A plain <img> rather than next/image: this is a data URL that is already
     // the right size, and the optimiser would be a round trip to resize
     // something nobody is going to download twice. It also has to survive
     // being printed, where next/image's lazy loading is a liability.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img className="rd-photo" src={photo} alt="" aria-hidden />;
+    const img = (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img className="rd-photo" src={photo} alt="" aria-hidden style={photoCss(styles?.photoFit)} />
+    );
+
+    if (!edit) return img;
+
+    return (
+      <span className={`rd-photo-wrap${selected ? " is-selected" : ""}`} contentEditable={false}>
+        <button
+          type="button"
+          className="rd-photo-hit"
+          aria-label="Select the photo"
+          onClick={() => edit.select?.(PHOTO_PATH)}
+        >
+          {img}
+        </button>
+        {/* Only once it is selected. A delete button hovering over every
+            photograph invites the accident it exists to undo. */}
+        {selected && (
+          <button
+            type="button"
+            className="rd-tool rd-tool-delete rd-photo-remove"
+            aria-label="Remove the photo"
+            onClick={() => edit.removePhoto?.()}
+          />
+        )}
+      </span>
+    );
   }
+
+  /**
+   * Removing the photograph removes the circle, not just the picture.
+   *
+   * The monogram is the template's design when nobody ever added a photo. It
+   * is not what somebody wants back the moment they delete one — that reads as
+   * the delete having failed, and leaves a filler where they asked for
+   * nothing. `hidden` already carries the sections that are switched off, so
+   * the photo slot goes in the same list rather than earning its own column.
+   */
+  if (styles?.hidden.includes(PHOTO_PATH)) return null;
 
   const initials = (name ?? "")
     .split(/\s+/)
@@ -628,12 +701,15 @@ export function ResumeDocument({
   content,
   template,
   edit,
+  selected,
   styles = EMPTY_PRESENTATION,
   photo,
 }: {
   content: DraftContent;
   template?: string | null;
   edit?: Edit;
+  /** Which field is selected, so the photograph can show its own controls. */
+  selected?: string | null;
   /** Hand-made overrides on top of the template. */
   styles?: Presentation;
   /** A data URL. Only the layouts with somewhere to put one will use it. */
@@ -665,7 +741,14 @@ export function ResumeDocument({
   return (
     <article
       className={`rd-page rd-l-${layout}${edit ? " rd-editing" : ""}`}
-      style={{ width: A4.width, ...themeVars(chosen.theme) }}
+      style={{
+        width: A4.width,
+        // Written as custom properties so the page lines, the margin guides
+        // and the padding all read the same two numbers.
+        ["--rd-page-margin" as string]: A4.margin,
+        ["--rd-page-content" as string]: `${PAGE_CONTENT_MM}mm`,
+        ...themeVars(chosen.theme),
+      }}
     >
       <style>{SHEET}</style>
       {/* Loaded whenever the document renders, not only when a web font is in
@@ -692,7 +775,13 @@ export function ResumeDocument({
               <Name {...ctx} />
               {contact()}
             </div>
-            <Monogram name={content.full_name} photo={photo} />
+            <Monogram
+              name={content.full_name}
+              photo={photo}
+              edit={edit}
+              styles={styles}
+              selected={selected === PHOTO_PATH}
+            />
           </header>
           <div className="rd-pad">{body(main, ctx)}</div>
         </>
@@ -702,7 +791,13 @@ export function ResumeDocument({
         <div className="rd-cols">
           <aside className="rd-aside">
             <div className="rd-aside-head">
-              <Monogram name={content.full_name} photo={photo} />
+              <Monogram
+              name={content.full_name}
+              photo={photo}
+              edit={edit}
+              styles={styles}
+              selected={selected === PHOTO_PATH}
+            />
               <Name {...ctx} />
             </div>
             <section className="rd-section">
@@ -741,8 +836,17 @@ export function ResumeDocument({
  * utility framework and a build step behind it.
  */
 const SHEET = `
+@page {
+  size: A4;
+  /* Vertical only: horizontal bleed is what several templates are built on. */
+  margin: 12mm 0;
+}
+
 .rd-page {
   box-sizing: border-box;
+  /* Mirrors the @page margin, so the screen and the paper agree about where
+     the content starts. Removed at print, where @page supplies it. */
+  padding-block: var(--rd-page-margin);
   /* A flex column so the two-column body can be told to fill what is left
      under the header. Without it a sidebar stops where its text stops, which
      reads as a broken box rather than as a column. */
@@ -946,29 +1050,76 @@ const SHEET = `
 .rd-tool-add::before { content: "+"; font-size: 15px; }
 .rd-tool-delete::before { content: "\\00d7"; font-size: 15px; }
 
-/* Where the paper ends. A resume that has quietly become two pages is worth
-   knowing about before an employer finds out, and there is nowhere else on
-   the screen that could say so. */
+/* Where each page ends.
+   A resume that has quietly become two pages is worth knowing about before an
+   employer finds out, and there is nowhere else on screen that could say so.
+   One line per page boundary, repeating for as long as the document runs —
+   the earlier version drew exactly one and a three-page resume looked like a
+   two-page one. */
 .rd-editing { position: relative; }
 .rd-editing::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: 297mm;
-  border-top: 1px dashed rgba(0,0,0,.28);
+  /* The first boundary sits one page-of-content below the top margin. */
+  top: calc(var(--rd-page-margin) + var(--rd-page-content));
+  bottom: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.3) 0,
+    rgba(0, 0, 0, 0.3) 1px,
+    transparent 1px,
+    transparent var(--rd-page-content)
+  );
   pointer-events: none;
 }
 
+/* The margin itself, drawn faintly, so somebody can see how much room they
+   have before the text runs into it. */
+.rd-editing::before {
+  content: "";
+  position: absolute;
+  inset: var(--rd-page-margin) 0;
+  border-top: 1px dashed rgba(0, 0, 0, 0.14);
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.14);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------ photograph */
+
+.rd-photo-wrap { position: relative; display: inline-block; flex: none; }
+.rd-photo-hit {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.rd-photo-wrap.is-selected .rd-photo {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.rd-photo-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 4px 12px -4px rgba(0,0,0,.4);
+}
+
 @media print {
-  .rd-page { width: auto; min-height: 0; box-shadow: none; }
+  /* @page already supplies the vertical margin; keeping this would double it. */
+  .rd-page { width: auto; min-height: 0; padding-block: 0; box-shadow: none; }
   .rd-cols { min-height: 0; }
   .rd-role, .rd-edu { break-inside: avoid; }
   .rd-h2 { break-after: avoid; }
   .rd-edit { box-shadow: none !important; background: none !important; }
   .rd-edit:empty::before { content: "" !important; }
-  .rd-tools { display: none !important; }
-  .rd-editing::after { display: none !important; }
+  .rd-tools, .rd-photo-remove { display: none !important; }
+  .rd-editing::after, .rd-editing::before { display: none !important; }
+  .rd-photo-wrap.is-selected .rd-photo { outline: none !important; }
   /* Fills and washes have to be asked for, or a printer drops them and a
      sidebar template comes out as white text on white paper. */
   .rd-band, .rd-aside, .rd-monogram, .rd-photo {

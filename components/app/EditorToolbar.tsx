@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  DEFAULT_PHOTO_FIT,
   FONTS,
+  PHOTO_PATH,
   SWATCHES,
   type FieldStyle,
+  type PhotoFit,
   type Presentation,
 } from "@/lib/app/resume-style";
 
@@ -35,6 +38,7 @@ type Props = {
   onSection: (key: string, hidden: boolean) => void;
   /** False when the chosen template has nowhere to show one. */
   photoSlot: boolean;
+  onPhotoFit: (fit: PhotoFit) => void;
 };
 
 export function EditorToolbar({
@@ -46,19 +50,40 @@ export function EditorToolbar({
   sections,
   onSection,
   photoSlot,
+  onPhotoFit,
 }: Props) {
   const [open, setOpen] = useState<"font" | "colour" | "sections" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   const current: FieldStyle = (selected && styles.fields[selected]) || {};
   const live = Boolean(selected);
 
+  /**
+   * Anything outside the toolbar closes whatever is open.
+   *
+   * `mousedown` rather than `click`, so a popover that covers the thing
+   * somebody is reaching for is gone before their press lands on it —
+   * otherwise the first click only dismisses and the second does the work.
+   * Escape too, because a menu that traps you is worse than one that lingers.
+   */
   useEffect(() => {
+    const outside = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(null);
+    };
+    const escape = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
     const shut = () => setOpen(null);
+
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape);
     window.addEventListener("resize", shut);
-    return () => window.removeEventListener("resize", shut);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", shut);
+    };
   }, []);
 
   const patch = (p: FieldStyle) => live && onStyle({ ...current, ...p });
@@ -77,8 +102,86 @@ export function EditorToolbar({
     }
   }
 
+  const fit = styles.photoFit ?? DEFAULT_PHOTO_FIT;
+  const nudge = (patch: Partial<PhotoFit>) => onPhotoFit({ ...fit, ...patch });
+
+  if (selected === PHOTO_PATH && photo) {
+    return (
+      <div
+        ref={root}
+        className="no-print relative flex flex-wrap items-center gap-3 border-b border-ink-08 bg-paper px-3 py-2"
+      >
+        <span className="text-[0.8rem] font-medium">Photo</span>
+
+        <label className="flex items-center gap-2 text-[0.78rem] text-ink-50">
+          Zoom
+          <input
+            type="range"
+            min={1}
+            max={3}
+            step={0.05}
+            value={fit.scale}
+            onChange={(e) => nudge({ scale: Number(e.target.value) })}
+            className="w-32 accent-black"
+          />
+          <span className="w-9 tabular-nums">{fit.scale.toFixed(2)}×</span>
+        </label>
+
+        {/* Nudges rather than a drag surface. A drag inside a 22mm circle is
+            fiddly on a trackpad and impossible on a phone; four buttons move
+            it predictably and can be held down. */}
+        <span className="flex items-center gap-1">
+          <Step label="Move left" onClick={() => nudge({ x: Math.max(-50, fit.x - 4) })}>←</Step>
+          <Step label="Move right" onClick={() => nudge({ x: Math.min(50, fit.x + 4) })}>→</Step>
+          <Step label="Move up" onClick={() => nudge({ y: Math.max(-50, fit.y - 4) })}>↑</Step>
+          <Step label="Move down" onClick={() => nudge({ y: Math.min(50, fit.y + 4) })}>↓</Step>
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onPhotoFit(DEFAULT_PHOTO_FIT)}
+          className="rounded-full px-3 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+        >
+          Reset
+        </button>
+
+        <Divider />
+
+        <button
+          type="button"
+          onClick={() => file.current?.click()}
+          className="rounded-full px-3 py-1.5 text-[0.8rem] font-medium text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+        >
+          Replace
+        </button>
+        <button
+          type="button"
+          onClick={() => onPhoto(null)}
+          className="rounded-full px-3 py-1.5 text-[0.8rem] text-ink-30 transition-colors hover:bg-ink-04 hover:text-ink"
+        >
+          Remove
+        </button>
+
+        <input
+          ref={file}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void pickPhoto(f);
+          }}
+        />
+        {error && <span className="text-[0.75rem]">{error}</span>}
+      </div>
+    );
+  }
+
   return (
-    <div className="no-print relative flex flex-wrap items-center gap-1 border-b border-ink-08 bg-paper px-3 py-2">
+    <div
+      ref={root}
+      className="no-print relative flex flex-wrap items-center gap-1 border-b border-ink-08 bg-paper px-3 py-2"
+    >
       {/* ------------------------------------------------------------ font */}
       <Pop
         open={open === "font"}

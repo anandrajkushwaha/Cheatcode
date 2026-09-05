@@ -34,13 +34,39 @@ export type FieldStyle = {
   caps?: boolean;
 };
 
+/**
+ * How the photograph sits in its circle.
+ *
+ * A headshot is never framed the way a template's circle wants it — the face
+ * is off-centre, or too far away, and a centre crop cuts the top of somebody's
+ * head off. Three numbers fix it: how far in to zoom, and where to slide the
+ * picture behind the hole.
+ *
+ * Offsets are percentages rather than pixels so they survive the same photo
+ * being shown at 22mm in the document and 6mm in a gallery thumbnail.
+ */
+export type PhotoFit = {
+  /** 1 is fit-the-circle. Up to 3. */
+  scale: number;
+  /** -50 to 50, as a percentage of the frame. */
+  x: number;
+  y: number;
+};
+
+export const DEFAULT_PHOTO_FIT: PhotoFit = { scale: 1, x: 0, y: 0 };
+
 export type Presentation = {
   fields: Record<string, FieldStyle>;
   /** Sections switched off. Section keys from resume-templates.ts. */
   hidden: string[];
+  /** Absent until somebody adjusts the photo. */
+  photoFit?: PhotoFit;
 };
 
 export const EMPTY_PRESENTATION: Presentation = { fields: {}, hidden: [] };
+
+/** The path the photograph answers to, so it can be selected like a field. */
+export const PHOTO_PATH = "photo";
 
 /* ----------------------------------------------------------------- fonts */
 
@@ -155,7 +181,37 @@ export function cleanPresentation(value: unknown): Presentation {
     ? [...new Set(raw.hidden.filter((h): h is string => typeof h === "string" && h.length < 40))]
     : [];
 
-  return { fields, hidden };
+  const photoFit = cleanFit((value as { photoFit?: unknown }).photoFit);
+
+  return { fields, hidden, ...(photoFit ? { photoFit } : {}) };
+}
+
+function cleanFit(value: unknown): PhotoFit | null {
+  if (!value || typeof value !== "object") return null;
+  const f = value as Record<string, unknown>;
+  const num = (v: unknown, min: number, max: number) =>
+    typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : null;
+
+  const scale = num(f.scale, 1, 3);
+  const x = num(f.x, -50, 50);
+  const y = num(f.y, -50, 50);
+  if (scale === null || x === null || y === null) return null;
+
+  // Rounded, because these come from a slider and a drag: storing 1.0400000001
+  // makes every save look like a change and fills the undo stack.
+  return { scale: Math.round(scale * 100) / 100, x: Math.round(x), y: Math.round(y) };
+}
+
+/** The photograph's transform, from its fit. */
+export function photoCss(fit: PhotoFit | undefined): React.CSSProperties {
+  const f = fit ?? DEFAULT_PHOTO_FIT;
+  return {
+    // `objectPosition` moves the crop inside the circle; `scale` zooms in. Two
+    // properties rather than a transform, so the circle itself never moves and
+    // the layout around it cannot shift.
+    objectPosition: `${50 + f.x}% ${50 + f.y}%`,
+    transform: f.scale === 1 ? undefined : `scale(${f.scale})`,
+  };
 }
 
 function cleanStyle(value: unknown): FieldStyle | null {
