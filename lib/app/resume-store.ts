@@ -21,7 +21,7 @@ import { cleanPresentation } from "@/lib/app/resume-style";
  */
 
 const COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,share_id,is_public,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,share_id,is_public,link_role,is_primary,created_at,updated_at";
 
 /** A deployment where 50_resume_drafts.sql has not been run yet. */
 export function isMissingTable(message?: string): boolean {
@@ -43,13 +43,32 @@ export function isMissingTemplateColumn(message?: string): boolean {
   return Boolean(message && /column .*template.* does not exist/i.test(message));
 }
 
+/**
+ * Which file to run, for each column a later migration added.
+ *
+ * Ordered longest-lived first so the message names the earliest thing missing
+ * — somebody who has run none of these should be told to start at 51, not at
+ * 54. The names are matched against Postgres's own error text, which is why
+ * they are bare column names rather than anything qualified.
+ */
+const ADDED_COLUMNS: [column: string, file: string][] = [
+  ["template", "51_resume_template.sql"],
+  ["share_id", "52_resume_share.sql"],
+  ["is_public", "52_resume_share.sql"],
+  ["styles", "53_resume_style.sql"],
+  ["photo", "53_resume_style.sql"],
+  ["link_role", "54_resume_access.sql"],
+];
+
 /** The one sentence for either, so the two read paths cannot drift. */
 function setupProblem(message?: string): StoreError | null {
-  if (isMissingTemplateColumn(message)) {
-    return new StoreError(
-      "This deployment is missing a database change — run supabase/schemas/51_resume_template.sql.",
-      503,
-    );
+  for (const [column, file] of ADDED_COLUMNS) {
+    if (new RegExp(`column .*\\b${column}\\b.* does not exist`, "i").test(message ?? "")) {
+      return new StoreError(
+        `This deployment is missing a database change — run supabase/schemas/${file}.`,
+        503,
+      );
+    }
   }
   if (isMissingTable(message)) {
     return new StoreError(
@@ -83,7 +102,40 @@ function normalise(row: unknown): ResumeDraft {
     // Same gate as the content, for the same reason: everything in this blob
     // came from a browser at some point.
     styles: cleanPresentation(draft.styles),
+    // Anything that is not exactly 'edit' is a view link. A null from an old
+    // row, a typo, a value somebody put in the table by hand — all of them
+    // land on the safe side rather than on the side that lets strangers write.
+    link_role: draft.link_role === "edit" ? "edit" : "view",
   };
+}
+
+export type Role = "view" | "edit";
+
+/** One person the owner named, and what they were given. */
+export type Collaborator = { id: string; email: string; role: Role };
+
+/** Anything that is not exactly 'edit' is 'view'. Never the other way round. */
+function asRole(value: unknown): Role {
+  return value === "edit" ? "edit" : "view";
+}
+
+/**
+ * The one place an address is made comparable.
+ *
+ * Lower-cased and trimmed, because `Anand@…` and `anand@…` are the same inbox
+ * and a person who was invited under one spelling and signs in under the other
+ * would otherwise be locked out of a resume they were deliberately given. The
+ * unique index in 54_resume_access.sql lower-cases the same way, so the two
+ * cannot disagree.
+ */
+function normaliseEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  // Deliberately loose. This is a grant, not a delivery — a typo costs the
+  // owner a wasted row, and a strict pattern costs somebody with an unusual
+  // but valid address their access.
+  if (email.length < 3 || email.length > 320 || !email.includes("@") || /\s/.test(email)) return null;
+  return email;
 }
 
 /* ------------------------------------------------------------------ read */
@@ -241,6 +293,7 @@ export async function setSharing(
   userId: string,
   draftId: string,
   on: boolean,
+  linkRole?: Role,
 ): Promise<ResumeDraft> {
   const supabase = await client();
   const current = await getDraftById(draftId);
@@ -250,7 +303,7 @@ export async function setSharing(
 
   const { data, error } = await supabase
     .from("resume_drafts")
-    .update({ share_id, is_public: on })
+    .update({ share_id, is_public: on, link_role: linkRole ?? current.link_role })
     .eq("id", draftId)
     .eq("user_id", userId)
     .select(COLUMNS)
@@ -275,21 +328,33 @@ export async function setSharing(
  * standing between a draft and the open internet, which is why it is in the
  * query rather than in a caller's `if`.
  */
-export async function getShared(
-  shareId: string,
-): Promise<{
+export type Shared = {
+  draftId: string;
+  ownerId: string;
   content: Resume;
   template: string;
   title: string;
   styles: ReturnType<typeof cleanPresentation>;
   photo: string | null;
-} | null> {
+  /** Whether the person asking may change it, and why they may. */
+  canEdit: boolean;
+  /** 'link' when the link itself grants it, 'invite' when they were named. */
+  grantedBy: "link" | "invite" | null;
+  /**
+   * What the link grants anybody signed in. Needed even for a signed-out
+   * visitor, so the page can offer "sign in to edit" rather than showing a
+   * read-only copy to somebody who was, in fact, given a pen.
+   */
+  linkRole: Role;
+};
+
+export async function getShared(shareId: string, viewerEmail?: string | null): Promise<Shared | null> {
   const supabase = createAppAdminClient();
   if (!supabase) return null;
 
   const { data, error } = await supabase
     .from("resume_drafts")
-    .select("content,template,title,styles,photo,is_public")
+    .select("id,user_id,content,template,title,styles,photo,is_public,link_role")
     .eq("share_id", shareId)
     .eq("is_public", true)
     .limit(1);
@@ -297,22 +362,236 @@ export async function getShared(
   if (error) return null;
   const row = (data ?? [])[0] as
     | {
+        id: string;
+        user_id: string;
         content: unknown;
         template: string | null;
         title: string | null;
         styles: unknown;
         photo: string | null;
+        link_role: string | null;
       }
     | undefined;
   if (!row) return null;
 
+  /**
+   * Two different ways to have been given a pen, checked in this order.
+   *
+   * A named invite outranks the link because it is the more specific grant and
+   * because it survives the link being switched off. Both require a session:
+   * `viewerEmail` is read from the signed-in user server-side, never from
+   * anything the browser sent, so "can edit" is never something a visitor can
+   * claim about themselves.
+   */
+  const email = normaliseEmail(viewerEmail);
+  let grantedBy: Shared["grantedBy"] = null;
+
+  if (email) {
+    const invite = await supabase
+      .from("resume_collaborators")
+      .select("role")
+      .eq("draft_id", row.id)
+      .eq("email", email)
+      .limit(1);
+    if (asRole((invite.data ?? [])[0]?.role) === "edit") grantedBy = "invite";
+    else if (asRole(row.link_role) === "edit") grantedBy = "link";
+  }
+
   return {
+    draftId: row.id,
+    ownerId: row.user_id,
     content: cleanResume(row.content),
     template: row.template ?? "",
     title: row.title ?? "Resume",
     styles: cleanPresentation(row.styles),
     photo: row.photo ?? null,
+    canEdit: grantedBy !== null,
+    grantedBy,
+    linkRole: asRole(row.link_role),
   };
+}
+
+/* ------------------------------------------------------- who else can see */
+
+/** The guest list for one resume. Owner only — RLS enforces that, not this. */
+export async function listCollaborators(draftId: string): Promise<Collaborator[]> {
+  const supabase = await client();
+  const { data, error } = await supabase
+    .from("resume_collaborators")
+    .select("id,email,role")
+    .eq("draft_id", draftId)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
+  // A deployment that has not run 54 yet has no guest list, which is not the
+  // same as a broken page: sharing by link still works, so the dialog opens
+  // with an empty list rather than an error.
+  if (error) return [];
+  return (data ?? []).map((r) => {
+    const row = r as { id: string; email: string; role: string };
+    return { id: row.id, email: row.email, role: asRole(row.role) };
+  });
+}
+
+/**
+ * Invite one person, or change what an already-invited person may do.
+ *
+ * Upsert on (draft_id, email) rather than insert: inviting somebody twice is a
+ * thing people do, and the second invite should quietly become "actually, make
+ * them an editor" instead of a unique-violation error message.
+ *
+ * No email is sent from here. That is not an oversight — a resume link landing
+ * in somebody's inbox unannounced from a service they have never heard of is
+ * indistinguishable from spam, and the owner is about to paste the link into a
+ * conversation they are already having.
+ */
+export async function addCollaborator(
+  userId: string,
+  draftId: string,
+  rawEmail: string,
+  role: Role,
+): Promise<Collaborator[]> {
+  const email = normaliseEmail(rawEmail);
+  if (!email) throw new StoreError("That doesn't look like an email address.", 400);
+
+  const owner = await getDraftById(draftId);
+  if (!owner || owner.user_id !== userId) throw new StoreError("That resume doesn't exist.", 404);
+
+  const supabase = await client();
+  const { error } = await supabase
+    .from("resume_collaborators")
+    .upsert(
+      { draft_id: draftId, owner_id: userId, email, role: asRole(role) },
+      { onConflict: "draft_id,email" },
+    );
+
+  if (error) {
+    if (/relation .*resume_collaborators.* does not exist|schema cache/i.test(error.message)) {
+      throw new StoreError(
+        "This deployment is missing a database change — run supabase/schemas/54_resume_access.sql.",
+        503,
+      );
+    }
+    throw new StoreError(error.message);
+  }
+
+  return listCollaborators(draftId);
+}
+
+/**
+ * Resumes somebody else invited me to, for the list on /app/resume.
+ *
+ * The service key again, and for the same reason as the public route: these
+ * rows belong to other people, so RLS would — correctly — return nothing. The
+ * safety is that the query starts from `email = my signed-in address`, which
+ * the caller reads from the session and never from a request body.
+ *
+ * Only what a list needs is selected. A resume the viewer has not opened yet
+ * has no business having its phone number and employment history loaded into
+ * a page that is going to show a title and a date.
+ */
+export async function listSharedWithMe(
+  viewerEmail: string | null,
+): Promise<{ shareId: string; title: string; role: Role; updatedAt: string }[]> {
+  const email = normaliseEmail(viewerEmail);
+  if (!email) return [];
+
+  const supabase = createAppAdminClient();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("resume_collaborators")
+    .select("role,resume_drafts(share_id,title,is_public,updated_at)")
+    .eq("email", email)
+    .limit(50);
+
+  if (error) return [];
+
+  type Joined = {
+    share_id: string | null;
+    title: string | null;
+    is_public: boolean;
+    updated_at: string;
+  };
+
+  return (data ?? [])
+    .map((r) => {
+      // PostgREST hands an embedded row back as an object or a one-element
+      // array depending on how it reads the relationship; both spellings mean
+      // the same single draft, so both are flattened here rather than at four
+      // call sites downstream.
+      const row = r as unknown as { role: string; resume_drafts: Joined | Joined[] | null };
+      const draft = Array.isArray(row.resume_drafts) ? (row.resume_drafts[0] ?? null) : row.resume_drafts;
+      return { role: asRole(row.role), draft };
+    })
+    // An invite to a resume whose owner has since switched sharing off is not
+    // an access this list should still be advertising.
+    .filter((r) => r.draft?.share_id && r.draft.is_public)
+    .map((r) => ({
+      shareId: r.draft!.share_id as string,
+      title: r.draft!.title ?? "Resume",
+      role: r.role,
+      updatedAt: r.draft!.updated_at,
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/** Take it back from one person, without disturbing anybody else's access. */
+export async function removeCollaborator(
+  userId: string,
+  draftId: string,
+  id: string,
+): Promise<Collaborator[]> {
+  const supabase = await client();
+  const { error } = await supabase
+    .from("resume_collaborators")
+    .delete()
+    .eq("id", id)
+    .eq("draft_id", draftId)
+    .eq("owner_id", userId);
+
+  if (error) throw new StoreError(error.message);
+  return listCollaborators(draftId);
+}
+
+/**
+ * A save arriving from somebody who is not the owner.
+ *
+ * The whole check happens here rather than in the route, because it is the
+ * kind of check that must not be possible to forget: the share id is looked
+ * up, the signed-in email is compared against the grant, and only then does
+ * anything get written — with the service key, since RLS would otherwise
+ * refuse a write to a row the writer does not own.
+ *
+ * The score is recomputed on the owner's behalf. A collaborator changing the
+ * words and leaving yesterday's number attached would be worse than no
+ * collaboration at all: the owner would send out a resume whose score no
+ * longer describes it.
+ */
+export async function saveShared(
+  shareId: string,
+  viewerEmail: string | null,
+  content: Resume,
+  extra: { styles?: unknown; photo?: string | null } = {},
+): Promise<void> {
+  const shared = await getShared(shareId, viewerEmail);
+  if (!shared) throw new StoreError("That resume doesn't exist.", 404);
+  if (!shared.canEdit) throw new StoreError("You have view access to this resume.", 403);
+
+  const supabase = createAppAdminClient();
+  if (!supabase) throw new StoreError("Accounts aren't configured on this deployment.", 503);
+
+  const result = scoreDraft(content, shared.template);
+  const patch: Record<string, unknown> = {
+    content,
+    ats_score: result.score,
+    ats_result: result,
+  };
+  if (extra.styles !== undefined) patch.styles = cleanPresentation(extra.styles);
+  if (extra.photo !== undefined) patch.photo = extra.photo;
+
+  const { error } = await supabase.from("resume_drafts").update(patch).eq("id", shared.draftId);
+  if (error) throw new StoreError(error.message);
 }
 
 /** Every resume they have, newest first, for the list on the resume page. */

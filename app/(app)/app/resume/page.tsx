@@ -4,6 +4,8 @@ import { ResumeUpload } from "@/components/app/ResumeUpload";
 import { TemplateGallery } from "@/components/app/TemplateGallery";
 import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
 import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
+import { getSessionUser } from "@/lib/supabase/app";
+import { listSharedWithMe } from "@/lib/app/resume-store";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,12 @@ export const dynamic = "force-dynamic";
  * everyone else has to walk past.
  */
 export default async function ResumePage() {
-  const [draft, resume] = await Promise.all([getPrimaryDraft(), getPrimaryResume()]);
+  const user = await getSessionUser();
+  const [draft, resume, shared] = await Promise.all([
+    getPrimaryDraft(),
+    getPrimaryResume(),
+    listSharedWithMe(user?.email ?? null),
+  ]);
 
   return (
     <>
@@ -73,6 +80,33 @@ export default async function ResumePage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Resumes somebody else handed them. Below their own work rather than
+          mixed into it: these are not theirs, and a list where "my resume" and
+          "a resume I was shown" look alike is how somebody edits the wrong
+          document and only finds out when the owner does. */}
+      {shared.length > 0 && (
+        <section className="mt-14 border-t border-ink-08 pt-8">
+          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            Shared with you
+          </h2>
+          <ul className="mt-4 space-y-2">
+            {shared.map((s) => (
+              <li key={s.shareId}>
+                <Link
+                  href={s.role === "edit" ? `/r/${s.shareId}/edit` : `/r/${s.shareId}`}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-ink-08 px-4 py-3 transition-colors hover:border-ink-30"
+                >
+                  <span className="min-w-0 truncate text-[0.9rem] font-medium">{s.title}</span>
+                  <span className="shrink-0 text-[0.78rem] text-ink-30">
+                    {s.role === "edit" ? "You can edit" : "You can view"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* Kept, and kept out of the way. Uploading is how the first draft gets

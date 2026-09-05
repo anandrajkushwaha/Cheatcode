@@ -46,14 +46,30 @@ export type FieldStyle = {
  * being shown at 22mm in the document and 6mm in a gallery thumbnail.
  */
 export type PhotoFit = {
+  /* ---- the picture inside the hole (Canva's crop mode) ---- */
   /** 1 is fit-the-circle. Up to 3. */
   scale: number;
   /** -50 to 50, as a percentage of the frame. */
   x: number;
   y: number;
+
+  /* ---- the hole itself (Canva's element selection) ---- */
+  /**
+   * The circle's diameter as a multiple of the template's own, 0.5 to 2.
+   *
+   * Separate from `scale` because they are different intentions and people
+   * reach for them at different moments: one makes the picture bigger behind a
+   * fixed hole, the other makes the hole bigger. Canva splits them by click
+   * depth — one click selects the frame, two enters the crop — and conflating
+   * them into a single "zoom" is what makes most photo editors frustrating.
+   */
+  frame: number;
+  /** Where the circle sits, in millimetres from where the template put it. */
+  frameX: number;
+  frameY: number;
 };
 
-export const DEFAULT_PHOTO_FIT: PhotoFit = { scale: 1, x: 0, y: 0 };
+export const DEFAULT_PHOTO_FIT: PhotoFit = { scale: 1, x: 0, y: 0, frame: 1, frameX: 0, frameY: 0 };
 
 export type Presentation = {
   fields: Record<string, FieldStyle>;
@@ -67,6 +83,9 @@ export const EMPTY_PRESENTATION: Presentation = { fields: {}, hidden: [] };
 
 /** The path the photograph answers to, so it can be selected like a field. */
 export const PHOTO_PATH = "photo";
+
+/** The same element, in crop mode — the picture rather than the hole. */
+export const PHOTO_CROP_PATH = "photo:crop";
 
 /* ----------------------------------------------------------------- fonts */
 
@@ -197,20 +216,52 @@ function cleanFit(value: unknown): PhotoFit | null {
   const y = num(f.y, -50, 50);
   if (scale === null || x === null || y === null) return null;
 
+  // The frame half is newer than the crop half, so a row written before it
+  // existed is missing it. Defaulted rather than rejected: an old photograph
+  // should keep its crop, not lose it because the shape grew.
+  const frame = num(f.frame, 0.5, 2) ?? 1;
+  const frameX = num(f.frameX, -40, 40) ?? 0;
+  const frameY = num(f.frameY, -40, 40) ?? 0;
+
   // Rounded, because these come from a slider and a drag: storing 1.0400000001
   // makes every save look like a change and fills the undo stack.
-  return { scale: Math.round(scale * 100) / 100, x: Math.round(x), y: Math.round(y) };
+  return {
+    scale: Math.round(scale * 100) / 100,
+    x: Math.round(x),
+    y: Math.round(y),
+    frame: Math.round(frame * 100) / 100,
+    frameX: Math.round(frameX * 10) / 10,
+    frameY: Math.round(frameY * 10) / 10,
+  };
 }
 
-/** The photograph's transform, from its fit. */
+/** The picture, inside its hole. */
 export function photoCss(fit: PhotoFit | undefined): React.CSSProperties {
   const f = fit ?? DEFAULT_PHOTO_FIT;
   return {
     // `objectPosition` moves the crop inside the circle; `scale` zooms in. Two
-    // properties rather than a transform, so the circle itself never moves and
-    // the layout around it cannot shift.
+    // properties rather than one transform, so the circle itself never moves
+    // and the layout around it cannot shift.
     objectPosition: `${50 + f.x}% ${50 + f.y}%`,
     transform: f.scale === 1 ? undefined : `scale(${f.scale})`,
+  };
+}
+
+/**
+ * The hole itself.
+ *
+ * `translate` rather than margins, so moving the circle never reflows the text
+ * beside it — the same reason the crop uses object-position. A resume where
+ * nudging a photograph reruns the layout is a resume that repaginates while
+ * somebody is looking at it.
+ */
+export function photoFrameCss(fit: PhotoFit | undefined): React.CSSProperties {
+  const f = fit ?? DEFAULT_PHOTO_FIT;
+  return {
+    width: `calc(22mm * ${f.frame})`,
+    height: `calc(22mm * ${f.frame})`,
+    transform:
+      f.frameX || f.frameY ? `translate(${f.frameX}mm, ${f.frameY}mm)` : undefined,
   };
 }
 

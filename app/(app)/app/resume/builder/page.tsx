@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
+import { getSessionUser } from "@/lib/supabase/app";
 import { ResumeEditor } from "@/components/app/ResumeEditor";
 import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
 import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
@@ -20,7 +21,11 @@ export const dynamic = "force-dynamic";
  * document, a way back to the templates, and Share.
  */
 export default async function ResumeBuilderPage() {
-  const [draft, resume] = await Promise.all([getPrimaryDraft(), getPrimaryResume()]);
+  const [draft, resume, user] = await Promise.all([
+    getPrimaryDraft(),
+    getPrimaryResume(),
+    getSessionUser(),
+  ]);
 
   if (!draft) {
     return (
@@ -58,6 +63,8 @@ export default async function ResumeBuilderPage() {
       title={draft.title}
       shareId={draft.share_id}
       isPublic={draft.is_public}
+      linkRole={draft.link_role}
+      ownerEmail={user?.email ?? null}
       initialStyles={draft.styles}
       initialPhoto={draft.photo}
     />

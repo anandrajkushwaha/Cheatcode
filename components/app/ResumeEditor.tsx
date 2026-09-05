@@ -51,8 +51,24 @@ type Props = {
   title: string;
   shareId: string | null;
   isPublic: boolean;
+  /** What the public link grants. Only the owner can change it. */
+  linkRole?: "view" | "edit";
+  /** Shown as "you" in the share sheet's list of people. */
+  ownerEmail?: string | null;
   initialStyles: Presentation;
   initialPhoto: string | null;
+  /**
+   * Set when this is somebody else's resume, opened through a link that
+   * granted editing.
+   *
+   * It changes two things and deliberately nothing else. Saves go to the
+   * shared route, which re-checks the grant server-side rather than trusting
+   * this flag; and Share is hidden, because deciding who else may read a
+   * document is the owner's call, not a guest's. Everything about editing —
+   * the toolbar, undo, zoom, pages — is identical, because a guest who was
+   * given a pen was given the whole pen.
+   */
+  sharedAs?: string | null;
 };
 
 /** What the section switcher lists, in the order the page shows them. */
@@ -66,6 +82,14 @@ const SECTION_LABELS: Record<string, string> = {
   achievements: "Achievements",
 };
 
+/** What the "+ Add section" menu offers, in the order the page shows them. */
+const ADDABLE: { key: ListKey; label: string }[] = [
+  { key: "roles", label: "A job" },
+  { key: "education", label: "Education" },
+  { key: "projects", label: "A project" },
+  { key: "achievements", label: "An achievement" },
+];
+
 /** How many steps back Ctrl-Z can go. Deep enough to undo a bad paste. */
 const HISTORY = 60;
 
@@ -76,8 +100,11 @@ export function ResumeEditor({
   title,
   shareId,
   isPublic,
+  linkRole = "view",
+  ownerEmail = null,
   initialStyles,
   initialPhoto,
+  sharedAs = null,
 }: Props) {
   const [content, setContent] = useState<Resume>(initial);
   const [styles, setStyles] = useState<Presentation>(initialStyles ?? EMPTY_PRESENTATION);
@@ -88,6 +115,23 @@ export function ResumeEditor({
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [share, setShare] = useState(false);
+
+  /**
+   * Zoom, and how many pages there turned out to be.
+   *
+   * The zoom is a CSS transform on the page rather than a font-size change,
+   * for the same reason the gallery thumbnails are: at 50% the document has to
+   * be the *same* document, laid out identically, or the line breaks move and
+   * what somebody is judging is no longer what prints.
+   *
+   * The page count is measured rather than estimated. An estimate from
+   * character counts is what the ATS length check uses and it is fine for a
+   * score; it is not fine for a number on screen that somebody will trust.
+   */
+  const [zoom, setZoom] = useState(1);
+  const [adding, setAdding] = useState(false);
+  const [pages, setPages] = useState(1);
+  const page = useRef<HTMLDivElement>(null);
 
   /**
    * Undo, as two stacks.
@@ -136,6 +180,23 @@ export function ResumeEditor({
     });
   }, []);
 
+  /** Remeasure whenever the document changes shape. */
+  useEffect(() => {
+    const node = page.current;
+    if (!node) return;
+
+    const measure = () => {
+      // 297mm at 96dpi, less the 12mm margin top and bottom that @page adds.
+      const perPage = (273 / 25.4) * 96;
+      setPages(Math.max(1, Math.ceil((node.scrollHeight - 1) / perPage)));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [content, styles, template, photo]);
+
   /** Warn before losing edits — only while there are some, or it is noise. */
   useEffect(() => {
     if (!dirty) return;
@@ -158,6 +219,15 @@ export function ResumeEditor({
       } else if (e.key === "s") {
         e.preventDefault();
         void save();
+      } else if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setZoom((z) => Math.min(2, Math.round((z + 0.1) * 10) / 10));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 10) / 10));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setZoom(1);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -253,15 +323,32 @@ export function ResumeEditor({
     [content, change, styles, restyle],
   );
 
+  /** The page-controls duplicate button, which acts on whatever is selected. */
+  function duplicateSelectedBlock() {
+    const row = selected?.match(/^(roles|projects|education|achievements)\.\d+/)?.[0];
+    if (!row) return;
+    const next = duplicateBlock(content, row);
+    if (next) change(next.content);
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/app/resume/draft", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: draftId, content, template, styles, photo }),
-      });
+      // A guest's save goes somewhere else entirely: no draft id, because the
+      // share id is the only handle they hold and the server decides from it
+      // which row — if any — they are allowed to write.
+      const res = sharedAs
+        ? await fetch("/api/app/resume/shared", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ shareId: sharedAs, content, styles, photo }),
+          })
+        : await fetch("/api/app/resume/draft", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: draftId, content, template, styles, photo }),
+          });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) throw new Error(json.error ?? "That didn't save.");
       setDirty(false);
@@ -283,7 +370,7 @@ export function ResumeEditor({
           href="/app/resume"
           className="rounded-full px-3 py-1.5 text-[0.82rem] font-medium text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
         >
-          ← Templates
+          {sharedAs ? "← Your resumes" : "← Templates"}
         </a>
 
         <span className="mx-1 h-5 w-px bg-ink-08" />
@@ -312,13 +399,22 @@ export function ResumeEditor({
           Save
         </button>
 
-        <button
-          type="button"
-          onClick={() => setShare(true)}
-          className="rounded-full bg-ink px-4 py-1.5 text-[0.82rem] font-semibold text-paper transition-transform hover:scale-[1.03]"
-        >
-          Share
-        </button>
+        {sharedAs ? (
+          // Whose document this is, said plainly. A guest editing somebody
+          // else's resume with no sign of it on screen is how somebody
+          // rewrites a friend's work believing it is their own copy.
+          <span className="rounded-full bg-ink-04 px-3.5 py-1.5 text-[0.78rem] font-medium text-ink-50">
+            Shared with you
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShare(true)}
+            className="rounded-full bg-ink px-4 py-1.5 text-[0.82rem] font-semibold text-paper transition-transform hover:scale-[1.03]"
+          >
+            Share
+          </button>
+        )}
       </header>
 
       <EditorToolbar
@@ -345,46 +441,188 @@ export function ResumeEditor({
         onSection={onSection}
         photoSlot={showsPhoto(templateById(template).layout)}
         onPhotoFit={(photoFit: PhotoFit) => restyle({ ...styles, photoFit })}
+        onSelect={setSelected}
       />
 
-      {/* --------------------------------------------------------- canvas */}
+      {/* ------------------------------------------------------ the canvas
+
+          A grey field with the page floating on it, page controls above and
+          the way to add more below — the shape every design editor has settled
+          on, because it makes the paper the subject and everything else the
+          frame around it. */}
       <div
-        className="min-h-0 flex-1 overflow-auto px-4 py-8 print:overflow-visible print:p-0"
+        className="relative min-h-0 flex-1 overflow-auto print:overflow-visible print:p-0"
         onMouseDown={(e) => {
           // Only the canvas itself, never a click that landed on the page.
           if (e.target === e.currentTarget) setSelected(null);
         }}
       >
-        <div className="mx-auto w-fit">
-          <div className="bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
-            <ResumeDocument
-              content={content}
-              template={template}
-              edit={edit}
-              selected={selected}
-              styles={styles}
-              photo={photo}
-            />
+        <div className="flex min-h-full w-fit min-w-full flex-col items-center px-8 py-8 print:p-0">
+          {/* Page controls, above the sheet, right-aligned — where Canva puts
+              them and where the eye already looks for them. */}
+          <div
+            className="no-print mb-2 flex items-center gap-1"
+            style={{ width: `calc(210mm * ${zoom})` }}
+          >
+            <span className="flex-1" />
+            <PageButton label="Duplicate this section" onClick={() => duplicateSelectedBlock()}>
+              <rect x="6" y="6" width="9" height="9" rx="1.5" />
+              <path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v6A1.5 1.5 0 0 0 4.5 12H6" />
+            </PageButton>
+            <PageButton label="Add a section" onClick={() => setAdding((v) => !v)}>
+              <path d="M10 4v12M4 10h12" />
+            </PageButton>
           </div>
 
-          <p className="no-print mt-4 text-center text-[0.78rem] text-ink-30">
-            Click any line to change it. Enter starts the next bullet, Backspace on an empty one
-            removes it. Hover a block for its controls.
-          </p>
+          {/* The sheet. Scaled with a transform so the layout inside it is
+              byte-identical at every zoom — a font-size change would move the
+              line breaks and the thing being judged would stop being the thing
+              that prints. */}
+          <div
+            style={{
+              width: `calc(210mm * ${zoom})`,
+              height: page.current ? page.current.offsetHeight * zoom : undefined,
+            }}
+            className="print:!h-auto print:!w-auto"
+          >
+            <div
+              ref={page}
+              style={{ transform: zoom === 1 ? undefined : `scale(${zoom})`, transformOrigin: "top left" }}
+              className="w-fit bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_16px_48px_-16px_rgba(0,0,0,0.25)] print:!transform-none print:shadow-none"
+            >
+              <ResumeDocument
+                content={content}
+                template={template}
+                edit={edit}
+                selected={selected}
+                styles={styles}
+                photo={photo}
+              />
+            </div>
+          </div>
+
+          {/* Canva's "+ Add page" lives here. A resume is a document that
+              flows rather than a stack of canvases, so a blank page is not a
+              thing somebody can want — pages appear as the writing grows. The
+              equivalent action, and the one people are actually reaching for,
+              is another section. */}
+          <div className="no-print relative mt-4" style={{ width: `calc(210mm * ${zoom})` }}>
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-ink-15 bg-paper py-3 text-[0.88rem] font-medium transition-colors hover:border-ink-30"
+            >
+              <span className="text-[1.05rem] leading-none">+</span> Add section
+            </button>
+
+            {adding && (
+              <div className="absolute bottom-[calc(100%+6px)] left-1/2 z-20 w-[220px] -translate-x-1/2 overflow-hidden rounded-xl border border-ink-08 bg-paper p-1 shadow-xl">
+                {ADDABLE.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    onClick={() => {
+                      change(addRow(content, a.key));
+                      setAdding(false);
+                    }}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-[0.85rem] transition-colors hover:bg-ink-04"
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ----------------------------------------------------- bottom bar */}
+      <footer className="no-print flex shrink-0 items-center gap-4 border-t border-ink-08 bg-paper px-4 py-2">
+        <p className="min-w-0 flex-1 truncate text-[0.78rem] text-ink-30">
+          Click a line to change it. Enter starts the next bullet; Backspace on an empty one
+          removes it.
+        </p>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 10) / 10))}
+            className="grid h-6 w-6 place-items-center rounded-full text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+          >
+            −
+          </button>
+          <input
+            type="range"
+            min={0.25}
+            max={2}
+            step={0.05}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            aria-label="Zoom"
+            className="w-28 accent-black"
+          />
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.1) * 10) / 10))}
+            className="grid h-6 w-6 place-items-center rounded-full text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="w-12 rounded-md py-0.5 text-[0.78rem] tabular-nums text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+        </div>
+
+        <span className="h-4 w-px bg-ink-08" />
+
+        <span className="text-[0.78rem] tabular-nums text-ink-50">
+          {pages === 1 ? "1 page" : `${pages} pages`}
+        </span>
+      </footer>
 
       {share && (
         <ShareDialog
           draftId={draftId}
           shareId={shareId}
           isPublic={isPublic}
+          linkRole={linkRole}
+          ownerEmail={ownerEmail}
           dirty={dirty}
           onSave={save}
           onClose={() => setShare(false)}
         />
       )}
     </div>
+  );
+}
+
+function PageButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className="grid h-7 w-7 place-items-center rounded-md text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+    >
+      <svg viewBox="0 0 20 20" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </button>
   );
 }
 
@@ -575,6 +813,19 @@ const BLANK: Record<ListKey, unknown> = {
   education: { degree: null, institution: null, year: null },
   achievements: "",
 };
+
+/**
+ * Append an empty block of a kind, for the "+ Add section" menu.
+ *
+ * Empty rather than a copy. Duplicating the last job sounds friendlier and
+ * produces a resume with the same role listed twice, which somebody then has
+ * to edit into shape — more work than typing it, and it looks careless if they
+ * forget.
+ */
+function addRow(content: Resume, key: ListKey): Resume {
+  const list = listOf(content, key) ?? [];
+  return { ...content, [key]: [...list, structuredClone(BLANK[key])] };
+}
 
 function listOf(content: Resume, key: string): unknown[] | null {
   if (!["roles", "education", "projects", "achievements"].includes(key)) return null;

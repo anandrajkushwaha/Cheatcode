@@ -136,7 +136,16 @@ const LIMITS = {
   certifications: 20,
   certification: 160,
   achievements: 15,
-  achievement: 300,
+  /**
+   * The same 700 a bullet gets, and it used to be 300.
+   *
+   * An achievement is a bullet that happens to live in a different section,
+   * so holding it to less than half a bullet's length was arbitrary. It also
+   * failed silently and in the middle of a word: text pasted into the editor
+   * came back from a save cut off at "…oversight of a small te", with
+   * nothing on screen saying why.
+   */
+  achievement: 700,
   links: 8,
   linkLabel: 40,
   url: 200,
@@ -149,7 +158,26 @@ function text(v: unknown, max: number): string | null {
   // A model asked for null sometimes writes the word instead.
   const s = v.trim().replace(/\s+/g, " ");
   if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return null;
-  return s.slice(0, max);
+  return trim(s, max);
+}
+
+/**
+ * Cut at a word, never through one.
+ *
+ * A limit has to exist — these strings are rendered into a fixed page and read
+ * back by a model — but "…oversight of a small te" reads as a bug in a way
+ * that "…oversight of a small" does not. The cut still loses text and is still
+ * silent; this only stops it looking like corruption.
+ *
+ * The last space is only honoured if it is reasonably near the end, so a long
+ * unbroken string (a URL, a base64 blob) is cut where the limit falls rather
+ * than thrown away back to its first space.
+ */
+function trim(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return space > max * 0.8 ? cut.slice(0, space) : cut;
 }
 
 /** Multi-line text — a summary keeps its paragraphs, a name does not. */
@@ -157,7 +185,7 @@ function block(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;
   const s = v.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   if (!s || s.toLowerCase() === "null") return null;
-  return s.slice(0, max);
+  return trim(s, max);
 }
 
 function list(v: unknown, max: number, each: number, minLength = 1): string[] {

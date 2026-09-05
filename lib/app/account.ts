@@ -88,6 +88,13 @@ export type ResumeDraft = {
   share_id: string | null;
   /** Whether that address currently serves anything. */
   is_public: boolean;
+  /**
+   * What the link itself grants: 'view' or 'edit'. Named people are granted
+   * separately, by email address, in `resume_collaborators` — a link that
+   * edits is a link that anybody it was ever forwarded to can rewrite, so
+   * this stays 'view' unless somebody deliberately changes it.
+   */
+  link_role: "view" | "edit";
   is_primary: boolean;
   created_at: string;
   updated_at: string;

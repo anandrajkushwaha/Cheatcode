@@ -3,6 +3,8 @@ import {
   EMPTY_PRESENTATION,
   GOOGLE_FONTS_HREF,
   photoCss,
+  photoFrameCss,
+  PHOTO_CROP_PATH,
   PHOTO_PATH,
   styleToCss,
   type Presentation,
@@ -333,7 +335,14 @@ function Joined({
   );
 }
 
-type Ctx = { content: DraftContent; edit?: Edit; stack?: boolean; styles?: Presentation };
+type Ctx = {
+  content: DraftContent;
+  edit?: Edit;
+  stack?: boolean;
+  styles?: Presentation;
+  /** The selected path, so the block containing it can show its ring. */
+  selected?: string | null;
+};
 
 /**
  * The rows to draw, with one empty one when the list is empty and somebody is
@@ -359,7 +368,16 @@ const BLANK_PROJECT = { name: null, link: null, description: null, highlights: [
 const BLANK_EDUCATION = { degree: null, institution: null, year: null };
 
 /** Every section, keyed, so a layout can arrange them without knowing them. */
-function renderSection(key: SectionKey, { content, edit, stack, styles }: Ctx) {
+function renderSection(key: SectionKey, { content, edit, stack, styles, selected }: Ctx) {
+  /**
+   * A block is selected when the caret is anywhere inside it.
+   *
+   * Prefix rather than equality: the selection is a field path like
+   * `roles.1.highlights.0`, and the block that should light up is `roles.1`.
+   * The trailing dot matters — without it `roles.1` would also claim
+   * `roles.10`, and a ten-job resume would light up two blocks at once.
+   */
+  const inBlock = (row: string) => Boolean(selected && (selected === row || selected.startsWith(`${row}.`)));
   const some = (n: number | undefined) => (n ?? 0) > 0 || Boolean(edit);
 
   switch (key) {
@@ -384,7 +402,7 @@ function renderSection(key: SectionKey, { content, edit, stack, styles }: Ctx) {
           {rows(content.roles, edit, BLANK_ROLE).map((r, i) => {
             const when = [r.start, r.is_current ? "Present" : r.end].filter(Boolean).join(" – ");
             return (
-              <div key={i} className="rd-role" data-row={`roles.${i}`}>
+              <div key={i} className={`rd-role${inBlock(`roles.${i}`) ? " is-selected" : ""}`} data-row={`roles.${i}`}>
                 <BlockTools row={`roles.${i}`} edit={edit} />
                 {/* Title and company on one line. A company alone on its own
                     line is short and capitalised, and gets mistaken for a
@@ -445,7 +463,7 @@ function renderSection(key: SectionKey, { content, edit, stack, styles }: Ctx) {
       return some(content.projects?.length) ? (
         <Section key={key} title="PROJECTS">
           {rows(content.projects, edit, BLANK_PROJECT).map((p, i) => (
-            <div key={i} className="rd-role" data-row={`projects.${i}`}>
+            <div key={i} className={`rd-role${inBlock(`projects.${i}`) ? " is-selected" : ""}`} data-row={`projects.${i}`}>
               <BlockTools row={`projects.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
@@ -493,7 +511,7 @@ function renderSection(key: SectionKey, { content, edit, stack, styles }: Ctx) {
       return some(content.education?.length) ? (
         <Section key={key} title="EDUCATION">
           {rows(content.education, edit, BLANK_EDUCATION).map((e, i) => (
-            <div key={i} className="rd-edu" data-row={`education.${i}`}>
+            <div key={i} className={`rd-edu${inBlock(`education.${i}`) ? " is-selected" : ""}`} data-row={`education.${i}`}>
               <BlockTools row={`education.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
@@ -632,7 +650,8 @@ function Monogram({
   photo?: string | null;
   edit?: Edit;
   styles?: Presentation;
-  selected?: boolean;
+  /** "photo" for the frame, "photo:crop" for the picture inside it. */
+  selected?: string | null;
 }) {
   if (photo) {
     // A plain <img> rather than next/image: this is a data URL that is already
@@ -644,27 +663,52 @@ function Monogram({
       <img className="rd-photo" src={photo} alt="" aria-hidden style={photoCss(styles?.photoFit)} />
     );
 
-    if (!edit) return img;
+    const frame = photoFrameCss(styles?.photoFit);
+    if (!edit) return <span className="rd-photo-wrap" style={frame}>{img}</span>;
 
+    /**
+     * One click selects the frame, two enters the crop.
+     *
+     * Straight out of Canva, and it is the right split rather than an
+     * imitation of one: making the hole bigger and making the picture bigger
+     * behind it are different intentions, and a single control that does both
+     * at once is the thing everybody finds frustrating without being able to
+     * say why. The mode is carried in the selection path so the toolbar knows
+     * which set of numbers it is editing.
+     */
     return (
-      <span className={`rd-photo-wrap${selected ? " is-selected" : ""}`} contentEditable={false}>
+      <span
+        className={`rd-photo-wrap${selected ? ` is-${selected}` : ""}`}
+        contentEditable={false}
+        style={frame}
+      >
         <button
           type="button"
           className="rd-photo-hit"
-          aria-label="Select the photo"
+          aria-label="Select the photo. Double-click to crop it."
           onClick={() => edit.select?.(PHOTO_PATH)}
+          onDoubleClick={() => edit.select?.(PHOTO_CROP_PATH)}
         >
           {img}
         </button>
+
         {/* Only once it is selected. A delete button hovering over every
             photograph invites the accident it exists to undo. */}
         {selected && (
-          <button
-            type="button"
-            className="rd-tool rd-tool-delete rd-photo-remove"
-            aria-label="Remove the photo"
-            onClick={() => edit.removePhoto?.()}
-          />
+          <span className="rd-photo-bar">
+            <button
+              type="button"
+              className="rd-tool rd-tool-crop"
+              aria-label="Crop the photo"
+              onClick={() => edit.select?.(PHOTO_CROP_PATH)}
+            />
+            <button
+              type="button"
+              className="rd-tool rd-tool-delete"
+              aria-label="Remove the photo"
+              onClick={() => edit.removePhoto?.()}
+            />
+          </span>
         )}
       </span>
     );
@@ -719,8 +763,8 @@ export function ResumeDocument({
   const layout: Layout = chosen.layout;
   const { aside, main } = sectionOrder(layout);
 
-  const ctx: Ctx = { content, edit, styles };
-  const asideCtx: Ctx = { content, edit, stack: true, styles };
+  const ctx: Ctx = { content, edit, styles, selected };
+  const asideCtx: Ctx = { content, edit, stack: true, styles, selected };
 
   /**
    * A hidden section stays hidden while editing too.
@@ -780,7 +824,9 @@ export function ResumeDocument({
               photo={photo}
               edit={edit}
               styles={styles}
-              selected={selected === PHOTO_PATH}
+              selected={
+                selected === PHOTO_PATH || selected === PHOTO_CROP_PATH ? selected : null
+              }
             />
           </header>
           <div className="rd-pad">{body(main, ctx)}</div>
@@ -796,7 +842,9 @@ export function ResumeDocument({
               photo={photo}
               edit={edit}
               styles={styles}
-              selected={selected === PHOTO_PATH}
+              selected={
+                selected === PHOTO_PATH || selected === PHOTO_CROP_PATH ? selected : null
+              }
             />
               <Name {...ctx} />
             </div>
@@ -1009,6 +1057,14 @@ const SHEET = `
 /* Block controls. Out of the flow entirely and revealed on hover, so a page
    being edited has exactly the measurements of a page being printed. */
 .rd-editing .rd-role, .rd-editing .rd-edu { position: relative; }
+/* A block whose caret is inside it shows a selection ring, the way an element
+   does in a design editor. Hover alone was too easy to miss — several controls
+   only ever appeared if the pointer happened to cross the right rectangle. */
+.rd-editing .rd-role.is-selected, .rd-editing .rd-edu.is-selected {
+  outline: 1.5px solid #7c5cff;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 .rd-tools {
   position: absolute;
   top: -3mm;
@@ -1024,7 +1080,11 @@ const SHEET = `
   pointer-events: none;
   transition: opacity 100ms ease;
 }
-.rd-role:hover > .rd-tools, .rd-edu:hover > .rd-tools, .rd-tools:focus-within {
+.rd-role:hover > .rd-tools,
+.rd-edu:hover > .rd-tools,
+.rd-role.is-selected > .rd-tools,
+.rd-edu.is-selected > .rd-tools,
+.rd-tools:focus-within {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1089,6 +1149,20 @@ const SHEET = `
 /* ------------------------------------------------------------ photograph */
 
 .rd-photo-wrap { position: relative; display: inline-block; flex: none; }
+.rd-photo-wrap .rd-photo { width: 100%; height: 100%; }
+.rd-photo-bar {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 4px 14px -4px rgba(0,0,0,.35);
+}
+.rd-tool-crop::before { content: "\\2702"; font-size: 12px; }
 .rd-photo-hit {
   display: block;
   padding: 0;
@@ -1097,17 +1171,14 @@ const SHEET = `
   border-radius: 50%;
   cursor: pointer;
 }
-.rd-photo-wrap.is-selected .rd-photo {
-  outline: 2px solid #2563eb;
+/* Purple for the frame, dashed for the crop — the same visual grammar Canva
+   uses, so the two modes are distinguishable at a glance. */
+.rd-photo-wrap.is-photo .rd-photo { outline: 2px solid #7c5cff; outline-offset: 2px; }
+.rd-photo-wrap.is-photo\\:crop .rd-photo {
+  outline: 2px dashed #7c5cff;
   outline-offset: 2px;
 }
-.rd-photo-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 4px 12px -4px rgba(0,0,0,.4);
-}
+
 
 @media print {
   /* @page already supplies the vertical margin; keeping this would double it. */
@@ -1117,9 +1188,9 @@ const SHEET = `
   .rd-h2 { break-after: avoid; }
   .rd-edit { box-shadow: none !important; background: none !important; }
   .rd-edit:empty::before { content: "" !important; }
-  .rd-tools, .rd-photo-remove { display: none !important; }
+  .rd-tools, .rd-photo-bar { display: none !important; }
   .rd-editing::after, .rd-editing::before { display: none !important; }
-  .rd-photo-wrap.is-selected .rd-photo { outline: none !important; }
+  .rd-photo-wrap .rd-photo { outline: none !important; }
   /* Fills and washes have to be asked for, or a printer drops them and a
      sidebar template comes out as white text on white paper. */
   .rd-band, .rd-aside, .rd-monogram, .rd-photo {

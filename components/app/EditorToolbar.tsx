@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_PHOTO_FIT,
   FONTS,
+  PHOTO_CROP_PATH,
   PHOTO_PATH,
   SWATCHES,
   type FieldStyle,
@@ -39,6 +40,7 @@ type Props = {
   /** False when the chosen template has nowhere to show one. */
   photoSlot: boolean;
   onPhotoFit: (fit: PhotoFit) => void;
+  onSelect: (path: string | null) => void;
 };
 
 export function EditorToolbar({
@@ -51,6 +53,7 @@ export function EditorToolbar({
   onSection,
   photoSlot,
   onPhotoFit,
+  onSelect,
 }: Props) {
   const [open, setOpen] = useState<"font" | "colour" | "sections" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,44 +108,94 @@ export function EditorToolbar({
   const fit = styles.photoFit ?? DEFAULT_PHOTO_FIT;
   const nudge = (patch: Partial<PhotoFit>) => onPhotoFit({ ...fit, ...patch });
 
-  if (selected === PHOTO_PATH && photo) {
+  /**
+   * One pair of arrow keys, two meanings.
+   *
+   * In crop mode they slide the picture behind the hole, in percentages of the
+   * frame. Otherwise they move the hole itself, in millimetres on the page.
+   * Different units on purpose: a percentage of a circle is the natural way to
+   * talk about a crop, and a millimetre is the natural way to talk about where
+   * something sits on paper.
+   */
+  const move = (dx: number, dy: number) =>
+    cropping
+      ? nudge({
+          x: Math.max(-50, Math.min(50, fit.x + dx * 4)),
+          y: Math.max(-50, Math.min(50, fit.y + dy * 4)),
+        })
+      : nudge({
+          frameX: Math.max(-40, Math.min(40, fit.frameX + dx)),
+          frameY: Math.max(-40, Math.min(40, fit.frameY + dy)),
+        });
+
+  const cropping = selected === PHOTO_CROP_PATH;
+
+  if ((selected === PHOTO_PATH || cropping) && photo) {
     return (
       <div
         ref={root}
         className="no-print relative flex flex-wrap items-center gap-3 border-b border-ink-08 bg-paper px-3 py-2"
       >
-        <span className="text-[0.8rem] font-medium">Photo</span>
+        <span className="text-[0.8rem] font-medium">{cropping ? "Crop" : "Photo"}</span>
+
+        {/* Which of the two things a zoom means here, said out loud. The modes
+            are otherwise only distinguishable by a dashed outline, which is
+            not enough to explain why the same slider does something different
+            than it did a moment ago. */}
+        <span className="text-[0.75rem] text-ink-30">
+          {cropping ? "the picture inside the circle" : "the circle itself"}
+        </span>
 
         <label className="flex items-center gap-2 text-[0.78rem] text-ink-50">
-          Zoom
+          {cropping ? "Zoom" : "Size"}
           <input
             type="range"
-            min={1}
-            max={3}
+            min={cropping ? 1 : 0.5}
+            max={cropping ? 3 : 2}
             step={0.05}
-            value={fit.scale}
-            onChange={(e) => nudge({ scale: Number(e.target.value) })}
+            value={cropping ? fit.scale : fit.frame}
+            onChange={(e) =>
+              nudge(cropping ? { scale: Number(e.target.value) } : { frame: Number(e.target.value) })
+            }
             className="w-32 accent-black"
           />
-          <span className="w-9 tabular-nums">{fit.scale.toFixed(2)}×</span>
+          <span className="w-9 tabular-nums">
+            {(cropping ? fit.scale : fit.frame).toFixed(2)}×
+          </span>
         </label>
 
         {/* Nudges rather than a drag surface. A drag inside a 22mm circle is
             fiddly on a trackpad and impossible on a phone; four buttons move
             it predictably and can be held down. */}
         <span className="flex items-center gap-1">
-          <Step label="Move left" onClick={() => nudge({ x: Math.max(-50, fit.x - 4) })}>←</Step>
-          <Step label="Move right" onClick={() => nudge({ x: Math.min(50, fit.x + 4) })}>→</Step>
-          <Step label="Move up" onClick={() => nudge({ y: Math.max(-50, fit.y - 4) })}>↑</Step>
-          <Step label="Move down" onClick={() => nudge({ y: Math.min(50, fit.y + 4) })}>↓</Step>
+          <Step label="Move left" onClick={() => move(-1, 0)}>←</Step>
+          <Step label="Move right" onClick={() => move(1, 0)}>→</Step>
+          <Step label="Move up" onClick={() => move(0, -1)}>↑</Step>
+          <Step label="Move down" onClick={() => move(0, 1)}>↓</Step>
         </span>
 
         <button
           type="button"
-          onClick={() => onPhotoFit(DEFAULT_PHOTO_FIT)}
+          onClick={() =>
+            // Reset the half being edited, not both. Somebody adjusting a crop
+            // has not asked for the circle they carefully sized to jump back.
+            onPhotoFit(
+              cropping
+                ? { ...fit, scale: 1, x: 0, y: 0 }
+                : { ...fit, frame: 1, frameX: 0, frameY: 0 },
+            )
+          }
           className="rounded-full px-3 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
         >
           Reset
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelect(cropping ? PHOTO_PATH : PHOTO_CROP_PATH)}
+          className="rounded-full border border-ink-15 px-3 py-1.5 text-[0.78rem] font-medium transition-colors hover:border-ink"
+        >
+          {cropping ? "Done cropping" : "Crop"}
         </button>
 
         <Divider />

@@ -32,7 +32,11 @@ export default async function SharedResumePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [shared, viewer] = await Promise.all([getShared(id), getSessionUser()]);
+  // The session is read first, because whether this person may edit depends on
+  // the address they are signed in as — and that is the one thing the browser
+  // is not allowed to assert about itself.
+  const viewer = await getSessionUser();
+  const shared = await getShared(id, viewer?.email ?? null);
 
   // A withdrawn link and a link that never existed are the same 404 on
   // purpose. Telling the difference would confirm that a resume is there,
@@ -48,10 +52,23 @@ export default async function SharedResumePage({
           </Link>
 
           <div className="flex items-center gap-4 text-[0.82rem]">
+            {shared.canEdit && (
+              <Link
+                href={`/r/${id}/edit`}
+                className="rounded-full bg-black px-4 py-1.5 font-semibold text-white transition-transform hover:scale-[1.03]"
+              >
+                Edit this resume
+              </Link>
+            )}
+
             {viewer ? (
               <Link
                 href="/app/resume"
-                className="rounded-full bg-black px-4 py-1.5 font-semibold text-white transition-transform hover:scale-[1.03]"
+                className={
+                  shared.canEdit
+                    ? "text-black/50 transition-colors hover:text-black"
+                    : "rounded-full bg-black px-4 py-1.5 font-semibold text-white transition-transform hover:scale-[1.03]"
+                }
               >
                 Your resumes
               </Link>
@@ -83,7 +100,23 @@ export default async function SharedResumePage({
       </div>
 
         <p className="no-print mx-auto mt-6 max-w-[62ch] px-5 text-center text-[0.82rem] leading-relaxed text-black/40">
-          Shared from Cheatcode. This is a read-only copy — {shared.title}.
+          {shared.canEdit ? (
+            <>
+              Shared from Cheatcode — {shared.title}. You can change this one
+              {shared.grantedBy === "invite" ? ", because you were invited to." : "."}
+            </>
+          ) : shared.linkRole === "edit" && !viewer ? (
+            <>
+              Shared from Cheatcode — {shared.title}. Whoever holds this link can edit it, but you
+              have to{" "}
+              <Link href="/signin" className="underline underline-offset-2">
+                sign in
+              </Link>{" "}
+              first, so the change has a name on it.
+            </>
+          ) : (
+            <>Shared from Cheatcode. This is a read-only copy — {shared.title}.</>
+          )}
         </p>
       </div>
     </main>
