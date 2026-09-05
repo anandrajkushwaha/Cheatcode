@@ -83,6 +83,38 @@ export async function GET() {
   const live = liveProvider();
 
   /**
+   * Why this provider and not the other one.
+   *
+   * Added after an afternoon spent staring at `"provider":"openai"` with no
+   * way to tell, from the deployed app, whether the switch had been set and
+   * ignored or never arrived. Reporting the chosen provider answers "what"
+   * and leaves "why" to guesswork, and the three causes — variable absent,
+   * variable present but the key for it missing, variable set on the wrong
+   * Vercel environment — are indistinguishable from the outside.
+   *
+   * `LLM_PROVIDER` holds a provider name, not a credential, so it is printed
+   * as-is: a trailing space or a capital S is exactly the kind of thing this
+   * needs to make visible. The keys are reported as booleans and nothing
+   * more — whether one exists is the diagnostic question; what it says is
+   * never anybody's business but the server's.
+   */
+  const configuration = {
+    LLM_PROVIDER: process.env.LLM_PROVIDER ?? "(not set)",
+    LIVE_PROVIDER: process.env.LIVE_PROVIDER ?? "(not set)",
+    perFeatureOverrides: Object.keys(process.env)
+      .filter((k) => k.startsWith("LLM_PROVIDER_"))
+      .reduce<Record<string, string>>((acc, k) => ((acc[k] = process.env[k] ?? ""), acc), {}),
+    /** Present or absent. Never the value. */
+    keysPresent: {
+      OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      GEMINI_API_KEY: Boolean(process.env.GEMINI_API_KEY?.trim()),
+      SARVAM_API_KEY: Boolean(process.env.SARVAM_API_KEY?.trim()),
+    },
+    typedProviderChosen: p ?? "none",
+    chosenBecause: whyThisProvider(),
+  };
+
+  /**
    * Actually try to mint a voice credential.
    *
    * Reporting which keys are set says nothing about whether a call can start,
@@ -141,25 +173,31 @@ export async function GET() {
     return Response.json({
       ok: false,
       account,
+      configuration,
       voice,
       error: "Neither OPENAI_API_KEY nor GEMINI_API_KEY is set on the server.",
     });
   }
 
-  if (p === "openai") return diagnoseOpenAI(voice, account);
-  if (p === "sarvam") return diagnoseSarvam(voice, account);
-  return diagnoseGemini(voice, account);
+  if (p === "openai") return diagnoseOpenAI(voice, account, configuration);
+  if (p === "sarvam") return diagnoseSarvam(voice, account, configuration);
+  return diagnoseGemini(voice, account, configuration);
 }
 
 /* ---------------------------------------------------------------- openai */
 
-async function diagnoseOpenAI(voice: Record<string, unknown>, account: Record<string, unknown>) {
+async function diagnoseOpenAI(
+  voice: Record<string, unknown>,
+  account: Record<string, unknown>,
+  configuration: Record<string, unknown>,
+) {
   const key = process.env.OPENAI_API_KEY!;
   const base = process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1";
 
   const report: Record<string, unknown> = {
     provider: "openai",
     account,
+    configuration,
     voice,
     keyLength: key.length,
     keyStartsWith: key.slice(0, 3),
@@ -303,7 +341,11 @@ function openaiVerdict(status: number): string {
 
 /* ---------------------------------------------------------------- gemini */
 
-async function diagnoseGemini(voice: Record<string, unknown>, account: Record<string, unknown>) {
+async function diagnoseGemini(
+  voice: Record<string, unknown>,
+  account: Record<string, unknown>,
+  configuration: Record<string, unknown>,
+) {
   const key = process.env.GEMINI_API_KEY!;
   const base =
     process.env.GEMINI_API_BASE ?? "https://generativelanguage.googleapis.com/v1beta/models";
@@ -311,6 +353,7 @@ async function diagnoseGemini(voice: Record<string, unknown>, account: Record<st
   const report: Record<string, unknown> = {
     provider: "gemini",
     account,
+    configuration,
     voice,
     keyLength: key.length,
     keyStartsWith: key.slice(0, 4),
@@ -473,7 +516,11 @@ function geminiVerdict(status: number): string {
  * that is not set, so the one page that answers "who is actually spending my
  * money" crashed exactly when the answer had become interesting.
  */
-async function diagnoseSarvam(voice: Record<string, unknown>, account: Record<string, unknown>) {
+async function diagnoseSarvam(
+  voice: Record<string, unknown>,
+  account: Record<string, unknown>,
+  configuration: Record<string, unknown>,
+) {
   const key = process.env.SARVAM_API_KEY!;
   const model = preferredSarvamModel();
   const url = sarvamChatUrl(model);
@@ -481,6 +528,7 @@ async function diagnoseSarvam(voice: Record<string, unknown>, account: Record<st
   const report: Record<string, unknown> = {
     provider: "sarvam",
     account,
+    configuration,
     voice,
     keyLength: key.length,
     keyStartsWith: key.slice(0, 3),
@@ -594,6 +642,54 @@ function sarvamVerdict(status: number, model: string, url: string): string {
 }
 
 /* ---------------------------------------------------------------- shared */
+
+/**
+ * The same decision `provider()` makes, said in words.
+ *
+ * Deliberately a second implementation rather than something `provider()`
+ * returns alongside its answer, and the duplication is the point: this is a
+ * sentence for a person, and threading an explanation through a function that
+ * every model call goes through would put prose on a hot path to serve a page
+ * almost nobody opens.
+ *
+ * The risk of two implementations drifting is real and bounded — if they ever
+ * disagree, `typedProviderChosen` and `chosenBecause` sit next to each other
+ * in the response and the contradiction is the first thing you see.
+ */
+function whyThisProvider(): string {
+  const forced = process.env.LLM_PROVIDER?.trim().toLowerCase();
+  const raw = process.env.LLM_PROVIDER;
+
+  if (raw && !["openai", "gemini", "sarvam"].includes(forced ?? "")) {
+    return `LLM_PROVIDER is set to "${raw}", which is not one of openai, gemini or sarvam, so it was ignored and the fallback order ran.`;
+  }
+
+  if (forced) {
+    const keyed =
+      forced === "openai"
+        ? process.env.OPENAI_API_KEY?.trim()
+        : forced === "gemini"
+          ? process.env.GEMINI_API_KEY?.trim()
+          : process.env.SARVAM_API_KEY?.trim();
+    return keyed
+      ? `LLM_PROVIDER=${forced} and its key is present, so ${forced} was used.`
+      : `LLM_PROVIDER=${forced} but no key for it is set on this deployment, so nothing could answer.`;
+  }
+
+  // The case that actually bit: the variable never reached the running build.
+  const fell = process.env.OPENAI_API_KEY?.trim()
+    ? "openai"
+    : process.env.GEMINI_API_KEY?.trim()
+      ? "gemini"
+      : process.env.SARVAM_API_KEY?.trim()
+        ? "sarvam"
+        : null;
+
+  return fell
+    ? `LLM_PROVIDER is not set on this deployment, so the fallback order (openai, then gemini, then sarvam) picked ${fell}. ` +
+        `If you set it in Vercel, check it is on the Production environment and that a deployment was made after saving it — a variable is baked into a deployment, not applied to a running one.`
+    : "No provider key is set at all on this deployment.";
+}
 
 function messageFrom(text: string): string {
   try {
