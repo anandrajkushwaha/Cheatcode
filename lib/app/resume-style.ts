@@ -120,9 +120,22 @@ export function cleanPresentation(value: unknown): Presentation {
   if (!value || typeof value !== "object") return { fields: {}, hidden: [] };
   const raw = value as { fields?: unknown; hidden?: unknown };
 
-  // Null-prototyped, so even a key that slipped past the checks below could
-  // not reach Object.prototype.
-  const fields: Record<string, FieldStyle> = Object.create(null);
+  /**
+   * A plain object, and it has to be one.
+   *
+   * This was `Object.create(null)` for about an hour — belt as well as braces
+   * on top of the `PROTO` check below. It is also a 500: React's server
+   * serializer requires `getPrototypeOf(value) === Object.prototype` for
+   * anything crossing into a client component, and a null-prototyped object
+   * fails that check at request time rather than at build time. The builder
+   * page went blank with "a server error occurred" and nothing in the code
+   * looked wrong.
+   *
+   * The braces were the belt anyway: rejecting the three dangerous segment
+   * names below is what actually stops prototype pollution, and there is a
+   * test for it.
+   */
+  const fields: Record<string, FieldStyle> = {};
   if (raw.fields && typeof raw.fields === "object") {
     for (const [path, style] of Object.entries(raw.fields as Record<string, unknown>)) {
       // Paths are what the document puts on the DOM and what the editor reads
