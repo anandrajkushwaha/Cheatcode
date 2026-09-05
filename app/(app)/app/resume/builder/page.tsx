@@ -2,22 +2,22 @@ import Link from "next/link";
 import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
 import { ResumeEditor } from "@/components/app/ResumeEditor";
 import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
-import { DEFAULT_TEMPLATE, templateById } from "@/lib/app/resume-templates";
-import { ScoreRing } from "@/components/app/ui";
+import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The resume, rebuilt.
+ * The editor, and only the editor.
  *
- * An ATS score is a verdict on a document somebody already has, and a verdict
- * with no next move is just a bad mood. This is the next move: the same
- * content, in a document whose layout we chose, scored by the same function
- * so the improvement is a measurement rather than a promise.
+ * This page used to carry a score ring, a verdict, a checklist of what the
+ * layout could not fix, a template rail and a row of buttons — all of it above
+ * the document, all of it pushing the thing somebody came here to work on
+ * below the fold. Every piece was defensible on its own and together they made
+ * an editor you had to scroll past a dashboard to reach.
  *
- * Editable in place rather than read-only, and rather than a form beside a
- * preview: the page you click on is the page that prints. Why that is worth
- * the extra work is argued in components/app/ResumeEditor.tsx.
+ * The score has not been thrown away; it belongs where the decision is, which
+ * is the template gallery, next to the template it describes. Here there is a
+ * document, a way back to the templates, and Share.
  */
 export default async function ResumeBuilderPage() {
   const [draft, resume] = await Promise.all([getPrimaryDraft(), getPrimaryResume()]);
@@ -29,8 +29,7 @@ export default async function ResumeBuilderPage() {
         <p className="mt-2.5 max-w-[62ch] text-[0.92rem] leading-relaxed text-ink-50">
           {resume
             ? "We'll start from the resume you already uploaded — your roles, dates and bullets, " +
-              "already in place — and lay them out in a format applicant tracking software can " +
-              "actually read."
+              "already in place."
             : "Upload a resume first. The builder starts from what you've already written rather " +
               "than from a blank page."}
         </p>
@@ -51,105 +50,14 @@ export default async function ResumeBuilderPage() {
     );
   }
 
-  const result = draft.ats_result;
-  const score = draft.ats_score ?? 0;
-  const before = resume?.ats_score ?? null;
-  const gained = before !== null ? score - before : null;
-  const failing = (result?.checks ?? []).filter((c) => c.status !== "pass");
-
   return (
-    <>
-      <div className="no-print">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h1 className="text-2xl font-semibold tracking-[-0.03em]">Resume builder</h1>
-          <Link
-            href="/app/resume"
-            className="text-[0.82rem] text-ink-30 underline-offset-4 hover:text-ink hover:underline"
-          >
-            Back to your resume
-          </Link>
-        </div>
-
-        <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <section className="rounded-2xl border border-ink-08 p-6">
-            <div className="flex flex-wrap items-center gap-5">
-              <ScoreRing score={score} />
-              <div className="min-w-0">
-                <p className="text-[1.02rem] font-medium">{result?.verdict ?? "Scored"}</p>
-                {gained !== null && (
-                  <p className="mt-1.5 text-[0.88rem] text-ink-50">
-                    Your uploaded file scored{" "}
-                    <span className="tabular-nums text-ink">{before}</span>.{" "}
-                    {gained > 0
-                      ? `This layout is worth ${gained} more, before you change a word.`
-                      : gained === 0
-                        ? "This layout scores the same — your file was already readable."
-                        : "This copy is behind your upload; something did not come across in the parse."}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <p className="mt-5 border-t border-ink-08 pt-4 text-[0.85rem] leading-relaxed text-ink-50">
-              Scored by the same checks your upload went through — not a second, friendlier scale.
-            </p>
-
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <Link
-                href="/app/resume/templates"
-                className="rounded-full border border-ink-15 px-4 py-2 text-[0.82rem] font-medium transition-colors hover:border-ink"
-              >
-                Change template — {templateById(draft.template).name}
-              </Link>
-              <BuildDraftButton label="Start again from my resume" restart quiet />
-            </div>
-            <p className="mt-3 text-[0.78rem] leading-relaxed text-ink-30">
-              Download, then choose <span className="text-ink-50">Save as PDF</span>. It comes out
-              as real text, which is the whole point — a picture of a resume scores nothing.
-            </p>
-          </section>
-
-          <section className="rounded-2xl border border-ink-08 p-6">
-            <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-              What the layout can&apos;t fix
-            </h2>
-            {failing.length ? (
-              <ul className="mt-5 space-y-3">
-                {failing.slice(0, 6).map((c) => (
-                  <li key={c.id} className="flex gap-3 text-[0.87rem] leading-relaxed">
-                    <span
-                      aria-hidden="true"
-                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink"
-                    />
-                    <span>
-                      <strong className="font-medium">{c.label}.</strong>{" "}
-                      <span className="text-ink-50">{c.detail}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-5 text-[0.88rem] leading-relaxed text-ink-30">
-                Nothing left on the checklist. What&apos;s left is the writing.
-              </p>
-            )}
-            <p className="mt-6 border-t border-ink-08 pt-4 text-[0.78rem] leading-relaxed text-ink-30">
-              These are about what you wrote, not how it&apos;s arranged. Ask the agent about a
-              specific bullet — it can see this document.
-            </p>
-          </section>
-        </div>
-
-      </div>
-
-      {/* The document, and the only thing that survives into the printout. */}
-      <div className="rd-fit mt-10 print:mt-0">
-        <ResumeEditor
-          draftId={draft.id}
-          initial={draft.content}
-          initialTemplate={draft.template ?? DEFAULT_TEMPLATE}
-        />
-      </div>
-    </>
+    <ResumeEditor
+      draftId={draft.id}
+      initial={draft.content}
+      template={draft.template ?? DEFAULT_TEMPLATE}
+      title={draft.title}
+      shareId={draft.share_id}
+      isPublic={draft.is_public}
+    />
   );
 }

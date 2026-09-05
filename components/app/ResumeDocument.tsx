@@ -58,6 +58,15 @@ export type Edit = {
   splitBullet: (path: string) => string | null;
   /** Backspace at the start of an already-empty bullet: delete it. */
   removeBullet: (path: string) => string | null;
+
+  /* A block is one job, project, qualification or achievement — the unit the
+     hover controls act on. Paths look like `roles.1`. */
+
+  /** Add an empty block after this one. Returns where the caret should go. */
+  addBlock: (row: string) => string | null;
+  removeBlock: (row: string) => void;
+  /** -1 or 1. Moving past either end does nothing. */
+  moveBlock: (row: string, by: number) => void;
 };
 
 /**
@@ -175,6 +184,55 @@ function focusLater(path: string, at: "start" | "end" = "start") {
 
 /* --------------------------------------------------------------- sections */
 
+/**
+ * The controls that appear when you hover a block.
+ *
+ * Rendered by the document rather than floated over it by the editor, for the
+ * same reason the editable fields are: one copy of the structure. Anchoring an
+ * overlay to a block means measuring the block, and a measurement is a second
+ * description of the layout that can disagree with the first.
+ *
+ * Every label is CSS `content`, never a text node. A `<button>Delete</button>`
+ * between a job title and its dates puts the word "Delete" into the
+ * document's text, and text is what a parser extracts and what somebody
+ * copies. The accessible name comes from `aria-label`, which screen readers
+ * read and text extraction does not.
+ */
+function BlockTools({ row, edit }: { row: string; edit?: Edit }) {
+  if (!edit) return null;
+  return (
+    <span className="rd-tools" contentEditable={false}>
+      <button
+        type="button"
+        className="rd-tool rd-tool-up"
+        aria-label="Move up"
+        onClick={() => edit.moveBlock(row, -1)}
+      />
+      <button
+        type="button"
+        className="rd-tool rd-tool-down"
+        aria-label="Move down"
+        onClick={() => edit.moveBlock(row, 1)}
+      />
+      <button
+        type="button"
+        className="rd-tool rd-tool-add"
+        aria-label="Add one below"
+        onClick={() => {
+          const next = edit.addBlock(row);
+          if (next) focusLater(next);
+        }}
+      />
+      <button
+        type="button"
+        className="rd-tool rd-tool-delete"
+        aria-label="Delete this"
+        onClick={() => edit.removeBlock(row)}
+      />
+    </span>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rd-section">
@@ -230,6 +288,29 @@ function Joined({
 
 type Ctx = { content: DraftContent; edit?: Edit; stack?: boolean };
 
+/**
+ * The rows to draw, with one empty one when the list is empty and somebody is
+ * editing.
+ *
+ * Without this an empty EXPERIENCE section is a heading with nothing under it
+ * and no way in — the "Add a job" buttons that used to sit beside the document
+ * are gone, and a block's own controls cannot appear on a block that does not
+ * exist. A phantom row solves it with no extra state: it renders the
+ * placeholders, it carries the same hover controls as a real one, and the
+ * moment somebody types, `write()` creates the object the path points at. The
+ * document is unchanged until then, so a section nobody fills in stays empty
+ * rather than acquiring a blank job.
+ */
+function rows<T>(list: T[] | null | undefined, edit: Edit | undefined, blank: T): T[] {
+  const real = list ?? [];
+  if (real.length || !edit) return real;
+  return [blank];
+}
+
+const BLANK_ROLE = { title: null, company: null, start: null, end: null, is_current: false, highlights: [""] };
+const BLANK_PROJECT = { name: null, link: null, description: null, highlights: [""] };
+const BLANK_EDUCATION = { degree: null, institution: null, year: null };
+
 /** Every section, keyed, so a layout can arrange them without knowing them. */
 function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
   const some = (n: number | undefined) => (n ?? 0) > 0 || Boolean(edit);
@@ -252,10 +333,11 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
     case "experience":
       return some(content.roles?.length) ? (
         <Section key={key} title="EXPERIENCE">
-          {(content.roles ?? []).map((r, i) => {
+          {rows(content.roles, edit, BLANK_ROLE).map((r, i) => {
             const when = [r.start, r.is_current ? "Present" : r.end].filter(Boolean).join(" – ");
             return (
-              <div key={i} className="rd-role">
+              <div key={i} className="rd-role" data-row={`roles.${i}`}>
+                <BlockTools row={`roles.${i}`} edit={edit} />
                 {/* Title and company on one line. A company alone on its own
                     line is short and capitalised, and gets mistaken for a
                     heading — which is how a whole job disappears. */}
@@ -311,8 +393,9 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
     case "projects":
       return some(content.projects?.length) ? (
         <Section key={key} title="PROJECTS">
-          {(content.projects ?? []).map((p, i) => (
-            <div key={i} className="rd-role">
+          {rows(content.projects, edit, BLANK_PROJECT).map((p, i) => (
+            <div key={i} className="rd-role" data-row={`projects.${i}`}>
+              <BlockTools row={`projects.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
                   parts={[
@@ -355,8 +438,9 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
     case "education":
       return some(content.education?.length) ? (
         <Section key={key} title="EDUCATION">
-          {(content.education ?? []).map((e, i) => (
-            <div key={i} className="rd-edu">
+          {rows(content.education, edit, BLANK_EDUCATION).map((e, i) => (
+            <div key={i} className="rd-edu" data-row={`education.${i}`}>
+              <BlockTools row={`education.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
                   parts={[
@@ -416,7 +500,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
     case "achievements":
       return some(content.achievements?.length) ? (
         <Section key={key} title="ACHIEVEMENTS">
-          {(content.achievements ?? []).map((a, i) => (
+          {rows(content.achievements, edit, "").map((a, i) => (
             <p key={i} className="rd-bullet">
               {"• "}
               <T
@@ -743,6 +827,64 @@ const SHEET = `
 .rd-editing.rd-l-sidebar .rd-aside .rd-edit:empty::before { color: rgba(255,255,255,0.55); }
 .rd-editing .rd-sep { color: #c0c4c8; }
 
+/* Block controls. Out of the flow entirely and revealed on hover, so a page
+   being edited has exactly the measurements of a page being printed. */
+.rd-editing .rd-role, .rd-editing .rd-edu { position: relative; }
+.rd-tools {
+  position: absolute;
+  top: -3mm;
+  right: -2mm;
+  z-index: 2;
+  display: flex;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 4px 14px -4px rgba(0,0,0,.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.rd-role:hover > .rd-tools, .rd-edu:hover > .rd-tools, .rd-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rd-tool {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #52525b;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rd-tool:hover { background: #f4f4f5; color: #000; }
+.rd-tool-delete:hover { background: #fee2e2; color: #b91c1c; }
+/* Labels as generated content, never as text nodes — see BlockTools above. */
+.rd-tool-up::before { content: "\\2191"; }
+.rd-tool-down::before { content: "\\2193"; }
+.rd-tool-add::before { content: "+"; font-size: 15px; }
+.rd-tool-delete::before { content: "\\00d7"; font-size: 15px; }
+
+/* Where the paper ends. A resume that has quietly become two pages is worth
+   knowing about before an employer finds out, and there is nowhere else on
+   the screen that could say so. */
+.rd-editing { position: relative; }
+.rd-editing::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 297mm;
+  border-top: 1px dashed rgba(0,0,0,.28);
+  pointer-events: none;
+}
+
 @media print {
   .rd-page { width: auto; min-height: 0; box-shadow: none; }
   .rd-cols { min-height: 0; }
@@ -750,6 +892,8 @@ const SHEET = `
   .rd-h2 { break-after: avoid; }
   .rd-edit { box-shadow: none !important; background: none !important; }
   .rd-edit:empty::before { content: "" !important; }
+  .rd-tools { display: none !important; }
+  .rd-editing::after { display: none !important; }
   /* Fills and washes have to be asked for, or a printer drops them and a
      sidebar template comes out as white text on white paper. */
   .rd-band, .rd-aside, .rd-monogram {

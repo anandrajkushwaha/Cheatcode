@@ -1,5 +1,5 @@
 import "server-only";
-import { createAppServerClient } from "@/lib/supabase/app";
+import { createAppAdminClient, createAppServerClient } from "@/lib/supabase/app";
 import { getPrimaryResume, getProfile, type ResumeDraft } from "@/lib/app/account";
 import { cleanResume, emptyResume, resumeIsEmpty, type Resume } from "@/lib/app/resume-schema";
 import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
@@ -20,7 +20,7 @@ import { templateById } from "@/lib/app/resume-templates";
  */
 
 const COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,share_id,is_public,is_primary,created_at,updated_at";
 
 /** A deployment where 50_resume_drafts.sql has not been run yet. */
 export function isMissingTable(message?: string): boolean {
@@ -217,6 +217,81 @@ export async function createFromTemplate(userId: string, template: string): Prom
   const row = (data ?? [])[0];
   if (!row) throw new StoreError("The resume did not save.");
   return normalise(row);
+}
+
+/**
+ * Turn the public link on or off.
+ *
+ * The id is minted once and kept forever. Rotating it on every toggle would
+ * look tidier and would quietly break a link somebody had already emailed to
+ * an employer — switching sharing off and on again has to give back the same
+ * URL, or "off" becomes a destructive act nobody was warned about.
+ *
+ * Sixteen bytes of `crypto.randomUUID()` without its dashes: unguessable, and
+ * short enough to read out over a phone if it comes to that.
+ */
+export async function setSharing(
+  userId: string,
+  draftId: string,
+  on: boolean,
+): Promise<ResumeDraft> {
+  const supabase = await client();
+  const current = await getDraftById(draftId);
+  if (!current) throw new StoreError("That resume doesn't exist.", 404);
+
+  const share_id = current.share_id ?? crypto.randomUUID().replace(/-/g, "");
+
+  const { data, error } = await supabase
+    .from("resume_drafts")
+    .update({ share_id, is_public: on })
+    .eq("id", draftId)
+    .eq("user_id", userId)
+    .select(COLUMNS)
+    .limit(1);
+
+  if (error) {
+    const setup = setupProblem(error.message);
+    if (setup) throw setup;
+    throw new StoreError(error.message);
+  }
+
+  const row = (data ?? [])[0];
+  if (!row) throw new StoreError("That resume doesn't exist.", 404);
+  return normalise(row);
+}
+
+/**
+ * A shared resume, by its public id.
+ *
+ * The service key, deliberately: there is no session on a public page, so RLS
+ * has nobody to check against. `is_public` is therefore the only thing
+ * standing between a draft and the open internet, which is why it is in the
+ * query rather than in a caller's `if`.
+ */
+export async function getShared(
+  shareId: string,
+): Promise<{ content: Resume; template: string; title: string } | null> {
+  const supabase = createAppAdminClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("resume_drafts")
+    .select("content,template,title,is_public")
+    .eq("share_id", shareId)
+    .eq("is_public", true)
+    .limit(1);
+
+  if (error) return null;
+  const row = (data ?? [])[0] as
+    | { content: unknown; template: string | null; title: string | null }
+    | undefined;
+  if (!row) return null;
+
+  return {
+    content: cleanResume(row.content),
+    template: row.template ?? "",
+    title: row.title ?? "Resume",
+  };
 }
 
 /** Every resume they have, newest first, for the list on the resume page. */
