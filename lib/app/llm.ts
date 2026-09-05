@@ -1210,7 +1210,7 @@ function geminiHeaders(key: string): Record<string, string> {
  * completions nests it as `{type, function: {name, parameters}}`. Sending one
  * where the other is expected is a 400 that reads like a schema problem.
  */
-function toolsForChat(blocks: ToolBlock[]) {
+export function toolsForChat(blocks: ToolBlock[]) {
   return blocks.flatMap((b) =>
     (b.functionDeclarations ?? [])
       .filter((f) => f.name)

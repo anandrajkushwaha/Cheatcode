@@ -2,8 +2,14 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { APP_SUPABASE_URL } from "@/lib/supabase/app-env";
 import { getAllowance, MIN_VOICE_SECONDS } from "@/lib/app/allowance";
 import { provider } from "@/lib/app/llm";
-import { pinnedOpenAI, rankOpenAI } from "@/lib/app/openai-models";
+import { pinnedOpenAI, rankOpenAI, transcribeModel } from "@/lib/app/openai-models";
 import { pinned as pinnedGemini } from "@/lib/app/gemini-models";
+import {
+  pinnedSarvam,
+  preferredSarvamModel,
+  sarvamChatUrl,
+  sarvamHeaders,
+} from "@/lib/app/sarvam-models";
 import { liveProvider, mintTicket } from "@/lib/app/live-ticket";
 import { isOwnerEmail } from "@/lib/analytics/owner";
 
@@ -111,6 +117,24 @@ export async function GET() {
     openingLine: "spoken by the live model, not synthesised separately",
     openaiKeySet: !!process.env.OPENAI_API_KEY,
     geminiKeySet: !!process.env.GEMINI_API_KEY,
+    /**
+     * Said plainly, because the bill makes it look like a misconfiguration.
+     *
+     * Typing and talking pick their provider independently. A Sarvam-only
+     * intent still leaves every spoken minute on OpenAI, because Sarvam has
+     * no single duplex conversation API to move it to — so an OpenAI invoice
+     * arriving while Sarvam's dashboard stays empty is the design working,
+     * not a switch that failed to flip.
+     */
+    whyOpenAIIsStillBilled:
+      live === "openai"
+        ? "Voice is OpenAI Realtime. The typed provider below is chosen separately, so a Sarvam-only typed path still bills OpenAI for every spoken minute."
+        : undefined,
+    /**
+     * The second model a call quietly pays for: the words on screen are a
+     * different, separately billed model from the voice you hear.
+     */
+    transcriptionModel: live === "openai" ? transcribeModel() : null,
   };
 
   if (!p) {
@@ -122,7 +146,9 @@ export async function GET() {
     });
   }
 
-  return p === "openai" ? diagnoseOpenAI(voice, account) : diagnoseGemini(voice, account);
+  if (p === "openai") return diagnoseOpenAI(voice, account);
+  if (p === "sarvam") return diagnoseSarvam(voice, account);
+  return diagnoseGemini(voice, account);
 }
 
 /* ---------------------------------------------------------------- openai */
@@ -427,6 +453,144 @@ function geminiVerdict(status: number): string {
   if (status === 429) return "Quota exhausted on this key.";
   if (status >= 500) return "Google is failing on its own listing endpoint. Try again shortly.";
   return `Listing models returned ${status}.`;
+}
+
+/* ---------------------------------------------------------------- sarvam */
+
+/**
+ * Sarvam, asked the same four questions as the other two.
+ *
+ * One structural difference, and it changes the shape of the answer: there is
+ * no model-listing endpoint, so step 1 cannot be "what can this key reach".
+ * A wrong model name here comes back as a 404 that looks exactly like a bad
+ * key, which is precisely the confusion this route exists to end — so the
+ * model being tried is named in the report and the endpoint it was sent to is
+ * named beside it, because /v1 and /v2 serve different models and sending a
+ * name to the wrong one is the single most likely mistake.
+ *
+ * Added late, and its absence was itself a bug: with the typed agent on
+ * Sarvam this route fell through to the Gemini branch and dereferenced a key
+ * that is not set, so the one page that answers "who is actually spending my
+ * money" crashed exactly when the answer had become interesting.
+ */
+async function diagnoseSarvam(voice: Record<string, unknown>, account: Record<string, unknown>) {
+  const key = process.env.SARVAM_API_KEY!;
+  const model = preferredSarvamModel();
+  const url = sarvamChatUrl(model);
+
+  const report: Record<string, unknown> = {
+    provider: "sarvam",
+    account,
+    voice,
+    keyLength: key.length,
+    keyStartsWith: key.slice(0, 3),
+    base: process.env.SARVAM_API_BASE ?? "https://api.sarvam.ai",
+    chatModelEnv: pinnedSarvam(),
+    chatModelChosen: model,
+    endpoint: url,
+    /**
+     * The whole point of the question that prompted this branch.
+     *
+     * These are the features whose money moves to Sarvam. Voice is not among
+     * them and cannot be, so if the only testing being done is spoken, this
+     * list is the reason Sarvam's dashboard reads zero.
+     */
+    featuresOnSarvam: [
+      "agent_chat",
+      "resume_extraction",
+      "document_read",
+      "ats_analysis",
+      "resume_generation",
+      "resume_rewrite",
+    ],
+    featuresNotOnSarvam: ["voice_conversation — OpenAI Realtime, by construction"],
+  };
+
+  const bare = await trySarvam(url, key, model, {});
+  const withTools = bare.ok ? await trySarvam(url, key, model, { tools: true }) : null;
+  const full = withTools?.ok ? await trySarvam(url, key, model, { tools: true, big: true }) : null;
+
+  report.tried = [{ model, endpoint: url, bare, withTools, full }];
+
+  if (full?.ok) {
+    return Response.json({
+      ok: true,
+      report,
+      verdict: `${model} works on Sarvam, including tools and the full instruction. Typed answers are Sarvam's; spoken ones are still OpenAI's.`,
+    });
+  }
+  if (bare.ok && withTools && !withTools.ok) {
+    return Response.json({
+      ok: false,
+      report,
+      verdict: `${model} answers a plain request but rejects our tool schema. That is the bug.`,
+    });
+  }
+  if (bare.ok && full && !full.ok) {
+    return Response.json({
+      ok: false,
+      report,
+      verdict: `${model} answers a small request but fails on the full system instruction.`,
+    });
+  }
+  return Response.json({
+    ok: false,
+    report,
+    verdict: sarvamVerdict(bare.status, model, url),
+  });
+}
+
+async function trySarvam(
+  url: string,
+  key: string,
+  model: string,
+  what: { tools?: boolean; big?: boolean },
+) {
+  const messages: { role: string; content: string }[] = [];
+  if (what.big) {
+    const { INSTRUCTIONS } = await import("@/lib/app/agent-brain");
+    messages.push({ role: "system", content: INSTRUCTIONS });
+  }
+  messages.push({ role: "user", content: "Say OK." });
+
+  const body: Record<string, unknown> = { model, messages, max_tokens: 20, temperature: 0 };
+
+  if (what.tools) {
+    // The app's own converter, so the schema tested is the schema sent.
+    const { TOOLS } = await import("@/lib/app/agent-tools");
+    const { toolsForChat } = await import("@/lib/app/llm");
+    body.tools = toolsForChat(TOOLS);
+  }
+
+  const started = Date.now();
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: sarvamHeaders(key),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(25_000),
+    });
+    const text = await res.text();
+    return {
+      ok: res.ok,
+      status: res.status,
+      ms: Date.now() - started,
+      message: res.ok ? undefined : messageFrom(text),
+    };
+  } catch (e) {
+    return { ok: false, status: 0, ms: Date.now() - started, message: String(e).slice(0, 300) };
+  }
+}
+
+function sarvamVerdict(status: number, model: string, url: string): string {
+  if (status === 401 || status === 403)
+    return "Sarvam rejected the key. Check SARVAM_API_KEY in Vercel, not only in .env.local.";
+  if (status === 404)
+    return `Sarvam has no model called "${model}" at ${url}. Sarvam's own models are on /v1 and the open-weight ones on /v2 — a right name at the wrong endpoint gives this same 404.`;
+  if (status === 429) return "Rate limited or out of credit on the Sarvam account.";
+  if (status === 0) return "Could not reach Sarvam at all from the server.";
+  if (status >= 500) return "Sarvam is failing on its own side. Try again shortly.";
+  return `Sarvam returned ${status}. Read \`tried[0].bare.message\` — that is Sarvam's own answer.`;
 }
 
 /* ---------------------------------------------------------------- shared */
