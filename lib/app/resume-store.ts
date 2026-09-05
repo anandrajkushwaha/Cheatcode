@@ -1,8 +1,9 @@
 import "server-only";
 import { createAppServerClient } from "@/lib/supabase/app";
 import { getPrimaryResume, getProfile, type ResumeDraft } from "@/lib/app/account";
-import { cleanResume, emptyResume, type Resume } from "@/lib/app/resume-schema";
+import { cleanResume, emptyResume, resumeIsEmpty, type Resume } from "@/lib/app/resume-schema";
 import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
+import { templateById } from "@/lib/app/resume-templates";
 
 /**
  * The one write path to somebody's resume.
@@ -153,6 +154,89 @@ export async function getOrCreateDraft(userId: string): Promise<ResumeDraft> {
   return normalise(row);
 }
 
+/**
+ * Start a new resume in a chosen template.
+ *
+ * A template is a document, not a skin. Picking one used to re-paint the
+ * single draft, which meant trying a second template destroyed the first —
+ * fine while there were five variations of one layout, wrong now that they are
+ * genuinely different documents somebody might want to keep side by side, one
+ * per kind of job they are applying for.
+ *
+ * The content is copied from whatever they already have, so a new template
+ * arrives filled in rather than blank. The copy is a copy: editing the new one
+ * leaves the old one alone, which is the whole point of having both.
+ *
+ * The new draft becomes primary, because somebody who just chose a template is
+ * about to edit that one.
+ */
+export async function createFromTemplate(userId: string, template: string): Promise<ResumeDraft> {
+  const supabase = await client();
+
+  // Whatever they have, in order of preference: the draft they were last
+  // working on, then the uploaded resume, then nothing.
+  const existing = await getDraft();
+  const [resume, profile] = await Promise.all([getPrimaryResume(), getProfile()]);
+  const content =
+    existing?.content && !resumeIsEmpty(existing.content)
+      ? existing.content
+      : resume || profile
+        ? seedFromResume(resume, profile)
+        : emptyResume();
+
+  // Scored in the template it will be rendered in, because a sidebar and a
+  // plain column are not worth the same number.
+  const result = scoreDraft(content, template);
+  const name = templateById(template).name;
+
+  await supabase.from("resume_drafts").update({ is_primary: false }).eq("user_id", userId);
+
+  const { data, error } = await supabase
+    .from("resume_drafts")
+    .insert({
+      user_id: userId,
+      source_resume_id: resume?.id ?? null,
+      // Named after the template, because a list of five rows all called
+      // "My resume" is a list nobody can use.
+      title: name,
+      content,
+      template,
+      ats_score: result.score,
+      ats_result: result,
+      is_primary: true,
+    })
+    .select(COLUMNS)
+    .limit(1);
+
+  if (error) {
+    const setup = setupProblem(error.message);
+    if (setup) throw setup;
+    throw new StoreError(error.message);
+  }
+
+  const row = (data ?? [])[0];
+  if (!row) throw new StoreError("The resume did not save.");
+  return normalise(row);
+}
+
+/** Every resume they have, newest first, for the list on the resume page. */
+export async function listDrafts(): Promise<ResumeDraft[]> {
+  const supabase = await client();
+  const { data, error } = await supabase
+    .from("resume_drafts")
+    .select(COLUMNS)
+    .order("is_primary", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    const setup = setupProblem(error.message);
+    if (setup) throw setup;
+    throw new StoreError(error.message);
+  }
+  return (data ?? []).map(normalise);
+}
+
 /** Throw away the edits and copy the uploaded resume again. */
 export async function reseedDraft(userId: string): Promise<ResumeDraft> {
   const current = await getDraft();
@@ -221,6 +305,14 @@ export async function patchDraft(
   return save(userId, draft.id, cleanResume(merged));
 }
 
+/** One row by id, for the places that need to know its template before writing. */
+async function getDraftById(draftId: string): Promise<ResumeDraft | null> {
+  const supabase = await client();
+  const { data } = await supabase.from("resume_drafts").select(COLUMNS).eq("id", draftId).limit(1);
+  const row = (data ?? [])[0];
+  return row ? normalise(row) : null;
+}
+
 /** Write content and its score together, so the two can never disagree. */
 export async function save(
   userId: string,
@@ -229,7 +321,18 @@ export async function save(
   extra: Record<string, unknown> = {},
 ): Promise<ResumeDraft> {
   const supabase = await client();
-  const result = scoreDraft(content);
+
+  /**
+   * Score it in the template it is about to be in.
+   *
+   * `extra.template` is the one being saved right now; without it a save that
+   * changes the template would store the new layout beside the old layout's
+   * number. Falling back to the stored row keeps an ordinary content save
+   * scoring against whatever template it is already in.
+   */
+  const template =
+    typeof extra.template === "string" ? extra.template : ((await getDraftById(draftId))?.template ?? null);
+  const result = scoreDraft(content, template);
 
   const { data, error } = await supabase
     .from("resume_drafts")

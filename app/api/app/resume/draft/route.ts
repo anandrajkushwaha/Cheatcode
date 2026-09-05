@@ -3,6 +3,7 @@ import { cleanResume } from "@/lib/app/resume-schema";
 import { isTemplateId } from "@/lib/app/resume-templates";
 import {
   ClearRefused,
+  createFromTemplate,
   getDraft,
   getOrCreateDraft,
   patchDraft,
@@ -59,14 +60,21 @@ export async function POST(request: Request) {
   if (!user) return bad("Not signed in", 401);
 
   let restart = false;
+  let template: unknown;
   try {
-    const body = (await request.json()) as { restart?: boolean } | null;
+    const body = (await request.json()) as { restart?: boolean; template?: unknown } | null;
     restart = body?.restart === true;
+    template = body?.template;
   } catch {
     // No body is the ordinary case: "give me my draft, make one if you must."
   }
 
   try {
+    // A named template is a request for a new resume in it, not a re-skin of
+    // the one they have — see createFromTemplate for why those are different.
+    if (isTemplateId(template)) {
+      return Response.json({ ok: true, draft: await createFromTemplate(user.id, template) });
+    }
     const draft = restart ? await reseedDraft(user.id) : await getOrCreateDraft(user.id);
     return Response.json({ ok: true, draft });
   } catch (e) {

@@ -62,11 +62,29 @@ export function ResumeEditor({ draftId, initial, initialTemplate }: Props) {
     setSaved(null);
   }, []);
 
+  /**
+   * The handlers the document types into.
+   *
+   * `splitBullet` and `removeBullet` return the path the caret should land in
+   * next, rather than moving it themselves. The document knows where the caret
+   * is and this file knows what the list looks like after the edit; returning
+   * a path is the smallest thing that lets each keep its own half.
+   */
   const edit: Edit = useMemo(
     () => ({
       set: (path, value) => change(apply(content, path, value)),
-      addBullet: (row) => change(addBullet(content, row)),
-      removeRow: (row) => change(removeRow(content, row)),
+      splitBullet: (path) => {
+        const next = afterBullet(content, path);
+        if (!next) return null;
+        change(next.content);
+        return next.focus;
+      },
+      removeBullet: (path) => {
+        const next = withoutBullet(content, path);
+        if (!next) return null;
+        change(next.content);
+        return next.focus;
+      },
     }),
     // `content` is read inside every handler, so the object has to be rebuilt
     // when it changes or the handlers close over a stale document.
@@ -99,7 +117,7 @@ export function ResumeEditor({ draftId, initial, initialTemplate }: Props) {
         <p className="text-[0.72rem] font-medium uppercase tracking-[0.12em] text-ink-50">
           Template
         </p>
-        <div className="mt-3 grid grid-cols-3 gap-2 lg:grid-cols-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
             <button
               key={t.id}
@@ -115,7 +133,7 @@ export function ResumeEditor({ draftId, initial, initialTemplate }: Props) {
                 "overflow-hidden rounded-md border bg-white transition-colors",
                 t.id === template ? "border-ink ring-1 ring-ink" : "border-ink-15 hover:border-ink-30",
               ].join(" ")}
-              style={{ aspectRatio: "210 / 297" }}
+              style={{ width: THUMB_PX, aspectRatio: "210 / 297" }}
             >
               <Thumb content={content} template={t.id} />
             </button>
@@ -182,15 +200,22 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-/** A template thumbnail, small enough that five fit in a rail. */
+/**
+ * A template thumbnail, small enough that several fit in a rail.
+ *
+ * The frame is given the same width the page is scaled to. When those two
+ * disagree the document renders into the corner of an oversized box, which
+ * reads as a broken template rather than as a layout bug.
+ */
+const THUMB_PX = 88;
+const PAGE_PX = 794;
+
 function Thumb({ content, template }: { content: Resume; template: string }) {
-  const WIDTH = 92;
-  const PAGE = 794;
   return (
     <div
       aria-hidden
       className="pointer-events-none origin-top-left"
-      style={{ width: PAGE, transform: `scale(${WIDTH / PAGE})` }}
+      style={{ width: PAGE_PX, transform: `scale(${THUMB_PX / PAGE_PX})` }}
     >
       <ResumeDocument content={content} template={template} />
     </div>
@@ -296,29 +321,78 @@ function addRow(content: Resume, key: ListKey): Resume {
   };
 }
 
-function addBullet(content: Resume, row: string): Resume {
-  const [key, index] = row.split(".");
-  const i = Number(index);
+/**
+ * Where the bullets live, given the path of one of them.
+ *
+ * Three shapes share the behaviour — a job's highlights, a project's, and the
+ * flat achievements list — and reading them out here keeps the two callers
+ * below from each growing their own copy of the same three-way branch.
+ */
+function bulletsAt(
+  content: Resume,
+  path: string,
+): { list: string[]; index: number; put: (next: string[]) => Resume; base: string } | null {
+  const parts = path.split(".");
 
-  if (key === "roles") {
-    const roles = [...(content.roles ?? [])];
-    if (!roles[i]) return content;
-    roles[i] = { ...roles[i], highlights: [...(roles[i].highlights ?? []), ""] };
-    return { ...content, roles };
+  // achievements.3
+  if (parts[0] === "achievements" && parts.length === 2) {
+    const index = Number(parts[1]);
+    const list = [...(content.achievements ?? [])];
+    if (!Number.isInteger(index)) return null;
+    return {
+      list,
+      index,
+      base: "achievements",
+      put: (next) => ({ ...content, achievements: next }),
+    };
   }
-  if (key === "projects") {
-    const projects = [...(content.projects ?? [])];
-    if (!projects[i]) return content;
-    projects[i] = { ...projects[i], highlights: [...(projects[i].highlights ?? []), ""] };
-    return { ...content, projects };
-  }
-  return content;
+
+  // roles.1.highlights.2 / projects.0.highlights.1
+  const [key, at, field, index] = parts;
+  if ((key !== "roles" && key !== "projects") || field !== "highlights") return null;
+
+  const row = Number(at);
+  const i = Number(index);
+  if (!Number.isInteger(row) || !Number.isInteger(i)) return null;
+
+  const rows = [...((content[key] ?? []) as { highlights?: (string | null)[] }[])];
+  if (!rows[row]) return null;
+
+  return {
+    list: (rows[row].highlights ?? []).map((h) => h ?? ""),
+    index: i,
+    base: `${key}.${row}.highlights`,
+    put: (next) => {
+      const copy = [...rows];
+      copy[row] = { ...copy[row], highlights: next };
+      return { ...content, [key]: copy };
+    },
+  };
 }
 
-function removeRow(content: Resume, row: string): Resume {
-  const [key, index] = row.split(".");
-  const i = Number(index);
-  const list = (content as unknown as Record<string, unknown[]>)[key];
-  if (!Array.isArray(list) || !list[i]) return content;
-  return { ...content, [key]: list.filter((_, at) => at !== i) };
+/** Enter: a new empty line after this one, and the caret goes to it. */
+function afterBullet(content: Resume, path: string): { content: Resume; focus: string } | null {
+  const at = bulletsAt(content, path);
+  if (!at) return null;
+
+  const next = [...at.list];
+  next.splice(at.index + 1, 0, "");
+  return { content: at.put(next), focus: `${at.base}.${at.index + 1}` };
+}
+
+/**
+ * Backspace on an empty line: remove it, and put the caret at the end of the
+ * one above.
+ *
+ * The last remaining bullet is kept rather than removed. Deleting it would
+ * take the whole list — and with it the only place to type — leaving somebody
+ * who pressed Backspace once too often with no way back except adding the job
+ * again. An empty line is a smaller mess than a vanished section.
+ */
+function withoutBullet(content: Resume, path: string): { content: Resume; focus: string } | null {
+  const at = bulletsAt(content, path);
+  if (!at || at.list.length <= 1 || at.index < 1) return null;
+
+  const next = at.list.filter((_, i) => i !== at.index);
+  return { content: at.put(next), focus: `${at.base}.${at.index - 1}` };
 }

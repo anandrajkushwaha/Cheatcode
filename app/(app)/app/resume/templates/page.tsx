@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
 import { TemplateGallery } from "@/components/app/TemplateGallery";
 import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
-import { DEFAULT_TEMPLATE, TEMPLATES } from "@/lib/app/resume-templates";
+import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +28,8 @@ export default async function TemplatesPage() {
         <Header />
         <p className="mt-2.5 max-w-[62ch] text-[0.92rem] leading-relaxed text-ink-50">
           {resume
-            ? "Build your document first and every template here will show your own resume in " +
-              "it — your name, your jobs, your bullets — rather than a stranger's."
-            : "Upload a resume first. Every template on this page shows your own document, so " +
-              "there has to be one."}
+            ? "Build your document first and every template here will show your own resume in it."
+            : "Upload a resume first. Every template shows your own document, so there has to be one."}
         </p>
 
         <div className="mt-7">
@@ -53,19 +51,8 @@ export default async function TemplatesPage() {
   return (
     <>
       <Header />
-      <p className="mt-2.5 max-w-[68ch] text-[0.92rem] leading-relaxed text-ink-50">
-        {TEMPLATES.length} layouts, each showing your own resume. They differ in type, spacing and
-        colour and in nothing else — same sections, same order, one column, real text throughout.
-        That is on purpose: the pretty two-column ones with icons are the ones applicant tracking
-        software cannot read.
-      </p>
-
-      <div className="mt-9">
-        <TemplateGallery
-          content={draft.content}
-          draftId={draft.id}
-          current={draft.template ?? DEFAULT_TEMPLATE}
-        />
+      <div className="mt-8">
+        <TemplateGallery content={draft.content} current={draft.template ?? DEFAULT_TEMPLATE} />
       </div>
     </>
   );

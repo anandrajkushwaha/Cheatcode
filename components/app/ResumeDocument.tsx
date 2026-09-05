@@ -1,46 +1,63 @@
 import type { Resume as DraftContent } from "@/lib/app/resume-schema";
-import { templateById, themeVars } from "@/lib/app/resume-templates";
+import {
+  sectionOrder,
+  templateById,
+  themeVars,
+  type Layout,
+  type SectionKey,
+} from "@/lib/app/resume-templates";
 
 /**
- * The document itself.
+ * The document.
  *
- * Every layout decision here is one an applicant tracking system has to
- * survive, so this is a deliberately boring page: one column, real text, plain
- * headings, no tables, no icons, no photograph, nothing in a header or footer.
- * Twelve of the ATS score's points are for having a single column and fourteen
- * for being readable at all; none of that is advice we have to give somebody,
- * because the template simply does not offer the alternative.
+ * It renders four structures — a plain column, a coloured header band, a left
+ * sidebar, and a two-column body — from one set of section components. Which
+ * sections go in which column is decided by `sectionOrder()`, not here, so the
+ * scorer and the renderer read the same definition and cannot drift.
  *
- * The order and shape of what appears here must match `draftToText` in
- * lib/app/resume-draft.ts line for line. That function is what gets scored —
- * it stands in for the text a parser pulls out of the printed PDF — so if the
- * two ever drift, the number on the screen stops describing the file somebody
- * actually sends. Change one, change the other, and run /tmp/drafttest.mts.
+ * It also renders three ways: as a printable page, as a thumbnail in the
+ * gallery, and as the thing somebody types into. The editing behaviour is a
+ * prop rather than a second component, which is what stops an editable twin of
+ * this markup existing and slowly disagreeing with the original.
  *
- * It renders three ways from one copy of the markup: as a printable page, as a
- * thumbnail in the template gallery, and as the thing you type into. The
- * alternative — an editable twin beside a read-only original — was rejected
- * for the same reason the templates are themes rather than layouts: two copies
- * of this structure would drift, and the drift would show up as a score that
- * describes a document nobody has.
+ * A note on what the layouts cost. A single column is what an applicant
+ * tracking system reads best; a sidebar is genuinely worse, because a parser
+ * going left to right reads the contact block as an employer and the skills as
+ * part of whatever followed. That is a real trade, and the honest place to
+ * surface it is a score on the template card. The machinery for that is
+ * `sectionOrder()`; the number is not on screen yet.
  */
 
-const A4 = { width: "210mm", padding: "15mm 17mm" };
+const A4 = { width: "210mm" };
+
+/**
+ * Layout classes are prefixed `rd-l-`, and that prefix is load-bearing.
+ *
+ * Without it the page carried `rd-band` for its layout while the header
+ * element also used `.rd-band` for its colour and padding — so the whole
+ * A4 page turned navy and every heading became invisible against it. The
+ * names looked unrelated in two different files and collided in one class
+ * attribute. Element classes stay `rd-<thing>`; layout modifiers are
+ * `rd-l-<layout>`, and the two namespaces cannot meet.
+ */
 
 /* ---------------------------------------------------------------- editing */
 
 /**
  * A path into the content tree, as a string: `full_name`, `roles.0.title`,
  * `roles.2.highlights.1`. Strings rather than typed accessors because they
- * also go on the DOM node as `data-path`, which is what makes a click on a
- * word in the page resolvable back to a field.
+ * also go on the DOM node as `data-path`, which is what lets a keystroke in a
+ * bullet resolve back to which bullet it was.
  */
 export type Edit = {
   set: (path: string, value: string) => void;
-  /** Append an empty bullet under `roles.0` or `projects.1`. */
-  addBullet: (rowPath: string) => void;
-  /** Delete a whole job, project, qualification or line. */
-  removeRow: (rowPath: string) => void;
+  /**
+   * Enter was pressed in a bullet: add an empty one after it. Returns the new
+   * bullet's path so the caret can follow it there.
+   */
+  splitBullet: (path: string) => string | null;
+  /** Backspace at the start of an already-empty bullet: delete it. */
+  removeBullet: (path: string) => string | null;
 };
 
 /**
@@ -48,7 +65,7 @@ export type Edit = {
  *
  * The non-editing branch renders a bare string, so the printed page and the
  * gallery thumbnails carry no extra DOM at all. The editing branch wraps it in
- * a span — inline, so the extracted text is unchanged: `<span>Title</span> —
+ * an inline span, so the extracted text is unchanged: `<span>Title</span> —
  * <span>Company</span>` comes out of a PDF as "Title — Company", exactly as
  * the unwrapped version does.
  *
@@ -62,11 +79,14 @@ function T({
   value,
   edit,
   placeholder,
+  bullet,
 }: {
   path: string;
   value: string | null | undefined;
   edit?: Edit;
   placeholder?: string;
+  /** Bullets get Enter and Backspace behaviour; ordinary fields do not. */
+  bullet?: boolean;
 }) {
   const text = value ?? "";
   if (!edit) return <>{text}</>;
@@ -81,15 +101,40 @@ function T({
       data-placeholder={placeholder ?? ""}
       onBlur={(e) => edit.set(path, e.currentTarget.textContent ?? "")}
       onKeyDown={(e) => {
-        // Enter ends the edit rather than inserting a line break. A newline
-        // inside a resume field is a line a parser reads as a new record.
+        const node = e.currentTarget;
+        const current = node.textContent ?? "";
+
+        if (e.key === "Escape") {
+          node.textContent = text;
+          node.blur();
+          return;
+        }
+
         if (e.key === "Enter") {
           e.preventDefault();
-          e.currentTarget.blur();
+
+          // In a bullet, Enter is what fingers already expect: end this line,
+          // start the next. Anywhere else a newline would be a line break
+          // inside a field, which a parser reads as a new record.
+          if (bullet) {
+            edit.set(path, current);
+            const next = edit.splitBullet(path);
+            if (next) focusLater(next);
+            return;
+          }
+
+          node.blur();
+          return;
         }
-        if (e.key === "Escape") {
-          e.currentTarget.textContent = text;
-          e.currentTarget.blur();
+
+        // Backspace at the start of an empty bullet removes it, the way every
+        // list in every editor behaves. Only when empty: deleting a line
+        // somebody has written, because the caret happened to be at the front
+        // of it, is how work disappears silently.
+        if (e.key === "Backspace" && bullet && current.trim() === "") {
+          e.preventDefault();
+          const previous = edit.removeBullet(path);
+          if (previous) focusLater(previous, "end");
         }
       }}
       // Plain text only. Pasting from a job description otherwise brings its
@@ -105,50 +150,30 @@ function T({
 }
 
 /**
- * The two controls a row needs, and no more.
+ * Put the caret in a field that does not exist yet.
  *
- * Rendered by the document rather than floated over it by the editor, for the
- * same reason the editable fields are: one copy of the structure. Anchoring an
- * overlay to a row means measuring the row, and a measurement is a second
- * description of the layout that can disagree with the first.
- *
- * They exist only while editing and are dropped at print — and their labels
- * are CSS `content` rather than text nodes, which is the part that matters.
- * A `<button>Remove</button>` sitting between a job title and its dates puts
- * the word "Remove" into the document's text, and text is what a parser
- * extracts and what somebody copies. The test in /tmp/toolharness caught
- * exactly that; the accessible name comes from `aria-label` instead, which
- * screen readers use and text extraction does not.
+ * The state change that adds the bullet has not rendered when the keystroke is
+ * handled, so the node cannot be focused now. Waiting a frame is the smallest
+ * thing that works without threading a ref through every level of the
+ * document; `data-path` is already on the node, which is what makes it
+ * findable at all.
  */
-function RowTools({
-  row,
-  edit,
-  onAddBullet,
-}: {
-  row: string;
-  edit?: Edit;
-  onAddBullet?: boolean;
-}) {
-  if (!edit) return null;
-  return (
-    <span className="rd-tools" contentEditable={false}>
-      {onAddBullet && (
-        <button
-          type="button"
-          className="rd-tool rd-tool-add"
-          aria-label="Add a line"
-          onClick={() => edit.addBullet(row)}
-        />
-      )}
-      <button
-        type="button"
-        className="rd-tool rd-tool-remove"
-        aria-label="Remove this"
-        onClick={() => edit.removeRow(row)}
-      />
-    </span>
-  );
+function focusLater(path: string, at: "start" | "end" = "start") {
+  requestAnimationFrame(() => {
+    const node = document.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`);
+    if (!node) return;
+    node.focus();
+
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(at === "start");
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
 }
+
+/* --------------------------------------------------------------- sections */
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -162,75 +187,57 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/**
- * A section that is empty and has nothing to show — except while editing,
- * when it has to be reachable or there is no way to fill it in.
- */
-const has = (n: number | undefined, edit?: Edit) => (n ?? 0) > 0 || Boolean(edit);
-
-/**
- * @param template Which theme to paint it in. The markup below does not change
- *   with it — see lib/app/resume-templates.ts for why that is the whole point.
- * @param edit When passed, every piece of text becomes editable in place. The
- *   document stays the document; it does not turn into a form beside a preview.
- */
-export function ResumeDocument({
-  content,
-  template,
+function Joined({
+  parts,
   edit,
+  separator,
+  stack,
 }: {
-  content: DraftContent;
-  template?: string | null;
+  parts: { path: string; value: string | null | undefined; placeholder?: string }[];
   edit?: Edit;
+  separator: string;
+  /** One per line rather than one line, which is what a narrow sidebar needs. */
+  stack?: boolean;
 }) {
-  const links = content.links ?? [];
+  const shown = edit ? parts : parts.filter((p) => p.value?.trim());
+
+  if (stack) {
+    return (
+      <>
+        {shown.map((p) => (
+          <span key={p.path} className="rd-stacked">
+            <T path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
+          </span>
+        ))}
+      </>
+    );
+  }
 
   return (
-    <article
-      className={`rd-page${edit ? " rd-editing" : ""}`}
-      style={{ width: A4.width, padding: A4.padding, ...themeVars(templateById(template).theme) }}
-    >
-      <style>{CSS}</style>
+    <>
+      {shown.map((p, i) => (
+        <span key={p.path}>
+          {/* The separator sits outside the editable regions so it cannot be
+              backspaced away, and an empty field takes its separator with it
+              rather than leaving a dangling middot on the printed page. */}
+          {i > 0 && <span className="rd-sep">{separator}</span>}
+          <T path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
+        </span>
+      ))}
+    </>
+  );
+}
 
-      <header>
-        {(content.full_name || edit) && (
-          <h1 className="rd-name">
-            <T path="full_name" value={content.full_name} edit={edit} placeholder="Your name" />
-          </h1>
-        )}
-        {(content.headline || edit) && (
-          <p className="rd-headline">
-            <T
-              path="headline"
-              value={content.headline}
-              edit={edit}
-              placeholder="What you do, in under twelve words"
-            />
-          </p>
-        )}
+type Ctx = { content: DraftContent; edit?: Edit; stack?: boolean };
 
-        {/* One line, separated by middots. Each field is its own region so a
-            click lands on the phone number rather than on the whole line. */}
-        <p className="rd-contact">
-          <Joined
-            parts={[
-              { path: "email", value: content.email, placeholder: "email" },
-              { path: "phone", value: content.phone, placeholder: "phone" },
-              ...links.map((l, i) => ({
-                path: `links.${i}.url`,
-                value: l.url,
-                placeholder: "link",
-              })),
-              { path: "location", value: content.location, placeholder: "city" },
-            ]}
-            edit={edit}
-            separator=" · "
-          />
-        </p>
-      </header>
+/** Every section, keyed, so a layout can arrange them without knowing them. */
+function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
+  const some = (n: number | undefined) => (n ?? 0) > 0 || Boolean(edit);
 
-      {(content.summary || edit) && (
-        <Section title="SUMMARY">
+  switch (key) {
+    case "summary":
+      return content.summary || edit ? (
+        <Section key={key} title="SUMMARY">
           <p className="rd-body">
             <T
               path="summary"
@@ -240,19 +247,18 @@ export function ResumeDocument({
             />
           </p>
         </Section>
-      )}
+      ) : null;
 
-      {has(content.roles?.length, edit) && (
-        <Section title="EXPERIENCE">
+    case "experience":
+      return some(content.roles?.length) ? (
+        <Section key={key} title="EXPERIENCE">
           {(content.roles ?? []).map((r, i) => {
-            // Title and company on one line. A company alone on its own line
-            // is short and capitalised, and gets mistaken for a heading —
-            // which is how a whole job disappears from a parsed resume.
             const when = [r.start, r.is_current ? "Present" : r.end].filter(Boolean).join(" – ");
-
             return (
-              <div key={i} className="rd-role" data-row={`roles.${i}`}>
-                <RowTools row={`roles.${i}`} edit={edit} onAddBullet />
+              <div key={i} className="rd-role">
+                {/* Title and company on one line. A company alone on its own
+                    line is short and capitalised, and gets mistaken for a
+                    heading — which is how a whole job disappears. */}
                 <p className="rd-role-line">
                   <Joined
                     parts={[
@@ -263,7 +269,6 @@ export function ResumeDocument({
                     separator=" — "
                   />
                 </p>
-
                 {(when || edit) && (
                   <p className="rd-dates">
                     <Joined
@@ -280,19 +285,19 @@ export function ResumeDocument({
                     />
                   </p>
                 )}
-
                 {(r.highlights ?? [])
                   .filter((h) => edit || h?.trim())
                   .map((h, j) => (
                     // The bullet is text, in the same paragraph as the
                     // sentence, so the extracted line reads "• Built…". A CSS
-                    // list marker is not text and does not come out of the PDF.
+                    // list marker is not text and never leaves the PDF.
                     <p key={j} className="rd-bullet">
                       {"• "}
                       <T
                         path={`roles.${i}.highlights.${j}`}
                         value={h?.trim()}
                         edit={edit}
+                        bullet
                         placeholder="What you did, with the number if you have one"
                       />
                     </p>
@@ -301,13 +306,13 @@ export function ResumeDocument({
             );
           })}
         </Section>
-      )}
+      ) : null;
 
-      {has(content.projects?.length, edit) && (
-        <Section title="PROJECTS">
+    case "projects":
+      return some(content.projects?.length) ? (
+        <Section key={key} title="PROJECTS">
           {(content.projects ?? []).map((p, i) => (
-            <div key={i} className="rd-role" data-row={`projects.${i}`}>
-              <RowTools row={`projects.${i}`} edit={edit} onAddBullet />
+            <div key={i} className="rd-role">
               <p className="rd-role-line">
                 <Joined
                   parts={[
@@ -337,6 +342,7 @@ export function ResumeDocument({
                       path={`projects.${i}.highlights.${j}`}
                       value={h?.trim()}
                       edit={edit}
+                      bullet
                       placeholder="What it does, or what you learned"
                     />
                   </p>
@@ -344,13 +350,13 @@ export function ResumeDocument({
             </div>
           ))}
         </Section>
-      )}
+      ) : null;
 
-      {has(content.education?.length, edit) && (
-        <Section title="EDUCATION">
+    case "education":
+      return some(content.education?.length) ? (
+        <Section key={key} title="EDUCATION">
           {(content.education ?? []).map((e, i) => (
-            <div key={i} className="rd-edu" data-row={`education.${i}`}>
-              <RowTools row={`education.${i}`} edit={edit} />
+            <div key={i} className="rd-edu">
               <p className="rd-role-line">
                 <Joined
                   parts={[
@@ -363,29 +369,25 @@ export function ResumeDocument({
                   ]}
                   edit={edit}
                   separator=" — "
+                  stack={stack}
                 />
               </p>
               {(e.year || edit) && (
                 <p className="rd-dates">
-                  <T
-                    path={`education.${i}.year`}
-                    value={e.year}
-                    edit={edit}
-                    placeholder="2021"
-                  />
+                  <T path={`education.${i}.year`} value={e.year} edit={edit} placeholder="2021" />
                 </p>
               )}
             </div>
           ))}
         </Section>
-      )}
+      ) : null;
 
-      {has(content.skills?.length, edit) && (
-        <Section title="SKILLS">
-          {/* One comma-separated line, not chips. Chips are boxes, boxes are
-              layout, and layout is what a parser loses. Edited as the same
-              single line, and split back into a list on the way in — which is
-              also how somebody naturally types a list of skills. */}
+    case "skills":
+      return some(content.skills?.length) ? (
+        <Section key={key} title="SKILLS">
+          {/* One comma-separated line, never chips. Chips are boxes, boxes are
+              layout, and layout is what a parser loses. In a narrow sidebar
+              the same line simply wraps. */}
           <p className="rd-body">
             <T
               path="skills"
@@ -395,10 +397,11 @@ export function ResumeDocument({
             />
           </p>
         </Section>
-      )}
+      ) : null;
 
-      {has(content.certifications?.length, edit) && (
-        <Section title="CERTIFICATIONS">
+    case "certifications":
+      return some(content.certifications?.length) ? (
+        <Section key={key} title="CERTIFICATIONS">
           <p className="rd-body">
             <T
               path="certifications"
@@ -408,10 +411,11 @@ export function ResumeDocument({
             />
           </p>
         </Section>
-      )}
+      ) : null;
 
-      {has(content.achievements?.length, edit) && (
-        <Section title="ACHIEVEMENTS">
+    case "achievements":
+      return some(content.achievements?.length) ? (
+        <Section key={key} title="ACHIEVEMENTS">
           {(content.achievements ?? []).map((a, i) => (
             <p key={i} className="rd-bullet">
               {"• "}
@@ -419,44 +423,161 @@ export function ResumeDocument({
                 path={`achievements.${i}`}
                 value={a}
                 edit={edit}
+                bullet
                 placeholder="Something you won, shipped or were picked for"
               />
             </p>
           ))}
         </Section>
+      ) : null;
+  }
+}
+
+/* ---------------------------------------------------------------- headers */
+
+function Name({ content, edit }: Ctx) {
+  return (
+    <>
+      {(content.full_name || edit) && (
+        <h1 className="rd-name">
+          <T path="full_name" value={content.full_name} edit={edit} placeholder="Your name" />
+        </h1>
       )}
-    </article>
+      {(content.headline || edit) && (
+        <p className="rd-headline">
+          <T
+            path="headline"
+            value={content.headline}
+            edit={edit}
+            placeholder="What you do, in under twelve words"
+          />
+        </p>
+      )}
+    </>
   );
 }
 
+function contactParts(content: DraftContent) {
+  return [
+    { path: "email", value: content.email, placeholder: "email" },
+    { path: "phone", value: content.phone, placeholder: "phone" },
+    ...(content.links ?? []).map((l, i) => ({
+      path: `links.${i}.url`,
+      value: l.url,
+      placeholder: "link",
+    })),
+    { path: "location", value: content.location, placeholder: "city" },
+  ];
+}
+
 /**
- * Several fields on one line with a separator between them.
+ * A monogram where a Canva template would put a headshot.
  *
- * The separator sits outside the editable regions, so it cannot be deleted by
- * somebody backspacing at the start of a field — and an empty field drops its
- * separator with it, so a missing phone number does not leave a dangling
- * middot in the printed page.
+ * There is no photograph in the resume schema, and inventing one here would
+ * mean an upload, a crop, storage and a moderation question — none of which
+ * this feature needs to answer today. Initials fill the same hole in the
+ * composition, cost nothing, and cannot be a picture of the wrong person.
  */
-function Joined({
-  parts,
+function Monogram({ name }: { name: string | null | undefined }) {
+  const initials = (name ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+  if (!initials) return null;
+  return (
+    <span className="rd-monogram" aria-hidden>
+      {initials}
+    </span>
+  );
+}
+
+/* --------------------------------------------------------------- the page */
+
+export function ResumeDocument({
+  content,
+  template,
   edit,
-  separator,
 }: {
-  parts: { path: string; value: string | null | undefined; placeholder?: string }[];
+  content: DraftContent;
+  template?: string | null;
   edit?: Edit;
-  separator: string;
 }) {
-  const shown = edit ? parts : parts.filter((p) => p.value?.trim());
+  const chosen = templateById(template);
+  const layout: Layout = chosen.layout;
+  const { aside, main } = sectionOrder(layout);
+
+  const ctx: Ctx = { content, edit };
+  const asideCtx: Ctx = { content, edit, stack: true };
+
+  const body = (keys: SectionKey[], c: Ctx) => keys.map((k) => renderSection(k, c));
+  const contact = (stack?: boolean) => (
+    <p className="rd-contact">
+      <Joined parts={contactParts(content)} edit={edit} separator=" · " stack={stack} />
+    </p>
+  );
 
   return (
-    <>
-      {shown.map((p, i) => (
-        <span key={p.path}>
-          {i > 0 && <span className="rd-sep">{separator}</span>}
-          <T path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
-        </span>
-      ))}
-    </>
+    <article
+      className={`rd-page rd-l-${layout}${edit ? " rd-editing" : ""}`}
+      style={{ width: A4.width, ...themeVars(chosen.theme) }}
+    >
+      <style>{SHEET}</style>
+
+      {layout === "column" && (
+        <div className="rd-pad">
+          <header className="rd-head">
+            <Name {...ctx} />
+            {contact()}
+          </header>
+          {body(main, ctx)}
+        </div>
+      )}
+
+      {layout === "band" && (
+        <>
+          <header className="rd-band">
+            <div className="rd-band-text">
+              <Name {...ctx} />
+              {contact()}
+            </div>
+            <Monogram name={content.full_name} />
+          </header>
+          <div className="rd-pad">{body(main, ctx)}</div>
+        </>
+      )}
+
+      {layout === "sidebar" && (
+        <div className="rd-cols">
+          <aside className="rd-aside">
+            <div className="rd-aside-head">
+              <Monogram name={content.full_name} />
+              <Name {...ctx} />
+            </div>
+            <section className="rd-section">
+              <h2 className="rd-h2">CONTACT</h2>
+              {contact(true)}
+            </section>
+            {body(aside, asideCtx)}
+          </aside>
+          <div className="rd-main">{body(main, ctx)}</div>
+        </div>
+      )}
+
+      {layout === "split" && (
+        <>
+          <header className="rd-split-head">
+            <Name {...ctx} />
+            {contact()}
+          </header>
+          <div className="rd-cols">
+            <aside className="rd-aside">{body(aside, asideCtx)}</aside>
+            <div className="rd-main">{body(main, ctx)}</div>
+          </div>
+        </>
+      )}
+    </article>
   );
 }
 
@@ -469,40 +590,50 @@ function Joined({
  * headless print worker, or a real PDF writer later — without dragging a
  * utility framework and a build step behind it.
  */
-const CSS = `
+const SHEET = `
 .rd-page {
   box-sizing: border-box;
+  /* A flex column so the two-column body can be told to fill what is left
+     under the header. Without it a sidebar stops where its text stops, which
+     reads as a broken box rather than as a column. */
+  display: flex;
+  flex-direction: column;
   min-height: 297mm;
   background: #fff;
   color: #000;
-  /* Every one of these has a fallback, so a template that sets nothing still
-     renders exactly as this page did before templates existed. The defaults
-     are Classic, deliberately: an existing draft cannot change appearance
-     because a feature was added around it. */
+  /* Every variable has a fallback, so a template that sets nothing still
+     renders as the plain black-and-white column. */
   font-family: var(--rd-font, Helvetica, Arial, "Liberation Sans", sans-serif);
   font-size: var(--rd-size, 10pt);
   line-height: var(--rd-lead, 1.42);
 }
-.rd-page > header { text-align: var(--rd-align, left); }
+.rd-pad { padding: 15mm 17mm; flex: 1; }
+
+/* ------------------------------------------------------------- the header */
+
+.rd-head { text-align: var(--rd-align, left); }
 .rd-name {
   margin: 0;
   font-size: var(--rd-name-size, 19pt);
   font-weight: var(--rd-name-weight, 700);
   letter-spacing: var(--rd-name-tracking, -0.01em);
-  color: var(--rd-name-color, #000);
+  text-transform: var(--rd-name-case, none);
+  line-height: 1.12;
 }
-.rd-headline {
-  margin: 1.5mm 0 0;
-  font-size: 11pt;
-  font-weight: 400;
-}
+.rd-headline { margin: 1.5mm 0 0; font-size: 11pt; font-weight: 400; }
 .rd-contact {
   margin: 2mm 0 0;
-  font-size: 9pt;
+  font-size: 8.5pt;
   color: var(--rd-muted, #333);
   word-break: break-word;
 }
+.rd-stacked { display: block; }
+.rd-stacked + .rd-stacked { margin-top: 1mm; }
+
+/* --------------------------------------------------------------- sections */
+
 .rd-section { margin-top: var(--rd-section-gap, 6mm); }
+.rd-section:first-child { margin-top: 0; }
 .rd-h2 {
   margin: 0 0 var(--rd-h2-gap, 2mm);
   padding-bottom: 1mm;
@@ -517,79 +648,113 @@ const CSS = `
 .rd-role:first-of-type { margin-top: 0; }
 .rd-edu + .rd-edu { margin-top: 2.5mm; }
 .rd-role-line { margin: 0; font-weight: 700; }
-.rd-dates { margin: 0.5mm 0 1mm; font-size: 9pt; color: var(--rd-muted, #333); }
-.rd-bullet {
-  margin: 0 0 0.8mm;
-  padding-left: 4mm;
-  text-indent: -4mm;
+.rd-dates { margin: 0.5mm 0 1mm; font-size: 8.5pt; color: var(--rd-muted, #333); }
+.rd-bullet { margin: 0 0 0.8mm; padding-left: 4mm; text-indent: -4mm; }
+
+/* ------------------------------------------------------------ header band */
+
+.rd-band {
+  display: flex;
+  align-items: center;
+  gap: 8mm;
+  padding: 12mm 17mm;
+  background: var(--rd-accent, #1e3a5f);
+  color: var(--rd-on-accent, #fff);
 }
+.rd-band-text { flex: 1; min-width: 0; }
+.rd-band .rd-contact { color: rgba(255, 255, 255, 0.86); }
+.rd-monogram {
+  display: grid;
+  place-items: center;
+  width: 22mm;
+  height: 22mm;
+  flex: none;
+  border-radius: 50%;
+  border: 0.6pt solid rgba(255, 255, 255, 0.55);
+  font-size: 15pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---------------------------------------------------------------- columns */
+
+.rd-cols { display: flex; align-items: stretch; flex: 1; min-height: 0; }
+.rd-aside { width: var(--rd-aside-width, 58mm); flex: none; padding: 12mm 8mm; }
+.rd-main { flex: 1; min-width: 0; padding: 12mm 12mm 12mm 10mm; }
+
+/* A sidebar is a filled column; the two-column split is a washed one. Both
+   read the same way to a parser — left column first — which is the part that
+   costs points and the part a score has to say out loud. */
+.rd-l-sidebar .rd-aside {
+  background: var(--rd-wash, #2f3640);
+  color: var(--rd-aside-text, var(--rd-on-accent, #fff));
+}
+.rd-l-sidebar .rd-aside .rd-h2 {
+  color: var(--rd-aside-heading, var(--rd-on-accent, #fff));
+  border-bottom-color: currentColor;
+  opacity: 1;
+}
+/* Quieter than the body, whichever way round the column is, without needing
+   a second colour token per template. */
+.rd-l-sidebar .rd-aside .rd-contact,
+.rd-l-sidebar .rd-aside .rd-dates { color: inherit; opacity: 0.78; }
+.rd-l-sidebar .rd-aside-head { margin-bottom: 7mm; }
+.rd-l-sidebar .rd-aside-head .rd-monogram { margin-bottom: 4mm; border-color: currentColor; opacity: 0.85; }
+.rd-l-sidebar .rd-aside .rd-name { font-size: calc(var(--rd-name-size, 20pt) * 0.8); }
+.rd-l-sidebar .rd-aside .rd-headline { font-size: 9pt; opacity: 0.85; }
+
+.rd-l-split .rd-split-head {
+  padding: 13mm 14mm 6mm;
+  border-bottom: 1.2pt solid var(--rd-accent, #14706b);
+}
+.rd-l-split .rd-split-head .rd-name { color: var(--rd-accent, #14706b); }
+.rd-l-split .rd-aside { background: var(--rd-wash, #e7f1f0); padding: 10mm 8mm; }
 
 /* ------------------------------------------------------------ editing only
 
-   None of this reaches the printed page: it hangs off .rd-editing, which is
-   only set when the document is being typed into, and print drops it anyway.
-   The document must look identical whether or not somebody is editing it —
-   an editor that shows you something other than what prints is not an
-   editor, it is a preview with extra steps. */
+   None of this reaches the printed page. The document must look identical
+   whether or not somebody is typing into it — an editor that shows you
+   something other than what prints is a preview with extra steps. */
 
 .rd-editing .rd-edit {
   outline: none;
   border-radius: 2px;
-  /* Box-shadow rather than padding or border, so nothing shifts when a field
-     is hovered — text that moves under the cursor is maddening to click. */
+  /* Box-shadow rather than padding or border, so nothing shifts on hover —
+     text that moves under the cursor is maddening to click. */
   box-shadow: 0 0 0 3px transparent;
   transition: box-shadow 90ms ease, background-color 90ms ease;
   cursor: text;
 }
-.rd-editing .rd-edit:hover { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05); background: rgba(0,0,0,0.05); }
-.rd-editing .rd-edit:focus { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18); background: rgba(37, 99, 235, 0.08); }
+.rd-editing .rd-edit:hover { box-shadow: 0 0 0 3px rgba(0,0,0,0.05); background: rgba(0,0,0,0.05); }
+.rd-editing .rd-edit:focus { box-shadow: 0 0 0 3px rgba(37,99,235,0.2); background: rgba(37,99,235,0.09); }
+.rd-editing.rd-l-sidebar .rd-aside .rd-edit:hover {
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.16);
+}
 
-/* An empty field is invisible and therefore unclickable, so it shows what it
-   is for instead. Attribute content, not a text node — it must never be
-   picked up as part of the document. */
+/* An empty field is invisible and therefore unclickable, so it says what it is
+   for. Generated content, never a text node — it must not be picked up as part
+   of the document. */
 .rd-editing .rd-edit:empty::before {
   content: attr(data-placeholder);
   color: #9aa0a6;
   font-weight: 400;
 }
+.rd-editing.rd-l-sidebar .rd-aside .rd-edit:empty::before { color: rgba(255,255,255,0.55); }
 .rd-editing .rd-sep { color: #c0c4c8; }
 
-/* Row controls. Out of the flow entirely and revealed on hover, so a page
-   being edited has the same measurements as a page being printed. */
-.rd-editing .rd-role, .rd-editing .rd-edu { position: relative; }
-.rd-tools {
-  position: absolute;
-  top: -2mm;
-  right: 0;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 90ms ease;
-}
-.rd-role:hover > .rd-tools, .rd-edu:hover > .rd-tools,
-.rd-tools:focus-within { opacity: 1; }
-.rd-tool {
-  border: 1px solid rgba(0,0,0,0.14);
-  border-radius: 999px;
-  background: #fff;
-  padding: 1px 7px;
-  font-family: Helvetica, Arial, sans-serif;
-  font-size: 7.5pt;
-  line-height: 1.5;
-  color: #444;
-  cursor: pointer;
-}
-.rd-tool:hover { border-color: #000; color: #000; }
-/* Labels as generated content, never as text nodes — see RowTools above. */
-.rd-tool-add::before { content: "+ line"; }
-.rd-tool-remove::before { content: "Remove"; }
-
 @media print {
-  .rd-page { width: auto; min-height: 0; padding: 0; box-shadow: none; }
+  .rd-page { width: auto; min-height: 0; box-shadow: none; }
+  .rd-cols { min-height: 0; }
   .rd-role, .rd-edu { break-inside: avoid; }
   .rd-h2 { break-after: avoid; }
   .rd-edit { box-shadow: none !important; background: none !important; }
   .rd-edit:empty::before { content: "" !important; }
-  .rd-tools { display: none !important; }
+  /* Fills and washes have to be asked for, or a printer drops them and a
+     sidebar template comes out as white text on white paper. */
+  .rd-band, .rd-aside, .rd-monogram {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 `;

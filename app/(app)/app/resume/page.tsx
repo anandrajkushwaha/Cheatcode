@@ -1,145 +1,94 @@
 import Link from "next/link";
-import { getPrimaryDraft, getResumes } from "@/lib/app/account";
+import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
 import { ResumeUpload } from "@/components/app/ResumeUpload";
 import { TemplateGallery } from "@/components/app/TemplateGallery";
-import { Card, Chip, Empty } from "@/components/app/ui";
-import { DEFAULT_TEMPLATE, TEMPLATES } from "@/lib/app/resume-templates";
+import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
+import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The templates, and a way in.
+ *
+ * This page used to lead with an upload box and a summary of what we parsed out
+ * of the last file, followed by a list of earlier uploads. All three were about
+ * our process rather than about anything somebody came here to do, and the
+ * parsed summary in particular was a read-only copy of information the editor
+ * already shows in a form they can change.
+ *
+ * So the gallery is the page. Uploading is still how a resume gets in, but it
+ * is a link beside the heading rather than the first thing on it — the front
+ * door for the few visits where the answer is "start from my file", not a wall
+ * everyone else has to walk past.
+ */
 export default async function ResumePage() {
-  const [resumes, draft] = await Promise.all([getResumes(), getPrimaryDraft()]);
-  const primary = resumes.find((r) => r.is_primary) ?? resumes[0] ?? null;
+  const [draft, resume] = await Promise.all([getPrimaryDraft(), getPrimaryResume()]);
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Resume</h1>
-      <p className="mt-2.5 max-w-[68ch] text-[0.92rem] leading-relaxed text-ink-50">
-        Two things happen when you upload. You get the ATS score — whether the software that opens
-        your resume first can actually read it. And we pull out your skills, titles and experience,
-        which is what job matching and the agent will use.
-      </p>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Resume templates</h1>
 
-      <div className="mt-8">
-        <ResumeUpload hasExisting={Boolean(primary)} />
-      </div>
-
-      {/**
-        * The templates, with their own resume in every one.
-        *
-        * This is the screen, not a side door to it. A gallery of strangers'
-        * CVs is what you show somebody who has given you nothing; by the time
-        * anybody is here there is a draft seeded from their upload, so each
-        * card can show their name and their jobs. Picking one opens the
-        * editor on it.
-        */}
-      {draft && (
-        <section className="mt-12">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-            <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em]">
-              Pick a template
-            </h2>
+        <div className="flex items-center gap-4">
+          {draft && (
             <Link
               href="/app/resume/builder"
               className="text-[0.82rem] text-ink-30 underline-offset-4 hover:text-ink hover:underline"
             >
               Open the editor
             </Link>
-          </div>
-          <p className="mt-2 max-w-[68ch] text-[0.88rem] leading-relaxed text-ink-50">
-            {TEMPLATES.length} layouts, each showing your own resume rather than a stranger&apos;s.
-            They differ in type, spacing and colour and in nothing else — one column, real text,
-            no icons or tables. The decorative two-column ones are exactly what applicant tracking
-            software cannot read.
-          </p>
-
-          <div className="mt-7">
-            <TemplateGallery
-              content={draft.content}
-              draftId={draft.id}
-              current={draft.template ?? DEFAULT_TEMPLATE}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* The way back in for somebody who uploaded weeks ago and is not going
-          to upload the same file again just to find the button. */}
-      {!draft && primary?.parsed && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl border border-ink-08 p-6">
-          <div className="min-w-0">
-            <p className="text-[0.98rem] font-medium">
-              Rebuild it in a layout the software can read
-            </p>
-            <p className="mt-1.5 max-w-[52ch] text-[0.85rem] leading-relaxed text-ink-50">
-              The same words, arranged so nothing is lost on the way in. Free, and the file you
-              uploaded stays exactly as it is.
-            </p>
-          </div>
+          )}
           <Link
-            href="/app/resume/builder"
-            className="shrink-0 rounded-full border border-ink-15 px-4 py-2 text-[0.82rem] font-medium transition-colors hover:border-ink"
+            href="#upload"
+            className="rounded-full border border-ink-15 px-4 py-2 text-[0.82rem] font-medium transition-colors hover:border-ink"
           >
-            Open the builder
+            Upload resume
           </Link>
         </div>
-      )}
+      </div>
 
-      {primary?.parsed && (
-        <div className="mt-10 grid gap-4 lg:grid-cols-2">
-          <Card title="Experience">
-            {primary.parsed.roles?.length ? (
-              <ol className="space-y-5">
-                {primary.parsed.roles.slice(0, 6).map((r, i) => (
-                  <li key={i}>
-                    <p className="text-[0.95rem] font-medium">{r.title ?? "Role"}</p>
-                    <p className="mt-0.5 text-[0.85rem] text-ink-50">
-                      {[r.company, [r.start, r.end].filter(Boolean).join(" – ")]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </li>
-                ))}
-              </ol>
+      {draft ? (
+        <div className="mt-8">
+          <TemplateGallery content={draft.content} current={draft.template ?? DEFAULT_TEMPLATE} />
+        </div>
+      ) : (
+        <div className="mt-8 rounded-2xl border border-ink-08 p-6">
+          <p className="max-w-[58ch] text-[0.92rem] leading-relaxed text-ink-50">
+            {resume
+              ? "Build your document first, and every template will show your own resume in it — " +
+                "your name, your jobs, your bullets — rather than a stranger's."
+              : "Upload a resume to start. Every template shows your own document, so there has to " +
+                "be one."}
+          </p>
+          <div className="mt-6">
+            {resume ? (
+              <BuildDraftButton label="Build it from my resume" />
             ) : (
-              <Empty>No roles were found in the file.</Empty>
+              <Link
+                href="#upload"
+                className="inline-flex rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-semibold text-paper transition-transform hover:scale-[1.02]"
+              >
+                Upload a resume
+              </Link>
             )}
-          </Card>
-
-          <Card title="Skills" note="What job matching will search on.">
-            {primary.parsed.skills?.length ? (
-              <div className="flex flex-wrap gap-2">
-                {primary.parsed.skills.map((s) => (
-                  <Chip key={s}>{s}</Chip>
-                ))}
-              </div>
-            ) : (
-              <Empty>No skills were found. A plain, comma-separated skills block helps.</Empty>
-            )}
-          </Card>
+          </div>
         </div>
       )}
 
-      {resumes.length > 1 && (
-        <div className="mt-10">
-          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Earlier uploads
-          </h2>
-          <ul className="mt-4 divide-y divide-ink-08 border-t border-ink-08">
-            {resumes.slice(1).map((r) => (
-              <li key={r.id} className="flex flex-wrap items-baseline gap-x-4 py-3 text-[0.88rem]">
-                <span className="min-w-0 flex-1 truncate">{r.file_name ?? "Resume"}</span>
-                <span className="tabular-nums text-ink-50">{r.ats_score ?? "—"}</span>
-                <span className="text-[0.78rem] text-ink-30">
-                  {new Date(r.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric", month: "short", year: "numeric",
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {/* Kept, and kept out of the way. Uploading is how the first draft gets
+          its content; after that it is the thing almost nobody needs again. */}
+      <section id="upload" className="mt-14 border-t border-ink-08 pt-8">
+        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+          Start from a file
+        </h2>
+        <p className="mt-2.5 max-w-[62ch] text-[0.88rem] leading-relaxed text-ink-50">
+          We read it in your browser, score it, and pull out your skills, titles and experience —
+          which is what the templates fill themselves in with.
+        </p>
+        <div className="mt-5">
+          <ResumeUpload hasExisting={Boolean(resume)} />
         </div>
-      )}
+      </section>
     </>
   );
 }
