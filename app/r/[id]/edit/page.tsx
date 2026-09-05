@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/supabase/app";
-import { ResumeEditor } from "@/components/app/ResumeEditor";
+import { DesignEditor } from "@/components/app/DesignEditor";
 import { getShared } from "@/lib/app/resume-store";
 import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
+import { designIsEmpty } from "@/lib/app/design";
+import { seedDesign } from "@/lib/app/design-seed";
 
 export const dynamic = "force-dynamic";
 
@@ -72,16 +74,21 @@ export default async function SharedResumeEditPage({
     );
   }
 
+  const template = shared.template || DEFAULT_TEMPLATE;
+  const design =
+    shared.design && !designIsEmpty(shared.design)
+      ? shared.design
+      : seedDesign(shared.content, template);
+
   return (
-    <ResumeEditor
+    <DesignEditor
       draftId={shared.draftId}
-      initial={shared.content}
-      template={shared.template || DEFAULT_TEMPLATE}
       title={shared.title}
+      content={shared.content}
+      template={template}
+      initialDesign={design}
       shareId={id}
       isPublic
-      initialStyles={shared.styles}
-      initialPhoto={shared.photo}
       sharedAs={id}
     />
   );

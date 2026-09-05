@@ -5,6 +5,7 @@ import { cleanResume, emptyResume, resumeIsEmpty, type Resume } from "@/lib/app/
 import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
 import { templateById } from "@/lib/app/resume-templates";
 import { cleanPresentation } from "@/lib/app/resume-style";
+import { cleanDesign } from "@/lib/app/design";
 
 /**
  * The one write path to somebody's resume.
@@ -21,7 +22,7 @@ import { cleanPresentation } from "@/lib/app/resume-style";
  */
 
 const COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,share_id,is_public,link_role,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,design,share_id,is_public,link_role,is_primary,created_at,updated_at";
 
 /** A deployment where 50_resume_drafts.sql has not been run yet. */
 export function isMissingTable(message?: string): boolean {
@@ -58,6 +59,7 @@ const ADDED_COLUMNS: [column: string, file: string][] = [
   ["styles", "53_resume_style.sql"],
   ["photo", "53_resume_style.sql"],
   ["link_role", "54_resume_access.sql"],
+  ["design", "55_resume_design.sql"],
 ];
 
 /** The one sentence for either, so the two read paths cannot drift. */
@@ -106,6 +108,9 @@ function normalise(row: unknown): ResumeDraft {
     // row, a typo, a value somebody put in the table by hand — all of them
     // land on the safe side rather than on the side that lets strangers write.
     link_role: draft.link_role === "edit" ? "edit" : "view",
+    // Null stays null — it is how "never converted" is told apart from "a
+    // design somebody emptied", and the seeder must not refill the second.
+    design: draft.design == null ? null : cleanDesign(draft.design),
   };
 }
 
@@ -336,6 +341,8 @@ export type Shared = {
   title: string;
   styles: ReturnType<typeof cleanPresentation>;
   photo: string | null;
+  /** The document. Null on rows written before the canvas editor. */
+  design: ReturnType<typeof cleanDesign> | null;
   /** Whether the person asking may change it, and why they may. */
   canEdit: boolean;
   /** 'link' when the link itself grants it, 'invite' when they were named. */
@@ -354,7 +361,7 @@ export async function getShared(shareId: string, viewerEmail?: string | null): P
 
   const { data, error } = await supabase
     .from("resume_drafts")
-    .select("id,user_id,content,template,title,styles,photo,is_public,link_role")
+    .select("id,user_id,content,template,title,styles,photo,design,is_public,link_role")
     .eq("share_id", shareId)
     .eq("is_public", true)
     .limit(1);
@@ -369,6 +376,7 @@ export async function getShared(shareId: string, viewerEmail?: string | null): P
         title: string | null;
         styles: unknown;
         photo: string | null;
+        design: unknown;
         link_role: string | null;
       }
     | undefined;
@@ -405,6 +413,7 @@ export async function getShared(shareId: string, viewerEmail?: string | null): P
     title: row.title ?? "Resume",
     styles: cleanPresentation(row.styles),
     photo: row.photo ?? null,
+    design: row.design == null ? null : cleanDesign(row.design),
     canEdit: grantedBy !== null,
     grantedBy,
     linkRole: asRole(row.link_role),
@@ -572,7 +581,7 @@ export async function saveShared(
   shareId: string,
   viewerEmail: string | null,
   content: Resume,
-  extra: { styles?: unknown; photo?: string | null } = {},
+  extra: { styles?: unknown; photo?: string | null; design?: unknown } = {},
 ): Promise<void> {
   const shared = await getShared(shareId, viewerEmail);
   if (!shared) throw new StoreError("That resume doesn't exist.", 404);
@@ -589,6 +598,7 @@ export async function saveShared(
   };
   if (extra.styles !== undefined) patch.styles = cleanPresentation(extra.styles);
   if (extra.photo !== undefined) patch.photo = extra.photo;
+  if (extra.design !== undefined) patch.design = cleanDesign(extra.design);
 
   const { error } = await supabase.from("resume_drafts").update(patch).eq("id", shared.draftId);
   if (error) throw new StoreError(error.message);
@@ -681,9 +691,19 @@ export async function patchDraft(
 }
 
 /** One row by id, for the places that need to know its template before writing. */
-async function getDraftById(draftId: string): Promise<ResumeDraft | null> {
+/**
+ * One draft, by id.
+ *
+ * RLS already restricts this to the caller's own rows, so `userId` is not what
+ * makes it safe — it is there for the callers that want to be able to say so
+ * at the call site, and it costs nothing. Exported because the PDF route needs
+ * exactly this and should not be given a wider door.
+ */
+export async function getDraftById(draftId: string, userId?: string): Promise<ResumeDraft | null> {
   const supabase = await client();
-  const { data } = await supabase.from("resume_drafts").select(COLUMNS).eq("id", draftId).limit(1);
+  let q = supabase.from("resume_drafts").select(COLUMNS).eq("id", draftId);
+  if (userId) q = q.eq("user_id", userId);
+  const { data } = await q.limit(1);
   const row = (data ?? [])[0];
   return row ? normalise(row) : null;
 }

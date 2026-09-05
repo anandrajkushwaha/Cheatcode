@@ -27,10 +27,10 @@ import { useCallback, useEffect, useState } from "react";
  * two things in the same order, and it is the order people think in: who
  * specifically, and then everybody else.
  *
- * Downloading is a print dialog rather than a server-rendered PDF. The browser
- * writes real selectable text, which is the entire point of the document — a
- * picture of a resume scores nothing — and it needs no PDF library, no font
- * embedding and no second renderer that could disagree with the first.
+ * Download hands off to the editor, which asks the server for a real PDF
+ * printed from the same renderer the screen uses. It is not a print dialog and
+ * it is not a second renderer — those were the two ways this could have gone
+ * wrong, and both of them end with a file that is not the document.
  */
 
 type Role = "view" | "edit";
@@ -46,6 +46,8 @@ type Props = {
   /** Unsaved edits would not be in the shared copy, so say so. */
   dirty: boolean;
   onSave: () => Promise<void>;
+  /** Builds and saves the PDF. Owned by the editor, because it knows the design. */
+  onDownload: () => void;
   onClose: () => void;
 };
 
@@ -57,6 +59,7 @@ export function ShareDialog({
   ownerEmail,
   dirty,
   onSave,
+  onDownload,
   onClose,
 }: Props) {
   const [on, setOn] = useState(isPublic);
@@ -365,8 +368,8 @@ export function ShareDialog({
         {!error && note && <p className="mt-3 text-[0.82rem] text-ink-50">{note}</p>}
 
         {/* --------------------------------------------------------- ways */}
-        <div className="mt-5 grid grid-cols-4 gap-1 border-t border-ink-08 pt-4">
-          <Way label="Download" onClick={() => window.print()}>
+        <div className="mt-5 grid grid-cols-5 gap-1 border-t border-ink-08 pt-4">
+          <Way label="Download" onClick={onDownload}>
             <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5" />
             <path d="M3.5 14v2.5h13V14" />
           </Way>
@@ -415,37 +418,6 @@ export function ShareDialog({
             <path d="M15 12v4H4V5h4" />
           </Way>
 
-          <Way
-            label="Copy text"
-            onClick={() => {
-              // The plain words, for the application forms that ask you to
-              // paste your resume into a textarea. Same document, no styling.
-              const el = document.querySelector(".rd-page");
-              const text = el instanceof HTMLElement ? el.innerText : "";
-              void navigator.clipboard.writeText(text).then(
-                () => setNote("Plain text copied — paste it into an application form."),
-                () => setError("Couldn't copy."),
-              );
-            }}
-          >
-            <path d="M7 3.5h9v9" />
-            <path d="M4 7h9v9.5H4z" />
-          </Way>
-
-          <Way label="Templates" onClick={() => (window.location.href = "/app/resume")}>
-            <path d="M3.5 3.5h5v13h-5z" />
-            <path d="M11.5 3.5h5v6h-5z" />
-            <path d="M11.5 12.5h5v4h-5z" />
-          </Way>
-
-          <Way
-            label="Withdraw"
-            disabled={!on}
-            onClick={() => void publish({ on: false })}
-          >
-            <path d="M10 3.5 3.5 15h13z" />
-            <path d="M10 8v3M10 13h.01" />
-          </Way>
         </div>
 
         {!on && (

@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/supabase/app";
-import { ResumeDocument } from "@/components/app/ResumeDocument";
+import { DesignPage, DesignStyles } from "@/components/app/DesignPage";
 import { getShared } from "@/lib/app/resume-store";
+import { designIsEmpty } from "@/lib/app/design";
+import { seedDesign } from "@/lib/app/design-seed";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,14 @@ export default async function SharedResumePage({
   // purpose. Telling the difference would confirm that a resume is there,
   // which is exactly what switching sharing off was meant to stop.
   if (!shared) notFound();
+
+  // A row from before the canvas editor has no design; it is rendered from the
+  // same seeder the builder uses, so a link shared last month still opens and
+  // still looks like the document the owner remembers.
+  const design =
+    shared.design && !designIsEmpty(shared.design)
+      ? shared.design
+      : seedDesign(shared.content, shared.template);
 
   return (
     <main className="min-h-screen bg-[#f4f4f5] print:bg-white">
@@ -89,15 +99,17 @@ export default async function SharedResumePage({
         </div>
       </header>
 
-      <div className="py-8 print:py-0">
-      <div className="mx-auto w-fit bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
-        <ResumeDocument
-          content={shared.content}
-          template={shared.template}
-          styles={shared.styles}
-          photo={shared.photo}
-        />
-      </div>
+      <DesignStyles />
+
+      <div className="flex flex-col items-center gap-6 py-8 print:gap-0 print:py-0">
+        {design.pages.map((p) => (
+          <div
+            key={p.id}
+            className="w-fit shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none"
+          >
+            <DesignPage page={p} />
+          </div>
+        ))}
 
         <p className="no-print mx-auto mt-6 max-w-[62ch] px-5 text-center text-[0.82rem] leading-relaxed text-black/40">
           {shared.canEdit ? (

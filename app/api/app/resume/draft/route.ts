@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { cleanResume } from "@/lib/app/resume-schema";
 import { isTemplateId } from "@/lib/app/resume-templates";
 import { cleanPresentation } from "@/lib/app/resume-style";
+import { cleanDesign } from "@/lib/app/design";
 import {
   ClearRefused,
   createFromTemplate,
@@ -121,6 +122,7 @@ export async function PUT(request: Request) {
     template?: unknown;
     styles?: unknown;
     photo?: unknown;
+    design?: unknown;
   };
   try {
     body = await request.json();
@@ -152,6 +154,16 @@ export async function PUT(request: Request) {
       ...(isTemplateId(body.template) ? { template: body.template } : {}),
       ...(body.styles !== undefined ? { styles: cleanPresentation(body.styles) } : {}),
       ...(body.photo !== undefined ? { photo: photoOrNull(body.photo) } : {}),
+      /**
+       * The document itself.
+       *
+       * Rebuilt by `cleanDesign` rather than trusted: it is a jsonb column
+       * written straight from a browser, so every colour, data URL, number and
+       * element type in it is somebody else's input until that function has
+       * had it. Absent means "not part of this save" — an autosave of the
+       * résumé fields must not blank a design.
+       */
+      ...(body.design !== undefined ? { design: cleanDesign(body.design) } : {}),
     };
 
     const draft = await save(user.id, body.id, cleanResume(body.content), extra);

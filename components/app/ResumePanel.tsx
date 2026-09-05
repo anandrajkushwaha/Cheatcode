@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ResumeDocument } from "@/components/app/ResumeDocument";
+import { DesignPage, DesignStyles } from "@/components/app/DesignPage";
+import { seedDesign } from "@/lib/app/design-seed";
+import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 import type { Resume } from "@/lib/app/resume-schema";
 
 /**
@@ -132,7 +134,11 @@ export function ResumePanel({
           // down rather than reflowed: what you see is the page that prints,
           // and a preview that reflows is a preview of a different document.
           <div className="rd-panel origin-top">
-            <ResumeDocument content={draft!.content} />
+            <DesignStyles />
+            {/* The same renderer the editor and the PDF use, seeded from what
+                has been said so far. A preview drawn by anything else is a
+                preview of a document that does not exist. */}
+            <DesignPage page={seedDesign(draft!.content, DEFAULT_TEMPLATE).pages[0]} />
           </div>
         )}
       </div>

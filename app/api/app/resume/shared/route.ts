@@ -25,7 +25,13 @@ export async function PUT(request: Request) {
     );
   }
 
-  let body: { shareId?: string; content?: unknown; styles?: unknown; photo?: string | null };
+  let body: {
+    shareId?: string;
+    content?: unknown;
+    styles?: unknown;
+    photo?: string | null;
+    design?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -40,6 +46,7 @@ export async function PUT(request: Request) {
     await saveShared(body.shareId, user.email ?? null, cleanResume(body.content), {
       styles: body.styles,
       photo: typeof body.photo === "string" || body.photo === null ? body.photo : undefined,
+      design: body.design,
     });
     return Response.json({ ok: true });
   } catch (e) {

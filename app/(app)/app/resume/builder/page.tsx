@@ -1,24 +1,27 @@
 import Link from "next/link";
 import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
 import { getSessionUser } from "@/lib/supabase/app";
-import { ResumeEditor } from "@/components/app/ResumeEditor";
+import { DesignEditor } from "@/components/app/DesignEditor";
 import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
 import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
+import { designIsEmpty } from "@/lib/app/design";
+import { seedDesign } from "@/lib/app/design-seed";
 
 export const dynamic = "force-dynamic";
 
 /**
  * The editor, and only the editor.
  *
- * This page used to carry a score ring, a verdict, a checklist of what the
- * layout could not fix, a template rail and a row of buttons — all of it above
- * the document, all of it pushing the thing somebody came here to work on
- * below the fold. Every piece was defensible on its own and together they made
- * an editor you had to scroll past a dashboard to reach.
+ * A résumé here is a design: pages of objects that can be moved, resized,
+ * restyled, layered and deleted. `content` — the typed résumé the parser and
+ * the agent still write — is what a design is *seeded* from the first time it
+ * is opened, and is what an ATS check will read when that is built as its own
+ * feature. It is no longer the master copy, and nothing re-derives the page
+ * from it, because a person who nudges a heading has made a decision.
  *
- * The score has not been thrown away; it belongs where the decision is, which
- * is the template gallery, next to the template it describes. Here there is a
- * document, a way back to the templates, and Share.
+ * Old rows have `design: null`. They get one here, on first open, rather than
+ * through a migration that rewrites every draft in the table — including the
+ * ones belonging to people who never come back.
  */
 export default async function ResumeBuilderPage() {
   const [draft, resume, user] = await Promise.all([
@@ -55,18 +58,24 @@ export default async function ResumeBuilderPage() {
     );
   }
 
+  const template = draft.template ?? DEFAULT_TEMPLATE;
+  // An empty design counts as no design. A row that was created but never
+  // opened has one blank page, and seeding that is right; a design somebody
+  // deliberately emptied is not empty, it is a page with a background.
+  const design =
+    draft.design && !designIsEmpty(draft.design) ? draft.design : seedDesign(draft.content, template);
+
   return (
-    <ResumeEditor
+    <DesignEditor
       draftId={draft.id}
-      initial={draft.content}
-      template={draft.template ?? DEFAULT_TEMPLATE}
       title={draft.title}
+      content={draft.content}
+      template={template}
+      initialDesign={design}
       shareId={draft.share_id}
       isPublic={draft.is_public}
       linkRole={draft.link_role}
       ownerEmail={user?.email ?? null}
-      initialStyles={draft.styles}
-      initialPhoto={draft.photo}
     />
   );
 }
