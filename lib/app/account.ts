@@ -73,6 +73,12 @@ export type ResumeDraft = {
   content: ParsedResume;
   ats_score: number | null;
   ats_result: AtsResult | null;
+  /**
+   * Which theme it is painted in. Presentation only — every template
+   * renders the same sections in the same order, so this never changes
+   * what the score describes. See lib/app/resume-templates.ts.
+   */
+  template: string;
   is_primary: boolean;
   created_at: string;
   updated_at: string;
@@ -135,7 +141,7 @@ export async function getPrimaryResume(): Promise<Resume | null> {
 }
 
 const DRAFT_COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,is_primary,created_at,updated_at";
 
 /**
  * The draft somebody is working on.

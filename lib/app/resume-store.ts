@@ -19,11 +19,43 @@ import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
  */
 
 const COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,is_primary,created_at,updated_at";
 
 /** A deployment where 50_resume_drafts.sql has not been run yet. */
 export function isMissingTable(message?: string): boolean {
   return Boolean(message && /relation .*resume_drafts.* does not exist|schema cache/i.test(message));
+}
+
+/**
+ * A deployment with the table but not the template column.
+ *
+ * Worth telling apart from a missing table, because the two need different
+ * SQL run and "the builder isn't set up" sends somebody to the wrong file.
+ * This is the specific cost of selecting named columns rather than `*`: a
+ * column added in a later migration breaks every read until it is run. The
+ * trade is worth it — `*` would mean a column added for something else
+ * silently arriving in the agent's view of a resume — but only if the failure
+ * says exactly what to do, which is what this is for.
+ */
+export function isMissingTemplateColumn(message?: string): boolean {
+  return Boolean(message && /column .*template.* does not exist/i.test(message));
+}
+
+/** The one sentence for either, so the two read paths cannot drift. */
+function setupProblem(message?: string): StoreError | null {
+  if (isMissingTemplateColumn(message)) {
+    return new StoreError(
+      "This deployment is missing a database change — run supabase/schemas/51_resume_template.sql.",
+      503,
+    );
+  }
+  if (isMissingTable(message)) {
+    return new StoreError(
+      "The resume builder isn't set up on this deployment yet — run supabase/schemas/50_resume_drafts.sql.",
+      503,
+    );
+  }
+  return null;
 }
 
 export class StoreError extends Error {
@@ -58,12 +90,8 @@ export async function getDraft(): Promise<ResumeDraft | null> {
     .limit(1);
 
   if (error) {
-    if (isMissingTable(error.message)) {
-      throw new StoreError(
-        "The resume builder isn't set up on this deployment yet — run supabase/schemas/50_resume_drafts.sql.",
-        503,
-      );
-    }
+    const setup = setupProblem(error.message);
+    if (setup) throw setup;
     throw new StoreError(error.message);
   }
 
@@ -115,12 +143,8 @@ export async function getOrCreateDraft(userId: string): Promise<ResumeDraft> {
     .limit(1);
 
   if (error) {
-    if (isMissingTable(error.message)) {
-      throw new StoreError(
-        "The resume builder isn't set up on this deployment yet — run supabase/schemas/50_resume_drafts.sql.",
-        503,
-      );
-    }
+    const setup = setupProblem(error.message);
+    if (setup) throw setup;
     throw new StoreError(error.message);
   }
 

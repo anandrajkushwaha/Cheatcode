@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/supabase/app";
 import { cleanResume } from "@/lib/app/resume-schema";
+import { isTemplateId } from "@/lib/app/resume-templates";
 import {
   ClearRefused,
   getDraft,
@@ -84,7 +85,13 @@ export async function PUT(request: Request) {
   const user = await getSessionUser();
   if (!user) return bad("Not signed in", 401);
 
-  let body: { id?: string; title?: string; content?: unknown; patch?: unknown };
+  let body: {
+    id?: string;
+    title?: string;
+    content?: unknown;
+    patch?: unknown;
+    template?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -99,10 +106,21 @@ export async function PUT(request: Request) {
 
     if (!body.id) return bad("No draft named.");
 
-    const extra =
-      typeof body.title === "string" && body.title.trim()
+    /**
+     * Everything that is not the document.
+     *
+     * The template is validated against the registry rather than stored as
+     * sent, so a stale client — or somebody curling this — cannot leave a
+     * draft pointing at a theme that does not exist. An unrecognised value is
+     * dropped and the draft keeps the template it had, which is quieter than
+     * a 400 for a field nobody deliberately set.
+     */
+    const extra = {
+      ...(typeof body.title === "string" && body.title.trim()
         ? { title: body.title.trim().slice(0, 120) }
-        : {};
+        : {}),
+      ...(isTemplateId(body.template) ? { template: body.template } : {}),
+    };
 
     const draft = await save(user.id, body.id, cleanResume(body.content), extra);
     return Response.json({ ok: true, draft, score: draft.ats_score, result: draft.ats_result });

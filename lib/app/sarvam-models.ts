@@ -20,11 +20,45 @@ const BASE = process.env.SARVAM_API_BASE ?? "https://api.sarvam.ai";
 export type Kind = "chat";
 
 /**
- * The flagship. 128K of context and tuned for 23 Indian languages, which is
- * what a career agent talking Hinglish to somebody in Pune actually needs —
- * a cheaper model that mangles code-mixed input is not cheaper.
+ * The dialogue-tuned flagship. 128K of context, tools, and tuned for 23
+ * Indian languages — which is what a career agent talking Hinglish to
+ * somebody in Pune actually needs, since a cheaper model that mangles
+ * code-mixed input is not cheaper.
+ *
+ * Deliberately the `-conversations` variant rather than plain `sarvam-105b`,
+ * and the difference is not cosmetic. The plain model is marked "always-on
+ * reasoning": it thinks before answering, and those thinking tokens are
+ * billed and counted against the reply budget. Under a 400-token cap that is
+ * a model which can spend its whole allowance reasoning and return an empty
+ * string — which is what it did here, on the harder turns, while "hello" came
+ * back fine. An agent that answers a greeting and ignores "improve my resume"
+ * looks like a broken app and is really a budget.
+ *
+ * Same price, same tools, no hidden reasoning spend. `SARVAM_CHAT_MODEL`
+ * still overrides if the reasoning model is ever wanted on purpose — and
+ * `roomFor()` in llm.ts gives it enough room to be usable when it is.
  */
-const DEFAULT_MODEL = "sarvam-105b";
+const DEFAULT_MODEL = "sarvam-105b-conversations";
+
+/**
+ * Models that think before answering, where thinking is billed as output.
+ *
+ * Matched by exact name rather than prefix, because `sarvam-105b` is a prefix
+ * of `sarvam-105b-conversations` and the two behave oppositely — a prefix
+ * match here would quietly give the dialogue model a reasoning model's
+ * budget, which is the sort of thing that is only noticed on an invoice.
+ */
+const REASONS_BEFORE_ANSWERING = new Set(["sarvam-105b", "sarvam-30b"]);
+
+/**
+ * Whether this model needs room to think on top of room to answer.
+ *
+ * Exported so the budget lives next to the fact that motivates it. The caller
+ * decides how much more; this only answers whether more is needed.
+ */
+export function reasonsBeforeAnswering(model: string): boolean {
+  return REASONS_BEFORE_ANSWERING.has(model.trim().toLowerCase());
+}
 
 /**
  * Models served from /v2 rather than /v1.

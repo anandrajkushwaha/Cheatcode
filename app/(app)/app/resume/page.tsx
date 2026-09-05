@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { getResumes } from "@/lib/app/account";
+import { getPrimaryDraft, getResumes } from "@/lib/app/account";
 import { ResumeUpload } from "@/components/app/ResumeUpload";
+import { TemplateGallery } from "@/components/app/TemplateGallery";
 import { Card, Chip, Empty } from "@/components/app/ui";
+import { DEFAULT_TEMPLATE, TEMPLATES } from "@/lib/app/resume-templates";
+
+export const dynamic = "force-dynamic";
 
 export default async function ResumePage() {
-  const resumes = await getResumes();
+  const [resumes, draft] = await Promise.all([getResumes(), getPrimaryDraft()]);
   const primary = resumes.find((r) => r.is_primary) ?? resumes[0] ?? null;
 
   return (
@@ -20,9 +24,48 @@ export default async function ResumePage() {
         <ResumeUpload hasExisting={Boolean(primary)} />
       </div>
 
+      {/**
+        * The templates, with their own resume in every one.
+        *
+        * This is the screen, not a side door to it. A gallery of strangers'
+        * CVs is what you show somebody who has given you nothing; by the time
+        * anybody is here there is a draft seeded from their upload, so each
+        * card can show their name and their jobs. Picking one opens the
+        * editor on it.
+        */}
+      {draft && (
+        <section className="mt-12">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em]">
+              Pick a template
+            </h2>
+            <Link
+              href="/app/resume/builder"
+              className="text-[0.82rem] text-ink-30 underline-offset-4 hover:text-ink hover:underline"
+            >
+              Open the editor
+            </Link>
+          </div>
+          <p className="mt-2 max-w-[68ch] text-[0.88rem] leading-relaxed text-ink-50">
+            {TEMPLATES.length} layouts, each showing your own resume rather than a stranger&apos;s.
+            They differ in type, spacing and colour and in nothing else — one column, real text,
+            no icons or tables. The decorative two-column ones are exactly what applicant tracking
+            software cannot read.
+          </p>
+
+          <div className="mt-7">
+            <TemplateGallery
+              content={draft.content}
+              draftId={draft.id}
+              current={draft.template ?? DEFAULT_TEMPLATE}
+            />
+          </div>
+        </section>
+      )}
+
       {/* The way back in for somebody who uploaded weeks ago and is not going
           to upload the same file again just to find the button. */}
-      {primary?.parsed && (
+      {!draft && primary?.parsed && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl border border-ink-08 p-6">
           <div className="min-w-0">
             <p className="text-[0.98rem] font-medium">

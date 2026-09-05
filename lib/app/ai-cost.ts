@@ -105,11 +105,35 @@ const RATES: Record<string, Rate> = {
   "gemini-3.8-flash": { input: 0.75, output: 3.75 },
   "gemini-3.7-flash": { input: 0.75, output: 3.75 },
 
-  // Sarvam, in rupees, from docs.sarvam.ai/api-reference-docs/pricing on
-  // 2 Sep 2026. ₹4 in and ₹16 out is around a sixth of what the cheapest
-  // OpenAI tier costs for the same tokens.
-  "sarvam-105b": { input: 4, output: 16, currency: "INR" },
-  "sarvam-30b": { input: 2.5, output: 10, currency: "INR" },
+  /**
+   * Sarvam, in rupees, from the model catalogue on indus.sarvam.ai —
+   * 5 September 2026, and deliberately NOT from the docs pricing page.
+   *
+   * The two sources disagree by seven times. The docs say ₹4 in and ₹16 out;
+   * the console says ₹29.28 in. The console wins, and not because a dashboard
+   * outranks a document — because the first real day of spend settles it:
+   * 45.6K tokens billed ₹1.46, a blended ₹32.02 per million. At ₹4 that same
+   * traffic would have cost about ₹0.20. At ₹29.28 in and ₹117.12 out, with
+   * the roughly 97:3 input-to-output split that a large system prompt and
+   * short replies produce, it comes to ₹31.9 per million. That is the bill.
+   *
+   * The input figure is measured. The output figure is inferred — it keeps
+   * the docs' 1:4 in-to-out ratio applied to the console's input price, which
+   * is what makes the arithmetic above land. Replace it the moment a
+   * published number appears; a usage CSV with input and output split into
+   * separate columns would settle it in one line.
+   *
+   * Worth remembering how wrong this was. Every Sarvam call so far was
+   * recorded at a seventh of its true cost, in the one column built precisely
+   * so nobody would have to guess. A confidently wrong number is worse than a
+   * missing one, because nobody goes looking for it.
+   */
+  "sarvam-105b-conversations": { input: 29.28, output: 117.12, currency: "INR" },
+  "sarvam-105b": { input: 29.28, output: 117.12, currency: "INR" },
+  // Scaled by the same 7.32x the 105B row was out by. Nothing here uses 30B,
+  // so this has never been checked against a bill — treat it as a placeholder
+  // that is at least the right order of magnitude, not as a price.
+  "sarvam-30b": { input: 18.3, output: 73.2, currency: "INR" },
 
   // The open-weight models Sarvam serves on /v2, same page and date. These are
   // an order of magnitude dearer than Sarvam's own, which is worth knowing:

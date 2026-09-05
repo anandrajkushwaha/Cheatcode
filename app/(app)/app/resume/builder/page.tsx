@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
-import { ResumeDocument } from "@/components/app/ResumeDocument";
-import { BuildDraftButton, PrintButton } from "@/components/app/ResumeBuilderActions";
+import { ResumeEditor } from "@/components/app/ResumeEditor";
+import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
+import { DEFAULT_TEMPLATE, templateById } from "@/lib/app/resume-templates";
 import { ScoreRing } from "@/components/app/ui";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,9 @@ export const dynamic = "force-dynamic";
  * content, in a document whose layout we chose, scored by the same function
  * so the improvement is a measurement rather than a promise.
  *
- * Read-only for now, deliberately. The template plus the fields they have
- * already filled banks 36 of the 111 points on its own; the editor and the
- * agent's rewrites are what move the rest, and neither is worth building
- * before the document they edit exists.
+ * Editable in place rather than read-only, and rather than a form beside a
+ * preview: the page you click on is the page that prints. Why that is worth
+ * the extra work is argued in components/app/ResumeEditor.tsx.
  */
 export default async function ResumeBuilderPage() {
   const [draft, resume] = await Promise.all([getPrimaryDraft(), getPrimaryResume()]);
@@ -95,12 +95,17 @@ export default async function ResumeBuilderPage() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <PrintButton />
+              <Link
+                href="/app/resume/templates"
+                className="rounded-full border border-ink-15 px-4 py-2 text-[0.82rem] font-medium transition-colors hover:border-ink"
+              >
+                Change template — {templateById(draft.template).name}
+              </Link>
               <BuildDraftButton label="Start again from my resume" restart quiet />
             </div>
             <p className="mt-3 text-[0.78rem] leading-relaxed text-ink-30">
-              Print, then choose <span className="text-ink-50">Save as PDF</span>. It comes out as
-              real text, which is the whole point — a picture of a resume scores nothing.
+              Download, then choose <span className="text-ink-50">Save as PDF</span>. It comes out
+              as real text, which is the whole point — a picture of a resume scores nothing.
             </p>
           </section>
 
@@ -135,16 +140,15 @@ export default async function ResumeBuilderPage() {
           </section>
         </div>
 
-        <h2 className="mt-10 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-          Preview
-        </h2>
       </div>
 
-      {/* The only thing that survives into the printout. */}
-      <div className="rd-fit mt-4 print:mt-0">
-        <div className="mx-auto w-fit shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
-          <ResumeDocument content={draft.content} />
-        </div>
+      {/* The document, and the only thing that survives into the printout. */}
+      <div className="rd-fit mt-10 print:mt-0">
+        <ResumeEditor
+          draftId={draft.id}
+          initial={draft.content}
+          initialTemplate={draft.template ?? DEFAULT_TEMPLATE}
+        />
       </div>
     </>
   );

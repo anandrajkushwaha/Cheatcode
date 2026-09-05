@@ -44,6 +44,7 @@ import {
   discoverSarvamModel,
   pinnedSarvam,
   preferredSarvamModel,
+  reasonsBeforeAnswering,
   sarvamChatUrl,
   sarvamHeaders,
 } from "@/lib/app/sarvam-models";
@@ -192,13 +193,14 @@ export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
   const read = readFor(p, json);
   if (!read.text && !read.calls.length) {
     console.error(
-      `llm: ${p}/${result.model} returned nothing usable`,
+      `llm: ${p}/${result.model} returned nothing usable` +
+        (read.finishReason ? ` (finish_reason: ${read.finishReason})` : ""),
       JSON.stringify(json).slice(0, 600),
     );
-    return { ok: false, error: "The model returned nothing.", status: 502 };
+    return { ok: false, error: outOfRoom(read.finishReason), status: 502 };
   }
 
-  return { ok: true, ...read, provider: p, model: result.model };
+  return { ok: true, text: read.text, calls: read.calls, provider: p, model: result.model };
 }
 
 /**
@@ -243,6 +245,8 @@ export async function llmChatStream(
   let lastChatChunk: unknown = null;
   /** Tool calls assembled across chunks, by index. */
   const sarvamCalls: Record<number, { name: string; args: string }> = {};
+  /** Why the stream stopped, from the chunk that says so. */
+  let finishReason: string | null = null;
 
   try {
     for await (const frame of sse(result.res)) {
@@ -292,6 +296,7 @@ export async function llmChatStream(
           if (call.function?.arguments) slot.args += call.function.arguments;
         }
 
+        if (choice?.finish_reason) finishReason = choice.finish_reason;
         if (chunk.usage) lastChatChunk = chunk;
       } else if (p === "openai") {
         const type = event.type as string | undefined;
@@ -354,8 +359,12 @@ export async function llmChatStream(
   if (upstreamError) console.error(`llm: ${p}/${result.model} streamed an error`, upstreamError);
 
   if (!text && !calls.length) {
-    console.error(`llm: ${p}/${result.model} streamed nothing usable`, upstreamError ?? "");
-    return { ok: false, error: "The model returned nothing.", status: 502 };
+    console.error(
+      `llm: ${p}/${result.model} streamed nothing usable` +
+        (finishReason ? ` (finish_reason: ${finishReason})` : ""),
+      upstreamError ?? "",
+    );
+    return { ok: false, error: outOfRoom(finishReason), status: 502 };
   }
 
   return { ok: true, text, calls, provider: p, model: result.model };
@@ -419,7 +428,7 @@ function chatBody(p: Provider, input: ChatInput, turns: Turn[], stream: boolean)
           messages: chatMessages(input.system, turns),
           ...(input.tools && !drop.has("tools") ? { tools: toolsForChat(input.tools) } : {}),
           ...(drop.has("temperature") ? {} : { temperature }),
-          ...(drop.has("maxTokens") ? {} : { max_tokens: maxTokens }),
+          ...(drop.has("maxTokens") ? {} : { max_tokens: roomFor(model, maxTokens) }),
           ...(stream ? { stream: true } : {}),
         }),
       };
@@ -804,6 +813,41 @@ function strip(raw: string): string {
 /* ------------------------------------------------------------- transport */
 
 /** Fields we can remove from a request when the provider rejects it. */
+/**
+ * How many tokens to allow, given who is answering.
+ *
+ * `maxTokens` reads as "how long may the reply be", and for most models that
+ * is what it is. For a model that reasons before answering it is the reply
+ * *plus* the thinking, and the thinking goes first — so a budget sized for a
+ * two-sentence answer produces no answer at all, with `finish_reason:
+ * "length"` and an empty string, on precisely the questions worth asking.
+ *
+ * Tripling is a guess, but it is a guess in the safe direction: the ceiling
+ * is only ever spent if the model actually uses it, and an unspent ceiling
+ * costs nothing. Answering nothing costs the whole call.
+ */
+function roomFor(model: string, asked: number): number {
+  return reasonsBeforeAnswering(model) ? asked * 3 : asked;
+}
+
+/**
+ * What to say when a model answered with nothing.
+ *
+ * "The model returned nothing" was true and useless: it reads as an outage,
+ * so it sends whoever is debugging to the status page, when the actual cause
+ * was a reply budget spent on reasoning the user never sees. Naming the two
+ * cases apart is the difference between a five-minute fix and an afternoon.
+ *
+ * Both sentences are still written for the person on the screen — neither
+ * mentions tokens — but the server log beside them carries the raw
+ * finish_reason.
+ */
+function outOfRoom(finishReason?: string | null): string {
+  return finishReason === "length"
+    ? "That answer ran long and got cut off before it started. Ask again, a little smaller."
+    : "The model returned nothing.";
+}
+
 type Drop = "temperature" | "maxTokens" | "schema" | "tools" | "reasoning";
 
 type Built = { url: string; headers: Record<string, string>; body: string };
@@ -1246,13 +1290,16 @@ function chatMessages(system: string, turns: Turn[]) {
  * kind of thing that silently yields an empty answer if assumed otherwise.
  */
 /** Whichever reader this provider's response needs. */
-function readFor(p: Provider, json: unknown): { text: string; calls: ToolCall[] } {
+function readFor(
+  p: Provider,
+  json: unknown,
+): { text: string; calls: ToolCall[]; finishReason?: string } {
   if (p === "openai") return readOpenAI(json);
   if (p === "sarvam") return readChat(json);
   return readGemini(json);
 }
 
-function readChat(json: unknown): { text: string; calls: ToolCall[] } {
+function readChat(json: unknown): { text: string; calls: ToolCall[]; finishReason?: string } {
   const j = (json ?? {}) as {
     choices?: {
       message?: {
@@ -1282,5 +1329,11 @@ function readChat(json: unknown): { text: string; calls: ToolCall[] } {
     calls.push({ name, args });
   }
 
-  return { text: message?.content ?? "", calls };
+  return {
+    text: message?.content ?? "",
+    calls,
+    // Why it stopped. "length" means it ran out of room rather than out of
+    // things to say, and that is a different bug with a different fix.
+    ...(j.choices?.[0]?.finish_reason ? { finishReason: j.choices[0].finish_reason } : {}),
+  };
 }
