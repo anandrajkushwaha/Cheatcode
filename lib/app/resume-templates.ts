@@ -472,6 +472,19 @@ export const TEMPLATES: Template[] = [
 
 /* ---------------------------------------------------------------- lookup */
 
+/**
+ * Whether this layout has somewhere to put a photograph.
+ *
+ * A plain column and the two-column split do not: there is no composition hole
+ * for one, and dropping a circle into a text column looks like a mistake. The
+ * toolbar reads this so the upload button can say so, rather than accepting a
+ * photo that then appears nowhere — which is the kind of silence people spend
+ * ten minutes debugging as their own error.
+ */
+export function showsPhoto(layout: Layout): boolean {
+  return layout === "band" || layout === "sidebar";
+}
+
 export function templateById(id: string | null | undefined): Template {
   return TEMPLATES.find((t) => t.id === id) ?? TEMPLATES[0];
 }

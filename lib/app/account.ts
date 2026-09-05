@@ -2,6 +2,7 @@ import "server-only";
 import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
 import type { AtsResult } from "@/lib/tools/ats";
 import { cleanResume, type Resume as ResumeContent } from "@/lib/app/resume-schema";
+import { cleanPresentation, type Presentation } from "@/lib/app/resume-style";
 
 export type Plan = "free" | "pro";
 export type PlanStatus = "inactive" | "active" | "past_due" | "cancelled";
@@ -79,6 +80,10 @@ export type ResumeDraft = {
    * what the score describes. See lib/app/resume-templates.ts.
    */
   template: string;
+  /** Hand-made overrides on top of the template. Presentation only. */
+  styles: Presentation;
+  /** A data URL, at most 200KB, for the templates that show one. */
+  photo: string | null;
   /** Unguessable address for /r/<id>, once sharing has been switched on once. */
   share_id: string | null;
   /** Whether that address currently serves anything. */
@@ -145,7 +150,7 @@ export async function getPrimaryResume(): Promise<Resume | null> {
 }
 
 const DRAFT_COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,share_id,is_public,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,share_id,is_public,is_primary,created_at,updated_at";
 
 /**
  * The draft somebody is working on.
@@ -170,7 +175,9 @@ export async function getPrimaryDraft(): Promise<ResumeDraft | null> {
 
   const draft = ((data ?? [])[0] as unknown as ResumeDraft) ?? null;
   // Same normalisation as getResumes, for the same reason.
-  return draft ? { ...draft, content: cleanResume(draft.content) } : null;
+  return draft
+    ? { ...draft, content: cleanResume(draft.content), styles: cleanPresentation(draft.styles) }
+    : null;
 }
 
 /**

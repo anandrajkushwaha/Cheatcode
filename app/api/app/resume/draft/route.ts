@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/supabase/app";
 import { cleanResume } from "@/lib/app/resume-schema";
 import { isTemplateId } from "@/lib/app/resume-templates";
+import { cleanPresentation } from "@/lib/app/resume-style";
 import {
   ClearRefused,
   createFromTemplate,
@@ -89,6 +90,25 @@ export async function POST(request: Request) {
  * every field on screen, as it stands. `patch` is the agent's shape, and it
  * goes through the same store either way.
  */
+/**
+ * A photograph, or nothing.
+ *
+ * Only a JPEG or PNG data URL, and only up to 220KB — a little above the
+ * 200KB the browser compresses to, so a borderline image is not rejected for
+ * being a few hundred bytes over. Anything else becomes null rather than an
+ * error: a bad value here is a stale client or a probe, and neither deserves
+ * a round trip.
+ *
+ * The size limit is the point. This column is read on every draft load, and
+ * an unbounded string in it would make the whole builder slow for everybody
+ * who ever uploaded a photo from a modern phone.
+ */
+function photoOrNull(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return null;
+  return value.length <= 220 * 1024 ? value : null;
+}
+
 export async function PUT(request: Request) {
   const user = await getSessionUser();
   if (!user) return bad("Not signed in", 401);
@@ -99,6 +119,8 @@ export async function PUT(request: Request) {
     content?: unknown;
     patch?: unknown;
     template?: unknown;
+    styles?: unknown;
+    photo?: unknown;
   };
   try {
     body = await request.json();
@@ -128,6 +150,8 @@ export async function PUT(request: Request) {
         ? { title: body.title.trim().slice(0, 120) }
         : {}),
       ...(isTemplateId(body.template) ? { template: body.template } : {}),
+      ...(body.styles !== undefined ? { styles: cleanPresentation(body.styles) } : {}),
+      ...(body.photo !== undefined ? { photo: photoOrNull(body.photo) } : {}),
     };
 
     const draft = await save(user.id, body.id, cleanResume(body.content), extra);

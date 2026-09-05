@@ -38,7 +38,12 @@ export default async function SharedResumePage({
   return (
     <main className="min-h-screen bg-[#f4f4f5] py-8 print:bg-white print:py-0">
       <div className="mx-auto w-fit bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
-        <ResumeDocument content={shared.content} template={shared.template} />
+        <ResumeDocument
+          content={shared.content}
+          template={shared.template}
+          styles={shared.styles}
+          photo={shared.photo}
+        />
       </div>
     </main>
   );

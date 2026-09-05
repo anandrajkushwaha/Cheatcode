@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ResumeDocument, type Edit } from "@/components/app/ResumeDocument";
+import { EditorToolbar } from "@/components/app/EditorToolbar";
 import { ShareDialog } from "@/components/app/ShareDialog";
+import { EMPTY_PRESENTATION, type FieldStyle, type Presentation } from "@/lib/app/resume-style";
+import { sectionOrder, showsPhoto, templateById } from "@/lib/app/resume-templates";
 import type { Resume } from "@/lib/app/resume-schema";
 
 /**
@@ -20,10 +23,19 @@ import type { Resume } from "@/lib/app/resume-schema";
  * that works, because the alternative is an editor that knows the layout and
  * a layout that knows the editor.
  *
- * There is no styling toolbar and there will not be one. A font size picker
- * on a resume produces resumes with six font sizes on them, and every one of
- * those choices is a choice the template already made better. What somebody
- * actually wants to change here is the words.
+ * It has a styling toolbar, and this file argued against one for a while. The
+ * argument was that a font size picker on a resume produces resumes with six
+ * font sizes on them, and that every one of those choices is a choice the
+ * template already made better. That is still true and it is still the reason
+ * the toolbar has no gradients, no letter spacing and twenty fonts rather than
+ * a thousand. It was not a reason to withhold the control: people want their
+ * name in their own colour, and refusing on their behalf is not a design
+ * position, it is an opinion enforced by omission.
+ *
+ * The safety rail that survived is that none of it can touch the words. Styles
+ * live in their own blob keyed by path, never inside `content`, so nothing
+ * here can change the text a parser extracts — and therefore nothing here can
+ * change the ATS score.
  */
 
 type Props = {
@@ -33,13 +45,38 @@ type Props = {
   title: string;
   shareId: string | null;
   isPublic: boolean;
+  initialStyles: Presentation;
+  initialPhoto: string | null;
+};
+
+/** What the section switcher lists, in the order the page shows them. */
+const SECTION_LABELS: Record<string, string> = {
+  summary: "Summary",
+  experience: "Experience",
+  projects: "Projects",
+  education: "Education",
+  skills: "Skills",
+  certifications: "Certifications",
+  achievements: "Achievements",
 };
 
 /** How many steps back Ctrl-Z can go. Deep enough to undo a bad paste. */
 const HISTORY = 60;
 
-export function ResumeEditor({ draftId, initial, template, title, shareId, isPublic }: Props) {
+export function ResumeEditor({
+  draftId,
+  initial,
+  template,
+  title,
+  shareId,
+  isPublic,
+  initialStyles,
+  initialPhoto,
+}: Props) {
   const [content, setContent] = useState<Resume>(initial);
+  const [styles, setStyles] = useState<Presentation>(initialStyles ?? EMPTY_PRESENTATION);
+  const [photo, setPhoto] = useState<string | null>(initialPhoto);
+  const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -122,6 +159,46 @@ export function ResumeEditor({ draftId, initial, template, title, shareId, isPub
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [undo, redo, content]);
 
+  /** Styling and content share one dirty flag; both go in the same save. */
+  const restyle = useCallback((next: Presentation) => {
+    setStyles(next);
+    setDirty(true);
+    setSaved(null);
+  }, []);
+
+  const onStyle = useCallback(
+    (patch: FieldStyle | null) => {
+      if (!selected) return;
+      const fields = { ...styles.fields };
+      // An override that is entirely empty is removed rather than stored as
+      // `{}` — otherwise the blob fills with a key per field ever clicked.
+      const merged = patch && Object.values(patch).some((v) => v !== undefined && v !== false);
+      if (merged) fields[selected] = patch;
+      else delete fields[selected];
+      restyle({ ...styles, fields });
+    },
+    [selected, styles, restyle],
+  );
+
+  const sections = useMemo(() => {
+    const { aside, main } = sectionOrder(templateById(template).layout);
+    return [...aside, ...main].map((key) => ({
+      key,
+      label: SECTION_LABELS[key] ?? key,
+      hidden: styles.hidden.includes(key),
+    }));
+  }, [template, styles.hidden]);
+
+  const onSection = useCallback(
+    (key: string, hidden: boolean) => {
+      const next = hidden
+        ? [...styles.hidden, key]
+        : styles.hidden.filter((k) => k !== key);
+      restyle({ ...styles, hidden: [...new Set(next)] });
+    },
+    [styles, restyle],
+  );
+
   const edit: Edit = useMemo(
     () => ({
       set: (path, value) => {
@@ -151,6 +228,7 @@ export function ResumeEditor({ draftId, initial, template, title, shareId, isPub
       },
       removeBlock: (row) => change(removeBlock(content, row)),
       moveBlock: (row, by) => change(moveBlock(content, row, by)),
+      select: setSelected,
     }),
     // Every handler reads `content`, so the object is rebuilt when it changes
     // or the handlers close over a stale document.
@@ -164,7 +242,7 @@ export function ResumeEditor({ draftId, initial, template, title, shareId, isPub
       const res = await fetch("/api/app/resume/draft", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: draftId, content, template }),
+        body: JSON.stringify({ id: draftId, content, template, styles, photo }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) throw new Error(json.error ?? "That didn't save.");
@@ -178,7 +256,9 @@ export function ResumeEditor({ draftId, initial, template, title, shareId, isPub
   }
 
   return (
-    <div className="fixed inset-0 top-[var(--app-top,0px)] flex flex-col bg-[#f2f2f4] print:static print:bg-white">
+    // z-50, because the app's own header is sticky at z-40 and was painting
+    // over this bar — which is why the Share button could not be seen.
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#f2f2f4] print:static print:z-auto print:bg-white">
       {/* ------------------------------------------------------------ bar */}
       <header className="no-print flex shrink-0 items-center gap-2 border-b border-ink-08 bg-paper px-4 py-2.5">
         <a
@@ -223,11 +303,32 @@ export function ResumeEditor({ draftId, initial, template, title, shareId, isPub
         </button>
       </header>
 
+      <EditorToolbar
+        selected={selected}
+        styles={styles}
+        onStyle={onStyle}
+        photo={photo}
+        onPhoto={(next) => {
+          setPhoto(next);
+          setDirty(true);
+          setSaved(null);
+        }}
+        sections={sections}
+        onSection={onSection}
+        photoSlot={showsPhoto(templateById(template).layout)}
+      />
+
       {/* --------------------------------------------------------- canvas */}
       <div className="min-h-0 flex-1 overflow-auto px-4 py-8 print:overflow-visible print:p-0">
         <div className="mx-auto w-fit">
           <div className="bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_40px_-12px_rgba(0,0,0,0.18)] print:shadow-none">
-            <ResumeDocument content={content} template={template} edit={edit} />
+            <ResumeDocument
+              content={content}
+              template={template}
+              edit={edit}
+              styles={styles}
+              photo={photo}
+            />
           </div>
 
           <p className="no-print mt-4 text-center text-[0.78rem] text-ink-30">

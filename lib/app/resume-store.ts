@@ -4,6 +4,7 @@ import { getPrimaryResume, getProfile, type ResumeDraft } from "@/lib/app/accoun
 import { cleanResume, emptyResume, resumeIsEmpty, type Resume } from "@/lib/app/resume-schema";
 import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
 import { templateById } from "@/lib/app/resume-templates";
+import { cleanPresentation } from "@/lib/app/resume-style";
 
 /**
  * The one write path to somebody's resume.
@@ -20,7 +21,7 @@ import { templateById } from "@/lib/app/resume-templates";
  */
 
 const COLUMNS =
-  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,share_id,is_public,is_primary,created_at,updated_at";
+  "id,user_id,source_resume_id,title,content,ats_score,ats_result,template,styles,photo,share_id,is_public,is_primary,created_at,updated_at";
 
 /** A deployment where 50_resume_drafts.sql has not been run yet. */
 export function isMissingTable(message?: string): boolean {
@@ -76,7 +77,13 @@ async function client() {
 
 function normalise(row: unknown): ResumeDraft {
   const draft = row as ResumeDraft;
-  return { ...draft, content: cleanResume(draft.content) };
+  return {
+    ...draft,
+    content: cleanResume(draft.content),
+    // Same gate as the content, for the same reason: everything in this blob
+    // came from a browser at some point.
+    styles: cleanPresentation(draft.styles),
+  };
 }
 
 /* ------------------------------------------------------------------ read */
@@ -270,20 +277,32 @@ export async function setSharing(
  */
 export async function getShared(
   shareId: string,
-): Promise<{ content: Resume; template: string; title: string } | null> {
+): Promise<{
+  content: Resume;
+  template: string;
+  title: string;
+  styles: ReturnType<typeof cleanPresentation>;
+  photo: string | null;
+} | null> {
   const supabase = createAppAdminClient();
   if (!supabase) return null;
 
   const { data, error } = await supabase
     .from("resume_drafts")
-    .select("content,template,title,is_public")
+    .select("content,template,title,styles,photo,is_public")
     .eq("share_id", shareId)
     .eq("is_public", true)
     .limit(1);
 
   if (error) return null;
   const row = (data ?? [])[0] as
-    | { content: unknown; template: string | null; title: string | null }
+    | {
+        content: unknown;
+        template: string | null;
+        title: string | null;
+        styles: unknown;
+        photo: string | null;
+      }
     | undefined;
   if (!row) return null;
 
@@ -291,6 +310,8 @@ export async function getShared(
     content: cleanResume(row.content),
     template: row.template ?? "",
     title: row.title ?? "Resume",
+    styles: cleanPresentation(row.styles),
+    photo: row.photo ?? null,
   };
 }
 

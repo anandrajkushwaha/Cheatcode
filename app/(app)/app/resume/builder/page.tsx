@@ -58,6 +58,8 @@ export default async function ResumeBuilderPage() {
       title={draft.title}
       shareId={draft.share_id}
       isPublic={draft.is_public}
+      initialStyles={draft.styles}
+      initialPhoto={draft.photo}
     />
   );
 }

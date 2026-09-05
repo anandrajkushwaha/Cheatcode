@@ -1,5 +1,11 @@
 import type { Resume as DraftContent } from "@/lib/app/resume-schema";
 import {
+  EMPTY_PRESENTATION,
+  GOOGLE_FONTS_HREF,
+  styleToCss,
+  type Presentation,
+} from "@/lib/app/resume-style";
+import {
   sectionOrder,
   templateById,
   themeVars,
@@ -52,6 +58,14 @@ const A4 = { width: "210mm" };
 export type Edit = {
   set: (path: string, value: string) => void;
   /**
+   * Which field the caret is in, so a toolbar can act on it.
+   *
+   * Reported and never cleared. Clearing on blur would be tidier and would
+   * break the toolbar completely: clicking a button blurs the field, so the
+   * selection would be gone by the time the click landed.
+   */
+  select?: (path: string) => void;
+  /**
    * Enter was pressed in a bullet: add an empty one after it. Returns the new
    * bullet's path so the caret can follow it there.
    */
@@ -89,6 +103,7 @@ function T({
   edit,
   placeholder,
   bullet,
+  styles,
 }: {
   path: string;
   value: string | null | undefined;
@@ -96,13 +111,20 @@ function T({
   placeholder?: string;
   /** Bullets get Enter and Backspace behaviour; ordinary fields do not. */
   bullet?: boolean;
+  styles?: Presentation;
 }) {
   const text = value ?? "";
-  if (!edit) return <>{text}</>;
+  const css = styleToCss(styles?.fields[path]);
+
+  // Read-only still wears the styling. A shared link and a printed PDF have to
+  // look like the thing that was edited, or the editor is lying.
+  if (!edit) return css ? <span style={css}>{text}</span> : <>{text}</>;
 
   return (
     <span
       className="rd-edit"
+      style={css}
+      onFocus={() => edit.select?.(path)}
       contentEditable
       suppressContentEditableWarning
       spellCheck={false}
@@ -250,12 +272,14 @@ function Joined({
   edit,
   separator,
   stack,
+  styles,
 }: {
   parts: { path: string; value: string | null | undefined; placeholder?: string }[];
   edit?: Edit;
   separator: string;
   /** One per line rather than one line, which is what a narrow sidebar needs. */
   stack?: boolean;
+  styles?: Presentation;
 }) {
   const shown = edit ? parts : parts.filter((p) => p.value?.trim());
 
@@ -264,7 +288,7 @@ function Joined({
       <>
         {shown.map((p) => (
           <span key={p.path} className="rd-stacked">
-            <T path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
+            <T styles={styles} path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
           </span>
         ))}
       </>
@@ -279,14 +303,14 @@ function Joined({
               backspaced away, and an empty field takes its separator with it
               rather than leaving a dangling middot on the printed page. */}
           {i > 0 && <span className="rd-sep">{separator}</span>}
-          <T path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
+          <T styles={styles} path={p.path} value={p.value} edit={edit} placeholder={p.placeholder} />
         </span>
       ))}
     </>
   );
 }
 
-type Ctx = { content: DraftContent; edit?: Edit; stack?: boolean };
+type Ctx = { content: DraftContent; edit?: Edit; stack?: boolean; styles?: Presentation };
 
 /**
  * The rows to draw, with one empty one when the list is empty and somebody is
@@ -312,7 +336,7 @@ const BLANK_PROJECT = { name: null, link: null, description: null, highlights: [
 const BLANK_EDUCATION = { degree: null, institution: null, year: null };
 
 /** Every section, keyed, so a layout can arrange them without knowing them. */
-function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
+function renderSection(key: SectionKey, { content, edit, stack, styles }: Ctx) {
   const some = (n: number | undefined) => (n ?? 0) > 0 || Boolean(edit);
 
   switch (key) {
@@ -321,6 +345,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
         <Section key={key} title="SUMMARY">
           <p className="rd-body">
             <T
+              styles={styles}
               path="summary"
               value={content.summary}
               edit={edit}
@@ -343,6 +368,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
                     heading — which is how a whole job disappears. */}
                 <p className="rd-role-line">
                   <Joined
+                    styles={styles}
                     parts={[
                       { path: `roles.${i}.title`, value: r.title, placeholder: "Job title" },
                       { path: `roles.${i}.company`, value: r.company, placeholder: "Company" },
@@ -354,6 +380,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
                 {(when || edit) && (
                   <p className="rd-dates">
                     <Joined
+                      styles={styles}
                       parts={[
                         { path: `roles.${i}.start`, value: r.start, placeholder: "Jan 2023" },
                         {
@@ -376,6 +403,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
                     <p key={j} className="rd-bullet">
                       {"• "}
                       <T
+                        styles={styles}
                         path={`roles.${i}.highlights.${j}`}
                         value={h?.trim()}
                         edit={edit}
@@ -398,6 +426,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
               <BlockTools row={`projects.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
+                  styles={styles}
                   parts={[
                     { path: `projects.${i}.name`, value: p.name, placeholder: "Project" },
                     { path: `projects.${i}.link`, value: p.link, placeholder: "link" },
@@ -409,6 +438,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
               {(p.description || edit) && (
                 <p className="rd-body">
                   <T
+                    styles={styles}
                     path={`projects.${i}.description`}
                     value={p.description}
                     edit={edit}
@@ -422,6 +452,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
                   <p key={j} className="rd-bullet">
                     {"• "}
                     <T
+                      styles={styles}
                       path={`projects.${i}.highlights.${j}`}
                       value={h?.trim()}
                       edit={edit}
@@ -443,6 +474,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
               <BlockTools row={`education.${i}`} edit={edit} />
               <p className="rd-role-line">
                 <Joined
+                  styles={styles}
                   parts={[
                     { path: `education.${i}.degree`, value: e.degree, placeholder: "Degree" },
                     {
@@ -458,7 +490,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
               </p>
               {(e.year || edit) && (
                 <p className="rd-dates">
-                  <T path={`education.${i}.year`} value={e.year} edit={edit} placeholder="2021" />
+                  <T styles={styles} path={`education.${i}.year`} value={e.year} edit={edit} placeholder="2021" />
                 </p>
               )}
             </div>
@@ -474,6 +506,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
               the same line simply wraps. */}
           <p className="rd-body">
             <T
+              styles={styles}
               path="skills"
               value={(content.skills ?? []).join(", ")}
               edit={edit}
@@ -488,6 +521,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
         <Section key={key} title="CERTIFICATIONS">
           <p className="rd-body">
             <T
+              styles={styles}
               path="certifications"
               value={(content.certifications ?? []).join(", ")}
               edit={edit}
@@ -504,6 +538,7 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
             <p key={i} className="rd-bullet">
               {"• "}
               <T
+                styles={styles}
                 path={`achievements.${i}`}
                 value={a}
                 edit={edit}
@@ -519,17 +554,18 @@ function renderSection(key: SectionKey, { content, edit, stack }: Ctx) {
 
 /* ---------------------------------------------------------------- headers */
 
-function Name({ content, edit }: Ctx) {
+function Name({ content, edit, styles }: Ctx) {
   return (
     <>
       {(content.full_name || edit) && (
         <h1 className="rd-name">
-          <T path="full_name" value={content.full_name} edit={edit} placeholder="Your name" />
+          <T styles={styles} path="full_name" value={content.full_name} edit={edit} placeholder="Your name" />
         </h1>
       )}
       {(content.headline || edit) && (
         <p className="rd-headline">
           <T
+            styles={styles}
             path="headline"
             value={content.headline}
             edit={edit}
@@ -562,7 +598,16 @@ function contactParts(content: DraftContent) {
  * this feature needs to answer today. Initials fill the same hole in the
  * composition, cost nothing, and cannot be a picture of the wrong person.
  */
-function Monogram({ name }: { name: string | null | undefined }) {
+function Monogram({ name, photo }: { name: string | null | undefined; photo?: string | null }) {
+  if (photo) {
+    // A plain <img> rather than next/image: this is a data URL that is already
+    // the right size, and the optimiser would be a round trip to resize
+    // something nobody is going to download twice. It also has to survive
+    // being printed, where next/image's lazy loading is a liability.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className="rd-photo" src={photo} alt="" aria-hidden />;
+  }
+
   const initials = (name ?? "")
     .split(/\s+/)
     .filter(Boolean)
@@ -583,22 +628,37 @@ export function ResumeDocument({
   content,
   template,
   edit,
+  styles = EMPTY_PRESENTATION,
+  photo,
 }: {
   content: DraftContent;
   template?: string | null;
   edit?: Edit;
+  /** Hand-made overrides on top of the template. */
+  styles?: Presentation;
+  /** A data URL. Only the layouts with somewhere to put one will use it. */
+  photo?: string | null;
 }) {
   const chosen = templateById(template);
   const layout: Layout = chosen.layout;
   const { aside, main } = sectionOrder(layout);
 
-  const ctx: Ctx = { content, edit };
-  const asideCtx: Ctx = { content, edit, stack: true };
+  const ctx: Ctx = { content, edit, styles };
+  const asideCtx: Ctx = { content, edit, stack: true, styles };
 
-  const body = (keys: SectionKey[], c: Ctx) => keys.map((k) => renderSection(k, c));
+  /**
+   * A hidden section stays hidden while editing too.
+   *
+   * The alternative — showing it greyed out so it can be switched back on —
+   * puts a section somebody deliberately removed back on their page, which is
+   * the opposite of what they asked for. Getting it back is the toolbar's job,
+   * where the list of what is off can be seen all at once.
+   */
+  const body = (keys: SectionKey[], c: Ctx) =>
+    keys.filter((k) => !styles.hidden.includes(k)).map((k) => renderSection(k, c));
   const contact = (stack?: boolean) => (
     <p className="rd-contact">
-      <Joined parts={contactParts(content)} edit={edit} separator=" · " stack={stack} />
+      <Joined styles={styles} parts={contactParts(content)} edit={edit} separator=" · " stack={stack} />
     </p>
   );
 
@@ -608,6 +668,12 @@ export function ResumeDocument({
       style={{ width: A4.width, ...themeVars(chosen.theme) }}
     >
       <style>{SHEET}</style>
+      {/* Loaded whenever the document renders, not only when a web font is in
+          use: a print that fires before the font arrives silently comes out in
+          the fallback, and there is no second chance to notice. React hoists
+          this into the head and de-duplicates it across the ten documents a
+          gallery page renders. */}
+      <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
 
       {layout === "column" && (
         <div className="rd-pad">
@@ -626,7 +692,7 @@ export function ResumeDocument({
               <Name {...ctx} />
               {contact()}
             </div>
-            <Monogram name={content.full_name} />
+            <Monogram name={content.full_name} photo={photo} />
           </header>
           <div className="rd-pad">{body(main, ctx)}</div>
         </>
@@ -636,7 +702,7 @@ export function ResumeDocument({
         <div className="rd-cols">
           <aside className="rd-aside">
             <div className="rd-aside-head">
-              <Monogram name={content.full_name} />
+              <Monogram name={content.full_name} photo={photo} />
               <Name {...ctx} />
             </div>
             <section className="rd-section">
@@ -747,6 +813,15 @@ const SHEET = `
 }
 .rd-band-text { flex: 1; min-width: 0; }
 .rd-band .rd-contact { color: rgba(255, 255, 255, 0.86); }
+.rd-photo {
+  width: 22mm;
+  height: 22mm;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 0.6pt solid rgba(255, 255, 255, 0.55);
+}
+.rd-l-sidebar .rd-aside-head .rd-photo { margin-bottom: 4mm; border-color: currentColor; }
 .rd-monogram {
   display: grid;
   place-items: center;
@@ -896,7 +971,7 @@ const SHEET = `
   .rd-editing::after { display: none !important; }
   /* Fills and washes have to be asked for, or a printer drops them and a
      sidebar template comes out as white text on white paper. */
-  .rd-band, .rd-aside, .rd-monogram {
+  .rd-band, .rd-aside, .rd-monogram, .rd-photo {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
