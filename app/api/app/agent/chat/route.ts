@@ -37,8 +37,14 @@ export async function POST(request: Request) {
   if (tooSoon(user.id)) return bad("One at a time.", 429);
 
   let turns: Turn[] = [];
+  let conversationId: string | null = null;
   try {
-    const body = (await request.json()) as { turns?: unknown };
+    const body = (await request.json()) as { turns?: unknown; conversationId?: unknown };
+    // Which conversation this turn belongs to. Without it every spend row is
+    // unattributed and the admin screen cannot say what one session cost.
+    if (typeof body.conversationId === "string" && body.conversationId) {
+      conversationId = body.conversationId;
+    }
     if (Array.isArray(body.turns)) {
       turns = body.turns
         .filter(
@@ -118,7 +124,7 @@ export async function POST(request: Request) {
           resume,
           draft,
           jobs,
-          meta: { feature: "agent_chat", userId: user.id },
+          meta: { feature: "agent_chat", userId: user.id, sessionId: conversationId },
         },
         (chunk) => line({ t: "delta", v: chunk }),
       );

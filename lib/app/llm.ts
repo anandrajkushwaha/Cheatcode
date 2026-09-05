@@ -38,6 +38,7 @@ import {
 export type Provider = "openai" | "gemini" | "sarvam";
 
 import { readUsage, type Feature, type UsageMeta } from "@/lib/app/ai-cost";
+import { configFor } from "@/lib/app/flags";
 import { recordUsage } from "@/lib/app/ai-usage";
 
 import {
@@ -92,6 +93,19 @@ const isProvider = (v: string | undefined): v is Provider =>
  */
 export function provider(feature?: Feature): Provider | null {
   if (feature) {
+    /**
+     * The settings screen outranks the environment.
+     *
+     * That ordering is the whole point of having the screen: an environment
+     * variable needs a redeploy, and the thing you reach for at 2am when one
+     * provider is having an outage should not. A feature switched off here
+     * refuses rather than quietly running on something else — "off" that
+     * silently falls back to another model is not off.
+     */
+    const flag = configFor(feature);
+    if (!flag.enabled) return null;
+    if (flag.provider) return apiKey(flag.provider) ? flag.provider : null;
+
     const perFeature = process.env[`LLM_PROVIDER_${feature.toUpperCase()}`]?.trim().toLowerCase();
     if (isProvider(perFeature)) return apiKey(perFeature) ? perFeature : null;
   }
@@ -180,7 +194,7 @@ export async function llmChat(input: ChatInput): Promise<ChatOk | LlmFail> {
   const result = await send({
     provider: p,
     key,
-    pin: pin(p),
+    pin: pin(p, input.meta.feature),
     timeoutMs: input.timeoutMs ?? 25_000,
     build: chatBody(p, input, turns, false),
   });
@@ -230,7 +244,7 @@ export async function llmChatStream(
   const result = await send({
     provider: p,
     key,
-    pin: pin(p),
+    pin: pin(p, input.meta.feature),
     timeoutMs: input.timeoutMs ?? 25_000,
     build: chatBody(p, input, turns, true),
   });
@@ -570,7 +584,7 @@ export async function llmVision(input: {
     key,
     // Sarvam's flagship cannot see, so a scan is the one call that does not use
     // the configured chat model.
-    pin: visionModel ?? pin(p),
+    pin: visionModel ?? pin(p, input.meta.feature),
     timeoutMs: input.timeoutMs ?? 90_000,
     build: (model, drop) => {
       if (p === "sarvam") {
@@ -687,7 +701,7 @@ export async function llmJson(input: {
     provider: p,
     key,
     // A per-call override wins; otherwise the provider-wide one.
-    pin: input.pin?.trim() || pin(p),
+    pin: input.pin?.trim() || pin(p, input.meta.feature),
     timeoutMs: input.timeoutMs ?? 45_000,
     build: (model, drop) => {
       if (p === "sarvam") {
@@ -1211,7 +1225,19 @@ function toJsonSchema(node: unknown): unknown {
 
 /* ------------------------------------------------------- model selection */
 
-function pin(p: Provider): string | null {
+/**
+ * The model to try first, if anything has said which.
+ *
+ * The settings screen again outranks the environment — but only when the
+ * provider it named is the one actually being used. A Sarvam model name sent
+ * to OpenAI is a 404 that discovery would then try to "fix" by picking
+ * something else, so a mismatched pin is dropped rather than sent.
+ */
+function pin(p: Provider, feature?: Feature): string | null {
+  if (feature) {
+    const flag = configFor(feature);
+    if (flag.model && (flag.provider ?? p) === p) return flag.model;
+  }
   if (p === "openai") return pinnedOpenAI();
   if (p === "sarvam") return pinnedSarvam();
   return pinnedGemini("chat");

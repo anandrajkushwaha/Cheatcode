@@ -96,7 +96,12 @@ async function withTools(
   const told: string[] = [];
 
   for (const c of server) {
-    const result = await runTool(c.name, c.args, { userId });
+    const result = await runTool(c.name, c.args, {
+      userId,
+      // The session this résumé is being written in, so the admin screen can
+      // put the two next to each other.
+      conversationId: input.meta.sessionId ?? null,
+    });
     if (result.action) actions.push(result.action);
     told.push(`${c.name}: ${result.summary}`);
   }

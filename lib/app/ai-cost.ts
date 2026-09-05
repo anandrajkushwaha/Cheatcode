@@ -23,14 +23,37 @@
  * for a cheaper model there, and knowing it goes on "the chat endpoint" tells
  * you nothing.
  */
-export type Feature =
-  | "voice_conversation"
-  | "agent_chat"
-  | "resume_extraction"
-  | "document_read"
-  | "ats_analysis"
-  | "resume_generation"
-  | "resume_rewrite";
+/**
+ * Every kind of model call the product makes, in product terms.
+ *
+ * A list rather than a bare union, because three separate screens need to
+ * iterate it — the spend breakdown, the settings page that assigns a model to
+ * each one, and the flags gate that reads those assignments back. A union
+ * cannot be iterated, and the alternative is the same seven strings written
+ * out in three more places and drifting.
+ */
+export const FEATURES = [
+  "voice_conversation",
+  "agent_chat",
+  "resume_extraction",
+  "document_read",
+  "ats_analysis",
+  "resume_generation",
+  "resume_rewrite",
+] as const;
+
+export type Feature = (typeof FEATURES)[number];
+
+/** What each one is called on a screen a person reads. */
+export const FEATURE_LABELS: Record<Feature, string> = {
+  voice_conversation: "Voice conversation",
+  agent_chat: "Agent chat",
+  resume_extraction: "Reading an uploaded résumé",
+  document_read: "Reading a document",
+  ats_analysis: "ATS analysis",
+  resume_generation: "Writing a résumé",
+  resume_rewrite: "Rewriting a section",
+};
 
 /** Who and what a call belongs to. Required, so a call cannot go unattributed. */
 export type UsageMeta = {
@@ -142,6 +165,52 @@ const RATES: Record<string, Rate> = {
   "deepseek-v4-flash": { input: 19.8, output: 59.4, currency: "INR" },
   "glm-5.2": { input: 128.1, output: 402.6, currency: "INR" },
 };
+
+/**
+ * The models a settings screen may offer, with who serves them.
+ *
+ * Derived from `RATES` rather than written twice, and that is the useful
+ * constraint: **you cannot select a model we do not know how to price.** The
+ * alternative — a free-text box — lets somebody point the agent at a model
+ * that works fine and then reports every one of its calls as unpriced spend,
+ * which is precisely the failure that made the Sarvam rate wrong for weeks.
+ *
+ * The provider is inferred from the name because that is how the rate table
+ * is already organised, and a name that does not start with something we
+ * recognise is left out rather than guessed at.
+ */
+export type CatalogueEntry = {
+  model: string;
+  provider: "openai" | "gemini" | "sarvam";
+  /** Per million tokens, in the rate's own currency. For the screen's hint. */
+  input: number;
+  output: number;
+  currency: "USD" | "INR";
+  /** Realtime and live models bill audio too, which changes what they cost. */
+  audio: boolean;
+};
+
+export function modelCatalogue(): CatalogueEntry[] {
+  const provider = (name: string): CatalogueEntry["provider"] | null =>
+    name.startsWith("gpt") ? "openai" : name.startsWith("gemini") ? "gemini" : "sarvam";
+
+  return Object.entries(RATES)
+    .map(([model, rate]) => {
+      const p = provider(model);
+      return p
+        ? {
+            model,
+            provider: p,
+            input: rate.input,
+            output: rate.output,
+            currency: (rate.currency ?? "USD") as "USD" | "INR",
+            audio: rate.audioInput !== undefined,
+          }
+        : null;
+    })
+    .filter((e): e is CatalogueEntry => e !== null)
+    .sort((a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model));
+}
 
 /** Names we have already complained about, so a busy day logs once each. */
 const unpriced = new Set<string>();

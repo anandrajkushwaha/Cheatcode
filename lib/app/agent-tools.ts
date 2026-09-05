@@ -7,6 +7,7 @@ import {
   patchDraft,
   StoreError,
   type ResumePatch,
+  attributeDraft,
 } from "@/lib/app/resume-store";
 
 /**
@@ -274,7 +275,7 @@ function summarise(resume: Resume): string {
 export async function runTool(
   name: string,
   rawArgs: unknown,
-  ctx: { userId: string },
+  ctx: { userId: string; conversationId?: string | null },
 ): Promise<ToolResult> {
   const input = args(rawArgs);
 
@@ -300,6 +301,10 @@ export async function runTool(
         const draft = await patchDraft(ctx.userId, patch, {
           confirmClear: confirm_clear === true,
         });
+
+        // Only here, and only on the tool that actually writes. Reading a
+        // profile is not authorship, so `get_resume_profile` does not claim it.
+        attributeDraft(draft.id, ctx.conversationId);
 
         return {
           ok: true,

@@ -4,6 +4,7 @@ import { designHtml, pdfFileName } from "@/lib/app/design-html";
 import { designIsEmpty } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
 import { htmlToPdf } from "@/lib/app/pdf";
+import { countDownload } from "@/lib/app/resume-store";
 
 /**
  * Download, as an actual file.
@@ -59,6 +60,18 @@ export async function POST(request: Request) {
         : seedDesign(source.content, source.template);
 
     const pdf = await htmlToPdf(await designHtml(design, title));
+
+    /**
+     * Recorded here, after the PDF exists and before it is handed over.
+     *
+     * Not in the browser: a download counter the client reports is a number
+     * anybody can inflate and nobody can trust. Not before the render either
+     * — a build that throws is not a download, and counting it would make the
+     * admin screen say people are downloading a file they never got.
+     *
+     * Fire and forget. Nobody's download should fail because a counter did.
+     */
+    countDownload("draftId" in source ? source.draftId : source.id);
 
     return new Response(new Uint8Array(pdf), {
       headers: {

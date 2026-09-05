@@ -30,9 +30,9 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return bad("Not signed in", 401);
 
-  let body: { name?: unknown; args?: unknown };
+  let body: { name?: unknown; args?: unknown; conversationId?: unknown };
   try {
-    body = (await request.json()) as { name?: unknown; args?: unknown };
+    body = (await request.json()) as { name?: unknown; args?: unknown; conversationId?: unknown };
   } catch {
     return bad("Could not read that request.");
   }
@@ -48,6 +48,9 @@ export async function POST(request: Request) {
     });
   }
 
-  const result = await runTool(name, body.args, { userId: user.id });
+  const result = await runTool(name, body.args, {
+    userId: user.id,
+    conversationId: typeof body.conversationId === "string" ? body.conversationId : null,
+  });
   return Response.json(result);
 }

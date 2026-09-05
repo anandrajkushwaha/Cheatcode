@@ -420,6 +420,61 @@ export async function getShared(shareId: string, viewerEmail?: string | null): P
   };
 }
 
+/**
+ * Remember which conversation produced this résumé.
+ *
+ * Written once and never overwritten — `is null` in the filter is the whole
+ * mechanism. A résumé is authored in one session; a person opening it again
+ * next week to fix a date has not re-authored it, and letting the newest
+ * conversation claim it would make the admin screen attribute every résumé to
+ * whatever happened most recently.
+ *
+ * Fire and forget, like the download counter, and for the same reason: an
+ * attribution that fails must not fail the tool call that was doing real work.
+ */
+export function attributeDraft(draftId: string, conversationId: string | null | undefined): void {
+  if (!conversationId) return;
+  void (async () => {
+    const supabase = createAppAdminClient();
+    if (!supabase) return;
+    await supabase
+      .from("resume_drafts")
+      .update({ agent_conversation_id: conversationId })
+      .eq("id", draftId)
+      .is("agent_conversation_id", null);
+  })().catch((e) => console.error("resume attribution:", String(e).slice(0, 160)));
+}
+
+/**
+ * One more download of this résumé.
+ *
+ * Fire and forget, admin client, never awaited by the caller — the same three
+ * rules as the spend recorder, for the same reason: the person waiting for
+ * their PDF does not care whether our accounting worked, and a failed counter
+ * must never turn a good download into an error.
+ *
+ * A read-modify-write rather than an atomic increment, because Supabase's
+ * client has no `increment` and the alternative is a stored procedure for a
+ * number nobody is racing. Two downloads in the same millisecond would count
+ * as one; that is a rounding error in a usage figure, not a lost fact.
+ */
+export function countDownload(draftId: string): void {
+  void (async () => {
+    const supabase = createAppAdminClient();
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("resume_drafts")
+      .select("download_count")
+      .eq("id", draftId)
+      .limit(1);
+    const current = Number((data ?? [])[0]?.download_count ?? 0);
+    await supabase
+      .from("resume_drafts")
+      .update({ download_count: current + 1, last_downloaded_at: new Date().toISOString() })
+      .eq("id", draftId);
+  })().catch((e) => console.error("resume download count:", String(e).slice(0, 160)));
+}
+
 /* ------------------------------------------------------- who else can see */
 
 /** The guest list for one resume. Owner only — RLS enforces that, not this. */

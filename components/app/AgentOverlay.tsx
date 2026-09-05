@@ -576,7 +576,12 @@ export function AgentOverlay({
       const res = await fetch("/api/app/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turns: next.map((t) => ({ role: t.role, text: t.text })) }),
+        body: JSON.stringify({
+          turns: next.map((t) => ({ role: t.role, text: t.text })),
+          // So the server can attribute the spend and any résumé written in
+          // this turn to the conversation it happened in.
+          conversationId: conversation.current,
+        }),
       });
       // A refusal — not signed in, throttled, out of messages — is still an
       // ordinary JSON body with a real status code. Only an answer streams.

@@ -388,46 +388,6 @@ export async function getPostTitles(paths: string[]): Promise<Record<string, str
   return Object.fromEntries((data ?? []).map((p) => [`/blog/${p.slug}`, p.title as string]));
 }
 
-// ---------------------------------------------------------------- banners
-
-export type { Placement, Banner, BannerStatRow } from "@/lib/admin/banners";
-import type { Banner, BannerStatRow } from "@/lib/admin/banners";
-
-export async function getBanners(): Promise<{ rows: Banner[]; ready: boolean }> {
-  const db = createAdminClient();
-  if (!db) return { rows: [], ready: false };
-  const { data, error } = await db
-    .from("promo_banners")
-    .select("*")
-    .order("placement")
-    .order("sort_order");
-  // No table yet means 11_authoring.sql has not been run — not an empty list.
-  if (error) return { rows: [], ready: false };
-  return { rows: (data ?? []) as unknown as Banner[], ready: true };
-}
-
-export async function getBanner(id: string): Promise<Banner | null> {
-  const db = createAdminClient();
-  if (!db) return null;
-  const { data } = await db.from("promo_banners").select("*").eq("id", id).limit(1);
-  return ((data ?? [])[0] as unknown as Banner) ?? null;
-}
-
-export async function getBannerStats(days = 30): Promise<{
-  rows: BannerStatRow[];
-  totals: { views: number; clicks: number };
-  error?: string;
-}> {
-  const db = createAdminClient();
-  const empty = { rows: [], totals: { views: 0, clicks: 0 } };
-  if (!db) return empty;
-  const { data, error } = await db.rpc("banner_stats", { p_days: days });
-  if (error) return { ...empty, error: error.message };
-  return { ...empty, ...(data as object) };
-}
-
-// ---------------------------------------------------------------- editor
-
 export type EditablePost = {
   id: string;
   slug: string;

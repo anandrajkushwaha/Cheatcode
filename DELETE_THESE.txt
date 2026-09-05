@@ -1,9 +1,0 @@
-These three files are replaced by the canvas editor and are no longer imported
-by anything. Delete them after unpacking:
-
-  components/app/ResumeEditor.tsx
-  components/app/EditorToolbar.tsx
-  components/app/ResumeDocument.tsx
-
-(An earlier tarball may have written them; the build fails if anything still
-imports them, so a stale copy is loud rather than silent.)
