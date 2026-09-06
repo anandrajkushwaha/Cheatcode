@@ -49,10 +49,14 @@ export type ReadResult = {
 /** Twelve rather than eight: a photograph of a page is a bigger file. */
 const MAX_BYTES = 12 * 1024 * 1024;
 
-export async function readAnyFile(file: File): Promise<ReadResult> {
+export async function readAnyFile(
+  file: File,
+  /** The conversation it was handed over in, so the cost is attributable. */
+  conversationId?: string | null,
+): Promise<ReadResult> {
   const out = await extractResume(file, {
     maxBytes: MAX_BYTES,
-    transcribe: readImages,
+    transcribe: (images) => readImages(images, conversationId),
     render: renderPdfPages,
   });
 
@@ -107,11 +111,13 @@ async function renderPdfPages(file: File, limit: number): Promise<string[]> {
 }
 
 /** Ask the server to look at the pages and type out what they say. */
-async function readImages(images: string[]): Promise<string> {
+async function readImages(images: string[], conversationId?: string | null): Promise<string> {
   const res = await fetch("/api/app/agent/read-file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ images }),
+    // So the cost of reading a scan lands on the conversation it was handed
+    // over in, rather than on nothing.
+    body: JSON.stringify({ images, conversationId: conversationId ?? null }),
   });
 
   const json = (await res.json().catch(() => ({}))) as {

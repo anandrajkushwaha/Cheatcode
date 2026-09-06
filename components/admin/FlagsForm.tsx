@@ -50,6 +50,24 @@ const PROVIDER_LABEL: Record<string, string> = {
  * reply. Offering `gpt-realtime` for reading a résumé would be offering a
  * choice that cannot work, which is worse than not offering it.
  */
+/**
+ * Which features actually have a call site today.
+ *
+ * ATS analysis, résumé writing and section rewriting are named in the spend
+ * taxonomy but nothing calls the model with those feature tags — the résumé
+ * work happens inside `agent_chat` through tool calls, so it is billed as
+ * chat. Their dropdowns therefore change nothing.
+ *
+ * Said on the screen rather than quietly left as-is, because a switch that
+ * does nothing is worse than a missing switch: the next person to look at
+ * this will believe it, pick a model, and wonder why the bill does not move.
+ */
+const NOT_WIRED: Partial<Record<Feature, string>> = {
+  ats_analysis: "no call site yet — nothing reports this feature",
+  resume_generation: "runs inside Agent chat as a tool call, and is billed there",
+  resume_rewrite: "runs inside Agent chat as a tool call, and is billed there",
+};
+
 const KIND: Record<Feature, "chat" | "realtime"> = {
   voice_conversation: "realtime",
   agent_chat: "chat",
@@ -217,11 +235,23 @@ export function FlagsForm({ initial, features, configured, seen }: Props) {
                       className="h-4 w-4 shrink-0 accent-black"
                     />
                     <span className="min-w-0">
-                      <span className="block text-[0.88rem] font-medium">{label}</span>
+                      <span className="block text-[0.88rem] font-medium">
+                        {label}
+                        {NOT_WIRED[key] && (
+                          <span className="ml-2 rounded-full border border-ink-15 px-2 py-0.5 align-middle text-[0.62rem] font-normal uppercase tracking-[0.08em] text-ink-30">
+                            not wired up
+                          </span>
+                        )}
+                      </span>
                       <code className="block truncate text-[0.7rem] text-ink-30">
                         {key}
                         {kind === "realtime" && " · live voice"}
                       </code>
+                      {NOT_WIRED[key] && (
+                        <span className="mt-1 block text-[0.7rem] leading-relaxed text-ink-30">
+                          {NOT_WIRED[key]}
+                        </span>
+                      )}
                     </span>
                   </label>
                 </div>

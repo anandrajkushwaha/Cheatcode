@@ -1,8 +1,8 @@
 import { RangePicker } from "@/components/admin/RangePicker";
 import { Panel, Stat, BarList, Empty, num } from "@/components/admin/ui";
-import { resolveRange, rangeWords, IST } from "@/lib/admin/range";
-import { byFeature, resumeTotals, sessions, totals, usageSince } from "@/lib/admin/usage";
-import type { SessionRow } from "@/lib/admin/usage";
+import { resolveRange, rangeWords } from "@/lib/admin/range";
+import { byFeature, byUser, resumeTotals, sessions, totals, unattributed, usageSince } from "@/lib/admin/usage";
+import { UserTable } from "@/components/admin/UserTable";
 
 export const dynamic = "force-dynamic";
 
@@ -40,17 +40,6 @@ const known = (value: number, metered: number): string => (metered > 0 ? num(val
 const knownUSD = (value: number, calls: number, metered: number): string =>
   calls === 0 ? "—" : metered === 0 ? "—" : USD(value);
 
-function ist(iso: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: IST,
-  }).format(new Date(iso));
-}
-
 export default async function AdminDashboard({
   searchParams,
 }: {
@@ -73,12 +62,15 @@ export default async function AdminDashboard({
   }
 
   const { rows, capped } = usage.data;
-  const [list, resumes] = await Promise.all([sessions(range.days, rows), resumeTotals()]);
+  const [list, resumes, users] = await Promise.all([
+    sessions(range.days, rows),
+    resumeTotals(),
+    byUser(rows),
+  ]);
+  const orphan = unattributed(rows);
 
   const features = byFeature(rows);
   const t = totals(rows);
-  const downloadedInWindow = list.filter((s) => (s.resume?.downloads ?? 0) > 0).length;
-  const producedResume = list.filter((s) => s.resume).length;
 
   return (
     <>
@@ -143,10 +135,10 @@ export default async function AdminDashboard({
 
       {t.unpriced > 0 && (
         <p className="mt-3 text-[0.78rem] leading-relaxed text-ink-30">
-          {num(t.unpriced)} of {num(t.calls)} calls ran on a model with no rate in{" "}
-          <code>lib/app/ai-cost.ts</code>, so the cost above is an understatement rather than a
-          total. Adding the rate there fixes every future row; rows already written keep the
-          number they were written with.
+          {num(t.unpriced)} of {num(t.calls)} calls ran on a model with no rate, so the cost above
+          is a floor rather than a total. Set that model&apos;s price under <b>Model prices</b> on
+          the Settings screen and every future call is costed; rows already written keep the number
+          they were written with, so history stays reconcilable.
         </p>
       )}
 
@@ -233,195 +225,31 @@ export default async function AdminDashboard({
       {/* ------------------------------------------------------------ sessions */}
       <div className="mt-6">
         <Panel
-          title="Agent sessions"
+          title="People"
           note={
-            list.length
-              ? `${num(producedResume)} of ${num(list.length)} produced a résumé; ${num(
-                  downloadedInWindow,
-                )} of those were downloaded.`
+            users.length
+              ? `${num(users.length)} in this window, dearest first. Open one to see their conversations.`
               : undefined
           }
         >
-          {list.length === 0 ? (
-            <Empty>No conversations in this window.</Empty>
-          ) : (
-            <>
-              {/* Desktop: one row per session. */}
-              <div className="-mx-2 hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[900px] text-left text-[0.8rem]">
-                  <thead>
-                    <tr className="text-[0.7rem] uppercase tracking-[0.1em] text-ink-30">
-                      <Th>Started</Th>
-                      <Th>User</Th>
-                      <Th right>Calls</Th>
-                      <Th right>In</Th>
-                      <Th right>Out</Th>
-                      <Th right>Cost</Th>
-                      <Th>Model</Th>
-                      <Th>Résumé</Th>
-                      <Th>Downloaded</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((s) => (
-                      <tr key={s.sessionId} className="border-t border-ink-08 align-top">
-                        <Td>
-                          <span className="whitespace-nowrap">{ist(s.startedAt)}</span>
-                          {s.channel && (
-                            <span className="ml-2 text-[0.7rem] text-ink-30">{s.channel}</span>
-                          )}
-                        </Td>
-                        <Td>
-                          <User row={s} />
-                        </Td>
-                        <Td right>{num(s.calls)}</Td>
-                        <Td right>{known(s.inputTokens, s.metered)}</Td>
-                        <Td right>{known(s.outputTokens, s.metered)}</Td>
-                        <Td right>
-                          {knownUSD(s.costUsd, s.calls, s.metered)}
-                          {s.unpriced > 0 && <span className="text-ink-30"> +</span>}
-                        </Td>
-                        <Td>
-                          <span className="text-[0.74rem] text-ink-50">
-                            {s.models.length ? s.models.join(", ") : "—"}
-                          </span>
-                        </Td>
-                        <Td>
-                          <ResumeCell row={s} />
-                        </Td>
-                        <Td>
-                          <Downloaded row={s} />
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Phone: the same rows as cards. Not a squeezed table — nine
-                  columns at 380px is unreadable however hard it is styled. */}
-              <ul className="space-y-3 md:hidden">
-                {list.map((s) => (
-                  <li key={s.sessionId} className="rounded-xl border border-ink-08 p-4">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-[0.78rem] text-ink-50">{ist(s.startedAt)}</span>
-                      <span className="text-[0.78rem] tabular-nums">
-                        {knownUSD(s.costUsd, s.calls, s.metered)}
-                      </span>
-                    </div>
-                    <div className="mt-2">
-                      <User row={s} />
-                    </div>
-                    <dl className="mt-3 grid grid-cols-3 gap-2 text-[0.74rem]">
-                      <Cell k="Calls" v={num(s.calls)} />
-                      <Cell k="In" v={known(s.inputTokens, s.metered)} />
-                      <Cell k="Out" v={known(s.outputTokens, s.metered)} />
-                    </dl>
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.76rem]">
-                      <ResumeCell row={s} />
-                      <Downloaded row={s} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <UserTable users={users} />
         </Panel>
       </div>
+
+      {orphan.calls > 0 && (
+        <p className="mt-3 text-[0.78rem] leading-relaxed text-ink-30">
+          {num(orphan.calls)} of {num(t.calls)} calls in this window belong to no conversation
+          {orphan.costUsd > 0 && <> — about {USD(orphan.costUsd)} of it</>}. Some of that is
+          normal: parsing an uploaded résumé happens outside any chat. If it climbs towards a
+          third of everything, something has stopped passing its conversation id.
+        </p>
+      )}
     </>
   );
 }
 
 /* ------------------------------------------------------------------ pieces */
 
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <th className={`px-2 pb-2 font-medium ${right ? "text-right" : ""}`}>{children}</th>
-  );
-}
-
-function Td({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <td className={`px-2 py-2.5 ${right ? "text-right tabular-nums" : ""}`}>{children}</td>
-  );
-}
-
-function Cell({ k, v }: { k: string; v: string }) {
-  return (
-    <div>
-      <dt className="text-ink-30">{k}</dt>
-      <dd className="tabular-nums">{v}</dd>
-    </div>
-  );
-}
-
-/**
- * Who it was.
- *
- * The email when there is one, and the id underneath either way — the id is
- * what you paste into a query when you need to go and look, and an email alone
- * is not enough to find a row.
- */
-function User({ row }: { row: SessionRow }) {
-  return (
-    <span className="block min-w-0">
-      <span className="block truncate text-[0.8rem]">{row.email ?? "—"}</span>
-      <code className="block truncate text-[0.68rem] text-ink-30">{row.userId ?? ""}</code>
-    </span>
-  );
-}
-
-/**
- * The résumé, and whether the link is live.
- *
- * A share id that exists but is switched off is not a link — opening it 404s
- * on purpose. Showing it as one would send somebody to a dead page and make
- * them think the product is broken, so the two states are named differently.
- */
-function ResumeCell({ row }: { row: SessionRow }) {
-  if (!row.resume) return <span className="text-ink-30">—</span>;
-
-  if (row.resume.isPublic && row.resume.shareId) {
-    return (
-      <a
-        href={`/r/${row.resume.shareId}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex min-w-0 items-center gap-1 underline-offset-4 hover:underline"
-      >
-        <span className="truncate">{row.resume.title}</span>
-        <svg viewBox="0 0 20 20" className="h-3 w-3 shrink-0 text-ink-30" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M11 4h5v5M16 4 9 11M15 12v4H4V5h4" />
-        </svg>
-      </a>
-    );
-  }
-
-  return (
-    <span className="text-ink-50">
-      <span className="truncate">{row.resume.title}</span>
-      <span className="ml-1.5 text-[0.7rem] text-ink-30">not shared</span>
-    </span>
-  );
-}
-
-function Downloaded({ row }: { row: SessionRow }) {
-  if (!row.resume) return <span className="text-ink-30">—</span>;
-  if (row.resume.downloads > 0) {
-    return (
-      <span className="whitespace-nowrap">
-        Yes
-        <span className="ml-1.5 text-[0.72rem] text-ink-30">
-          ×{row.resume.downloads}
-          {row.resume.lastDownloadedAt ? ` · ${ist(row.resume.lastDownloadedAt)}` : ""}
-        </span>
-      </span>
-    );
-  }
-  return <span className="text-ink-30">No</span>;
-}
-
-/** The one screen that has to work when the database is not ready. */
 function Setup({ missing, title }: { missing: string; title: string }) {
   return (
     <div className="rounded-2xl border border-ink-08 p-6 sm:p-8">

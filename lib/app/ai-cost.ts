@@ -59,8 +59,19 @@ export const FEATURE_LABELS: Record<Feature, string> = {
 export type UsageMeta = {
   feature: Feature;
   userId?: string | null;
-  /** The conversation, or the live session. */
+  /**
+   * The conversation this spend happened inside. A conversation id, and
+   * nothing else.
+   *
+   * Résumé parsing used to pass the *résumé* id here, which the admin screen
+   * then counted as a distinct conversation — inflating the headline session
+   * number with ids that name nothing. Anything that is not a conversation
+   * goes in `resumeId` or stays null; an unattributed row is honest, a
+   * wrongly attributed one is not.
+   */
   sessionId?: string | null;
+  /** Which résumé this spend produced, when it was not part of a conversation. */
+  resumeId?: string | null;
 };
 
 /** What a provider tells us it used. Absent fields stay absent, never zero. */

@@ -1,4 +1,4 @@
-import { getSessionUser } from "@/lib/supabase/app";
+import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume, getPrimaryDraft } from "@/lib/app/account";
 import { searchJobs } from "@/lib/jobs/query";
 import { agentReplyStream, type Turn } from "@/lib/app/agent-chat";
@@ -82,6 +82,22 @@ export async function POST(request: Request) {
     });
   }
 
+  /**
+   * Open the conversation before spending anything on it.
+   *
+   * This used to happen afterwards, in the session route that saves the
+   * transcript — so the very first message of every conversation was billed
+   * while `conversationId` was still null, and its spend row went in
+   * unattributed. An audit against a seeded database put that at roughly a
+   * third of all recorded calls, and it was silently the *most* expensive
+   * third: the first turn carries the whole grounding payload.
+   *
+   * Best effort on purpose. If this fails the answer still happens — losing an
+   * accounting link must never cost somebody their reply — the row just goes
+   * in unattributed, exactly as it did before.
+   */
+  conversationId = await conversationFor(user.id, conversationId, turns);
+
   // The jobs the answer is allowed to talk about: the same filtered list the
   // Jobs page would show them, so the agent never mentions a role they cannot
   // then go and find.
@@ -161,6 +177,10 @@ export async function POST(request: Request) {
       line({
         t: "done",
         reply: result.reply,
+        // So the client can hand it back when it saves the transcript, rather
+        // than the session route opening a second conversation for the same
+        // exchange.
+        conversationId,
         configured: left.configured,
         ...(left.configured ? { messagesLeft: left.messagesLeft } : {}),
         paid: left.paid,
@@ -180,4 +200,56 @@ export async function POST(request: Request) {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+/* ------------------------------------------------------------ attribution */
+
+/**
+ * The conversation this turn belongs to, opening one if there is not one yet.
+ *
+ * Three jobs, and the middle one is a security check rather than a tidiness
+ * check: a client may send any id it likes, and billing one person's spend
+ * against another person's conversation would put their email next to
+ * somebody else's cost on the admin screen. An id that is not theirs is
+ * dropped rather than trusted.
+ *
+ * Every failure path returns null, which means "unattributed" — the state the
+ * whole product was in before this function existed. It is never worth an
+ * error in front of somebody mid-sentence.
+ */
+async function conversationFor(
+  userId: string,
+  claimed: string | null,
+  turns: Turn[],
+): Promise<string | null> {
+  const db = createAppAdminClient();
+  if (!db) return null;
+
+  try {
+    if (claimed) {
+      const { data } = (await db
+        .from("agent_conversations")
+        .select("id")
+        .eq("id", claimed)
+        .eq("user_id", userId)
+        .limit(1)) as unknown as { data: { id: string }[] | null };
+      return data?.[0]?.id ?? null;
+    }
+
+    const { data } = (await db
+      .from("agent_conversations")
+      .insert({
+        user_id: userId,
+        channel: "text",
+        // The first thing they said, trimmed — the same title the session
+        // route would have written, so nothing changes about how these read.
+        title: turns.find((t) => t.role === "user")?.text.slice(0, 70) ?? null,
+      })
+      .select("id")
+      .limit(1)) as unknown as { data: { id: string }[] | null };
+
+    return data?.[0]?.id ?? null;
+  } catch {
+    return null;
+  }
 }

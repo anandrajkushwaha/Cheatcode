@@ -1,4 +1,4 @@
-import { getSessionUser } from "@/lib/supabase/app";
+import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { llmVision } from "@/lib/app/llm";
 import { getAllowance } from "@/lib/app/allowance";
 
@@ -66,8 +66,20 @@ export async function POST(request: Request) {
   if (tooSoon(user.id)) return bad("One file at a time — give it a few seconds.", 429);
 
   let images: string[] = [];
+  /**
+   * Which conversation the file was handed over in.
+   *
+   * Reading a scan is the single most expensive call the product makes, and it
+   * was the one call that recorded no conversation at all — so on the admin
+   * screen it appeared as spend belonging to nobody's session. Verified below
+   * before it is used: a client may send any id.
+   */
+  let conversationId: string | null = null;
   try {
-    const body = (await request.json()) as { images?: unknown };
+    const body = (await request.json()) as { images?: unknown; conversationId?: unknown };
+    if (typeof body.conversationId === "string" && body.conversationId) {
+      conversationId = body.conversationId;
+    }
     if (Array.isArray(body.images)) {
       images = body.images
         .filter((i): i is string => typeof i === "string" && i.startsWith("data:image/"))
@@ -101,8 +113,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // Only if it is really theirs. Attributing one person's spend to another
+  // person's conversation would be worse than leaving it unattributed.
+  if (conversationId && !(await ownsConversation(user.id, conversationId))) {
+    conversationId = null;
+  }
+
   const result = await llmVision({
-    meta: { feature: "document_read", userId: user.id },
+    meta: { feature: "document_read", userId: user.id, sessionId: conversationId },
     system: INSTRUCTIONS,
     text:
       images.length > 1
@@ -126,4 +144,21 @@ export async function POST(request: Request) {
   }
 
   return Response.json({ ok: true, text: text.slice(0, 60_000) });
+}
+
+/** Does this conversation belong to this person? */
+async function ownsConversation(userId: string, id: string): Promise<boolean> {
+  const db = createAppAdminClient();
+  if (!db) return false;
+  try {
+    const { data } = (await db
+      .from("agent_conversations")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .limit(1)) as unknown as { data: { id: string }[] | null };
+    return !!data?.[0];
+  } catch {
+    return false;
+  }
 }

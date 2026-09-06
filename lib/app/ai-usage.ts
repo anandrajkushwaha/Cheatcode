@@ -56,6 +56,7 @@ async function write(input: RecordInput): Promise<void> {
   const { error } = await supabase.from("ai_usage").insert({
     user_id: input.userId ?? null,
     session_id: input.sessionId ?? null,
+    resume_id: input.resumeId ?? null,
     feature: input.feature,
     provider: input.provider,
     model: input.model,

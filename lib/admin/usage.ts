@@ -114,6 +114,8 @@ type UsageRow = {
   feature: string;
   model: string;
   provider?: string;
+  resume_id?: string | null;
+  duration_seconds?: number | null;
   input_tokens: number | null;
   output_tokens: number | null;
   audio_input_tokens: number | null;
@@ -154,20 +156,37 @@ export async function usageSince(days: number): Promise<Result<{ rows: UsageRow[
   if (!supabase) return { ok: false, missing: "SUPABASE_SECRET_KEY" };
 
   const from = new Date(Date.now() - days * 86_400_000).toISOString();
-  const { data, error } = await supabase
-    .from("ai_usage")
-    .select(
-      "user_id,session_id,feature,provider,model,input_tokens,output_tokens,audio_input_tokens,audio_output_tokens,cost_usd,created_at",
-    )
-    .gte("created_at", from)
-    .order("created_at", { ascending: false })
-    .limit(CAP);
+
+  /**
+   * `resume_id` arrives with 62_usage_attribution.sql.
+   *
+   * Asked for first, and dropped if the column is not there yet. A dashboard
+   * that returns nothing until every migration has been run is a dashboard you
+   * cannot use to discover that one has not — and this screen is exactly where
+   * somebody would go looking.
+   */
+  const WITH_RESUME =
+    "user_id,session_id,resume_id,feature,provider,model,input_tokens,output_tokens,audio_input_tokens,audio_output_tokens,duration_seconds,cost_usd,created_at";
+  const WITHOUT_RESUME = WITH_RESUME.replace("resume_id,", "");
+
+  const read = (columns: string) =>
+    supabase
+      .from("ai_usage")
+      .select(columns)
+      .gte("created_at", from)
+      .order("created_at", { ascending: false })
+      .limit(CAP);
+
+  let { data, error } = await read(WITH_RESUME);
+  if (error && /resume_id/.test(error.message)) {
+    ({ data, error } = await read(WITHOUT_RESUME));
+  }
 
   const gone = absent(error?.message, "60_ai_usage.sql");
   if (gone) return gone;
   if (error) throw new Error(error.message);
 
-  const rows = (data ?? []) as UsageRow[];
+  const rows = (data ?? []) as unknown as UsageRow[];
   return { ok: true, data: { rows, capped: rows.length >= CAP } };
 }
 
@@ -383,6 +402,187 @@ export function byModel(rows: UsageRow[]): ModelRow[] {
   }
   // Unpriced first — those are the rows that need a person.
   return [...acc.values()].sort((a, b) => b.unpriced - a.unpriced || b.calls - a.calls);
+}
+
+
+/* ------------------------------------------------------------- by person */
+
+/**
+ * One row per person, which is the question the session table could not
+ * answer: **who is costing us money, and did they get anything out of it.**
+ *
+ * Built from the same window of rows as everything else, so it cannot
+ * disagree with the totals. Spend with no `user_id` — a scheduled job, an
+ * anonymous path — is kept as its own row rather than dropped, because a
+ * dashboard whose parts do not add up to its total is worse than one with an
+ * awkward row in it.
+ */
+export type UserRow = {
+  userId: string | null;
+  email: string | null;
+  name: string | null;
+  plan: string | null;
+  calls: number;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  unpriced: number;
+  metered: number;
+  /** Their email, or their phone number when that is all there is. */
+  /** Which features they actually used, most-used first. */
+  features: { feature: string; label: string; calls: number }[];
+  models: string[];
+  firstSeen: string;
+  lastSeen: string;
+  voiceSeconds: number;
+  resumes: number;
+  downloads: number;
+  shared: number;
+};
+
+export async function byUser(rows: UsageRow[]): Promise<UserRow[]> {
+  const acc = new Map<string, UserRow & { featureCount: Map<string, number>; sessionSet: Set<string>; modelSet: Set<string> }>();
+
+  for (const r of rows) {
+    const key = r.user_id ?? "";
+    let row = acc.get(key);
+    if (!row) {
+      row = {
+        userId: r.user_id,
+        email: null,
+        name: null,
+        plan: null,
+        calls: 0,
+        sessions: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: 0,
+        unpriced: 0,
+        metered: 0,
+        features: [],
+        models: [],
+        firstSeen: r.created_at,
+        lastSeen: r.created_at,
+        voiceSeconds: 0,
+        resumes: 0,
+        downloads: 0,
+        shared: 0,
+        featureCount: new Map(),
+        sessionSet: new Set(),
+        modelSet: new Set(),
+      };
+      acc.set(key, row);
+    }
+
+    row.calls += 1;
+    row.inputTokens += n(r.input_tokens) + n(r.audio_input_tokens);
+    row.outputTokens += n(r.output_tokens) + n(r.audio_output_tokens);
+    if (metered(r)) row.metered += 1;
+    if (r.cost_usd == null) row.unpriced += 1;
+    else row.costUsd += n(r.cost_usd);
+    if (r.session_id) row.sessionSet.add(r.session_id);
+    if (r.model) row.modelSet.add(r.model);
+    row.featureCount.set(r.feature, (row.featureCount.get(r.feature) ?? 0) + 1);
+    row.voiceSeconds += n(r.duration_seconds);
+    // Rows arrive newest first, so the first one seen is the latest.
+    if (r.created_at > row.lastSeen) row.lastSeen = r.created_at;
+    if (r.created_at < row.firstSeen) row.firstSeen = r.created_at;
+  }
+
+  const list = [...acc.values()].map(({ featureCount, sessionSet, modelSet, ...row }) => ({
+    ...row,
+    sessions: sessionSet.size,
+    models: [...modelSet],
+    features: [...featureCount.entries()]
+      .map(([feature, calls]) => ({
+        feature,
+        label: FEATURE_LABELS[feature as Feature] ?? feature,
+        calls,
+      }))
+      .sort((a, b) => b.calls - a.calls),
+  }));
+
+  await decorate(list);
+  return list.sort((a, b) => b.costUsd - a.costUsd || b.calls - a.calls);
+}
+
+/**
+ * Put names and outcomes against the ids.
+ *
+ * Two reads, both best-effort and both tolerant of a table that is not there
+ * yet. An admin screen that will not render because one migration is
+ * outstanding is a screen you cannot use to find out that a migration is
+ * outstanding.
+ */
+async function decorate(list: UserRow[]): Promise<void> {
+  const supabase = createAppAdminClient();
+  const ids = list.map((u) => u.userId).filter((id): id is string => !!id);
+  if (!supabase || !ids.length) return;
+
+  const [people, drafts] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id,email,full_name,phone,plan")
+      .in("id", ids)
+      .then((r) => r.data ?? []),
+    supabase
+      .from("resume_drafts")
+      .select("user_id,is_public,download_count")
+      .in("user_id", ids)
+      .then((r) => r.data ?? []),
+  ]);
+
+  const by = new Map(list.map((u) => [u.userId, u]));
+
+  for (const p of people as {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    phone: string | null;
+    plan: string | null;
+  }[]) {
+    const row = by.get(p.id);
+    if (!row) continue;
+    // A phone-first signup has no email at all. Falling back to the number
+    // beats printing a bare uuid, which is what the screen did — and a uuid
+    // is not something anybody can recognise a customer by.
+    row.email = p.email ?? p.phone;
+    row.name = p.full_name;
+    row.plan = p.plan;
+  }
+
+  for (const d of drafts as { user_id: string; is_public: boolean; download_count: number | null }[]) {
+    const row = by.get(d.user_id);
+    if (!row) continue;
+    row.resumes += 1;
+    row.downloads += n(d.download_count);
+    if (d.is_public) row.shared += 1;
+  }
+}
+
+/** The sessions belonging to one person, for the drill-in. */
+export async function sessionsForUser(
+  days: number,
+  rows: UsageRow[],
+  userId: string,
+): Promise<SessionRow[]> {
+  const all = await sessions(days, rows);
+  return all.filter((s) => s.userId === userId);
+}
+
+/**
+ * Spend in this window that belongs to no conversation.
+ *
+ * Surfaced rather than hidden, because the number itself is the health check:
+ * a third of all calls used to land here, and nothing on the screen said so.
+ */
+export function unattributed(rows: UsageRow[]): { calls: number; costUsd: number } {
+  const orphan = rows.filter((r) => !r.session_id);
+  return {
+    calls: orphan.length,
+    costUsd: orphan.reduce((t, r) => t + (r.cost_usd == null ? 0 : n(r.cost_usd)), 0),
+  };
 }
 
 /** Downloads and shares across the whole product, not only inside sessions. */

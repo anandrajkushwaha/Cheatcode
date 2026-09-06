@@ -44,6 +44,15 @@ import { readAnyFile, ExtractError } from "@/lib/app/read-file";
 type Finished = {
   t?: "done";
   reply?: string;
+  /**
+   * The conversation this turn was billed against.
+   *
+   * The chat route now opens the conversation *before* the model call, so the
+   * first message is attributable. That id has to come back here, or the
+   * session route would not recognise the conversation and would open a
+   * second one — leaving the spend on one row and the transcript on another.
+   */
+  conversationId?: string | null;
   /** What the tools the agent ran asked the screen to do. */
   actions?: UiAction[];
   show?: { jobs?: JobCard[]; reason?: string };
@@ -680,6 +689,12 @@ export function AgentOverlay({
 
       const { done, failed } = out;
 
+      // Adopt the conversation the server billed this turn against, before the
+      // transcript is saved. Without this the save would look like a new
+      // conversation and open a second one — spend on one row, words on
+      // another, and the admin screen unable to put them together.
+      if (done?.conversationId) conversation.current = done.conversationId;
+
       // Tool results reach the screen the same way in both channels: a typed
       // action the frontend interprets, never markup from the model.
       for (const action of done?.actions ?? []) applyAction(action);
@@ -738,7 +753,7 @@ export function AgentOverlay({
 
       let read: Awaited<ReturnType<typeof readAnyFile>>;
       try {
-        read = await readAnyFile(file);
+        read = await readAnyFile(file, conversation.current);
       } catch (e) {
         setAttachment({
           phase: "error",

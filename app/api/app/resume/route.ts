@@ -96,7 +96,10 @@ export async function POST(request: Request) {
   const parsed = await parseResume(text, {
     feature: "resume_extraction",
     userId: user.id,
-    sessionId: id,
+    // The résumé, not a conversation. This was `sessionId: id`, which the
+    // admin dashboard read as a conversation that did not exist and counted
+    // towards the session total.
+    resumeId: id,
   });
 
   if (!parsed.ok) {
