@@ -38,6 +38,8 @@
  * either, so a test can run the whole model without a DOM.
  */
 
+import { isIconName, type IconName } from "@/lib/app/design-icons";
+
 /* --------------------------------------------------------------- the page */
 
 /** A4, in millimetres. The only page size for now; the field exists so the
@@ -49,7 +51,7 @@ export const PT = 25.4 / 72;
 
 /* ------------------------------------------------------------- the objects */
 
-export type ElementType = "text" | "image" | "shape" | "line";
+export type ElementType = "text" | "image" | "shape" | "line" | "icon";
 
 export type Align = "left" | "center" | "right" | "justify";
 export type ListStyle = "none" | "bullet" | "number";
@@ -202,7 +204,24 @@ export type LineElement = Base & {
   dash: "solid" | "dashed" | "dotted";
 };
 
-export type Element = TextElement | ImageElement | ShapeElement | LineElement;
+/**
+ * A small stroked drawing from the named library.
+ *
+ * Its own element rather than a variety of `shape`, because it behaves like a
+ * different thing: it has no fill, its weight is a stroke that must not scale
+ * with the box, and it is chosen from a list rather than configured. Folding
+ * it into `shape` would put four fields on that type which are meaningless for
+ * a rectangle.
+ */
+export type IconElement = Base & {
+  type: "icon";
+  name: IconName;
+  colour: string;
+  /** Stroke weight in millimetres, independent of the box size. */
+  weight: number;
+};
+
+export type Element = TextElement | ImageElement | ShapeElement | LineElement | IconElement;
 
 export type Page = {
   id: string;
@@ -263,6 +282,21 @@ export function text(partial: Partial<TextElement> & { text: string }): TextElem
     y: 20,
     w: 80,
     h: 10,
+    ...partial,
+  };
+}
+
+export function icon(partial: Partial<IconElement> & { name: IconName }): IconElement {
+  return {
+    ...BASE,
+    id: newId(),
+    type: "icon",
+    x: 20,
+    y: 20,
+    w: 5,
+    h: 5,
+    colour: "#111111",
+    weight: 0.35,
     ...partial,
   };
 }
@@ -521,6 +555,18 @@ function cleanElement(raw: unknown): Element | null {
         letterSpacing: num(r.letterSpacing, 0, -0.2, 2),
         list: one(r.list, ["none", "bullet", "number"] as const, "none"),
         autoHeight: r.autoHeight !== false,
+      };
+
+    case "icon":
+      return {
+        ...base,
+        type: "icon",
+        // An unknown icon name falls back rather than dropping the element:
+        // the layout reserved space for a glyph, and a hole where one was is
+        // worse than a different glyph.
+        name: isIconName(r.name) ? r.name : "star",
+        colour: colour(r.colour, "#111111"),
+        weight: num(r.weight, 0.35, 0.05, 3),
       };
 
     case "image": {

@@ -1,6 +1,7 @@
 import {
   A4,
   blankPage,
+  icon,
   image,
   line,
   PT,
@@ -12,7 +13,13 @@ import {
   type TextElement,
 } from "@/lib/app/design";
 import type { Resume } from "@/lib/app/resume-schema";
-import { templateById, type Template } from "@/lib/app/resume-templates";
+import {
+  showsPhoto,
+  templateById,
+  type Layout,
+  type Template,
+} from "@/lib/app/resume-templates";
+import type { IconName } from "@/lib/app/design-icons";
 
 /**
  * A template, poured full of somebody's résumé, once.
@@ -95,6 +102,11 @@ class Column {
     return this.y;
   }
 
+  /** The column's left edge, for anything placed beside a block rather than in it. */
+  get xPos() {
+    return this.x;
+  }
+
   space(mm: number) {
     this.y += mm;
   }
@@ -104,18 +116,28 @@ class Column {
     return el;
   }
 
-  /** A block of text, sized to what it will probably take. */
-  text(body: string, opts: Partial<TextElement> & { gap?: number } = {}): TextElement | null {
+  /**
+   * A block of text, sized to what it will probably take.
+   *
+   * `indent` shifts the block right and narrows it by the same amount, so text
+   * beside a glyph or a timeline rail stays inside the column rather than
+   * hanging off its right edge — which is what a plain x-offset would do.
+   */
+  text(
+    body: string,
+    opts: Partial<TextElement> & { gap?: number; indent?: number } = {},
+  ): TextElement | null {
     if (!body.trim()) return null;
-    const { gap = 0, ...rest } = opts;
+    const { gap = 0, indent = 0, ...rest } = opts;
     this.y += gap;
     const size = rest.size ?? 10;
     const lh = rest.lineHeight ?? 1.35;
+    const width = this.w - indent;
     // A list draws a marker in the same column as the words, so its lines are
     // shorter and it wraps sooner. Roughly a marker plus its gap.
-    const usable = rest.list && rest.list !== "none" ? this.w - size * PT * 1.2 : this.w;
+    const usable = rest.list && rest.list !== "none" ? width - size * PT * 1.2 : width;
     const h = estimateHeight(body, usable, size, lh, { bold: rest.bold, caps: rest.caps });
-    const el = text({ ...rest, text: body, x: this.x, y: this.y, w: this.w, h });
+    const el = text({ ...rest, text: body, x: this.x + indent, y: this.y, w: width, h });
     this.y += h;
     this.out.push(el);
     return el;
@@ -165,6 +187,121 @@ function educationBlocks(c: Resume): { head: string; dates: string }[] {
     head: nonEmpty([e.degree, e.institution]).join("  —  "),
     dates: (e.year ?? "").trim(),
   }));
+}
+
+/* ---------------------------------------------------------- new furniture */
+
+/**
+ * A heading with a glyph beside it.
+ *
+ * The icon is placed rather than pushed into the column, because the column
+ * only knows about full-width blocks and this sits in the margin next to one.
+ * The heading text is indented by the glyph's width plus a gap so the two read
+ * as one line rather than as a mark that happens to be near some words.
+ */
+function iconHeading(
+  col: Column,
+  label: string,
+  name: IconName,
+  ink: Ink,
+  opts: { gap?: number; size?: number } = {},
+) {
+  const glyph = opts.size ?? 4.6;
+  col.space(opts.gap ?? 6);
+  const y = col.bottom;
+  col.push(icon({ name, x: col.xPos, y: y + 0.3, w: glyph, h: glyph, colour: ink.heading, weight: 0.42 }));
+  col.text(label, {
+    size: 10.5,
+    bold: true,
+    color: ink.heading,
+    lineHeight: 1.2,
+    indent: glyph + 2.4,
+  });
+}
+
+/**
+ * Entries hung off a vertical rail, the way the reference designs draw them.
+ *
+ * The rail is drawn *after* the entries because its height is only known once
+ * they have been laid out — which is also why this cannot be a `Column`
+ * method: the column does not know where a group of blocks starts and stops.
+ */
+function timelineEntries(
+  col: Column,
+  list: { head: string; dates: string; bullets: string }[],
+  ink: Ink,
+  accent: string,
+) {
+  const railX = col.xPos + 1.6;
+  const top = col.bottom + 3;
+  const dots: number[] = [];
+
+  for (const item of list) {
+    col.space(3.4);
+    dots.push(col.bottom + 1.4);
+    col.text(item.dates, { size: 8.5, bold: true, color: ink.muted, lineHeight: 1.2, indent: 7 });
+    col.text(item.head, { gap: 0.8, size: 10, bold: true, color: ink.body, lineHeight: 1.25, indent: 7 });
+    col.text(item.bullets, { gap: 1.2, size: 9.2, color: ink.body, list: "bullet", lineHeight: 1.4, indent: 7 });
+  }
+
+  if (!dots.length) return;
+  const bottom = col.bottom;
+  // A thin rect rather than a `line`: lines are drawn as a CSS top border, so
+  // they are horizontal by construction and a 0.35mm-wide one would be invisible.
+  col.push(shape({ x: railX, y: top, w: 0.35, h: bottom - top, fill: accent }));
+  for (const y of dots) {
+    col.push(shape({ x: railX - 1.2, y: y - 1.2, w: 2.4, h: 2.4, shape: "ellipse", fill: accent }));
+  }
+}
+
+/**
+ * A skill and a row of five dots, however many of them are filled.
+ *
+ * The reference designs all draw a rating and none of them say what it means,
+ * which is the honest reading: it is a visual weight, not a measurement. So
+ * this fills four of five for everything rather than inventing a score the
+ * résumé does not contain — somebody who wants to say "three" can click a dot
+ * and change its colour.
+ */
+function skillMeters(col: Column, skills: string[], ink: Ink, accent: string) {
+  for (const name of skills.slice(0, 8)) {
+    col.text(name, { gap: 2.6, size: 9, color: ink.body, lineHeight: 1.2 });
+    const y = col.bottom + 1.4;
+    for (let i = 0; i < 5; i++) {
+      col.push(
+        shape({
+          x: col.xPos + i * 3.4,
+          y,
+          w: 2.2,
+          h: 2.2,
+          shape: "ellipse",
+          fill: i < 4 ? accent : "transparent",
+          stroke: accent,
+          strokeWidth: 0.25,
+        }),
+      );
+    }
+    col.space(3.6);
+  }
+}
+
+/** Contact lines with a glyph in front of each, as most of the references do. */
+function iconContact(col: Column, c: Resume, ink: Ink) {
+  const rows = (
+    [
+      { name: "phone", value: c.phone ?? "" },
+      { name: "mail", value: c.email ?? "" },
+      { name: "pin", value: c.location ?? "" },
+      { name: "globe", value: c.links[0]?.url ?? "" },
+    ] satisfies { name: IconName; value: string }[]
+  ).filter((r) => r.value.trim());
+
+  for (const row of rows) {
+    col.space(2.6);
+    const y = col.bottom;
+    col.push(icon({ name: row.name, x: col.xPos, y: y - 0.2, w: 3.6, h: 3.6, colour: ink.muted, weight: 0.34 }));
+    col.text(row.value, { size: 8.6, color: ink.body, lineHeight: 1.25, indent: 5.6 });
+  }
 }
 
 /* ------------------------------------------------------------- the pieces */
@@ -296,17 +433,24 @@ const M = 14; // page margin, millimetres
 /**
  * An empty photo frame, for the layouts that have somewhere to put one.
  *
- * Not every template. `showsPhoto()` in resume-templates.ts is the rule and it
- * predates this file: **banded and sidebar layouts only**. Those two reserve a
- * block of colour that a picture can live in — both of them were already
- * drawing a monogram there, which is a placeholder for a face by another name.
+ * Not every template. `showsPhoto()` in resume-templates.ts is the rule, and
+ * it now answers **per template rather than per layout** — two designs can
+ * share `photo-sidebar` and only one of them draw a frame, because that is
+ * what the references they came from do. Where a template says nothing, the
+ * layout's habit applies: the ones that reserve a block of colour a picture
+ * can live in take one, the rest do not.
  *
- * The plain column and the two-column split are deliberately without one. In
- * both, the only way to fit a photo is to take the space from the words: a
- * frame top-right narrows the name, and one at the top of the split's aside
- * costs four centimetres of the tightest column on the page. A template should
- * not spend somebody's layout on a picture they may not want — and if they do
- * want it, the Frames panel puts one anywhere in two clicks.
+ * The plain column, the two-column split and the side-label design are
+ * without one by default. In each, the only way to fit a photo is to take the
+ * space from the words: a frame top-right narrows the name, and one at the top
+ * of the split's aside costs four centimetres of the tightest column on the
+ * page. A template should not spend somebody's layout on a picture they may
+ * not want — and if they do want it, the Frames panel puts one anywhere in two
+ * clicks.
+ *
+ * Every layout below therefore asks before it draws, and reclaims the space
+ * when the answer is no. A layout that reserved the gap either way would be
+ * the worst of both: no picture, and no room for the words that replace it.
  *
  * Empty is the point. It says "your photo goes here", it fills by dropping a
  * file on it, and if it is never filled it prints as nothing at all.
@@ -335,8 +479,15 @@ function columnLayout(c: Resume, t: Template, centred: boolean): Element[] {
    * Somebody who wants a photo on this layout can still add one from the
    * Frames panel — the difference is that it is then their decision, made
    * with the space in front of them, rather than ours made in advance.
+   *
+   * A template may still ask for one by setting `photo: true`, and then it
+   * gets one, top-right, with the header narrowed to pay for it. None
+   * currently does. The branch exists so `showsPhoto()` cannot promise the
+   * toolbar something the page does not draw — a switch that reports "yes"
+   * and produces nothing is the failure this whole field was added to end.
    */
-  const col = new Column(M, M, A4.w - M * 2);
+  const photo = showsPhoto(t) ? 26 : 0;
+  const col = new Column(M, M, A4.w - M * 2 - (photo ? photo + 8 : 0));
 
   const align = centred ? "center" : "left";
   const serif = centred ? "EB Garamond" : "Inter";
@@ -360,7 +511,7 @@ function columnLayout(c: Resume, t: Template, centred: boolean): Element[] {
   }
 
   if (serif !== "Inter") for (const el of col.out) if (el.type === "text") el.font = serif;
-  return col.out;
+  return photo ? [photoFrame(A4.w - M - photo, M, photo), ...col.out] : col.out;
 }
 
 function bandLayout(c: Resume, t: Template): Element[] {
@@ -376,9 +527,11 @@ function bandLayout(c: Resume, t: Template): Element[] {
     shape({ x: 0, y: 0, w: A4.w, h: bandH, fill: accent }),
   ];
 
-  out.push(photoFrame(A4.w - M - 26, (bandH - 26) / 2, 26));
+  const photo = showsPhoto(t);
+  if (photo) out.push(photoFrame(A4.w - M - 26, (bandH - 26) / 2, 26));
 
-  const head = new Column(M, 12, A4.w - M * 2 - 34);
+  // The header text gets the frame's width back when there is no frame.
+  const head = new Column(M, 12, A4.w - M * 2 - (photo ? 34 : 0));
   head.text(c.full_name ?? "Your name", {
     size: 19,
     bold: true,
@@ -411,8 +564,10 @@ function sidebarLayout(c: Resume, t: Template): Element[] {
   // A photo, where the monogram used to be. The initials were a stand-in for
   // a face; this is the face, and it falls back to nothing rather than to two
   // letters when there is no picture.
-  out.push(photoFrame(asideW / 2 - 13, 13, 26));
-  aside.space(30);
+  if (showsPhoto(t)) {
+    out.push(photoFrame(asideW / 2 - 13, 13, 26));
+    aside.space(30);
+  }
 
   aside.text(c.full_name ?? "Your name", { size: 14, bold: true, color: asideText, lineHeight: 1.2 });
   aside.text(c.headline ?? "", { gap: 1.4, size: 9, color: asideText, opacity: 0.85, lineHeight: 1.3 });
@@ -459,10 +614,13 @@ function splitLayout(c: Resume, t: Template): Element[] {
   const top = headH + 12;
   out.push(shape({ x: M, y: top, w: asideW, h: A4.h - top - M, fill: wash }));
 
-  // No frame here either: the aside is a narrow column of skills and dates
+  // No frame here by default: the aside is a narrow column of skills and dates
   // that runs the height of the page, and a photo at the top of it costs four
-  // centimetres of the one column that was already the tightest.
-  const aside = new Column(M + 7, top + 8, asideW - 14);
+  // centimetres of the one column that was already the tightest. A template
+  // that asks for one anyway gets it, for the reason given in `columnLayout`.
+  const photo = showsPhoto(t) ? Math.min(34, asideW - 16) : 0;
+  if (photo) out.push(photoFrame(M + asideW / 2 - photo / 2, top + 8, photo));
+  const aside = new Column(M + 7, top + 8 + (photo ? photo + 7 : 0), asideW - 14);
   const asideInk: Ink = { heading: accent, body: "#2a2a2a", muted: "#5c5c5c", rule: accent };
   for (const key of ["skills", "education", "certifications", "contact"]) {
     sectionInto(aside, key, c, asideInk, { stackContact: true });
@@ -490,14 +648,7 @@ function splitLayout(c: Resume, t: Template): Element[] {
  */
 export function seedDesign(content: Resume, templateId: string | null | undefined): Design {
   const t = templateById(templateId);
-  const elements =
-    t.layout === "band"
-      ? bandLayout(content, t)
-      : t.layout === "sidebar"
-        ? sidebarLayout(content, t)
-        : t.layout === "split"
-          ? splitLayout(content, t)
-          : columnLayout(content, t, t.id === "centred-serif");
+  const elements = LAYOUTS[t.layout](content, t);
 
   /**
    * Anything past the bottom of sheet one moves to sheet two.
@@ -506,6 +657,20 @@ export function seedDesign(content: Resume, templateId: string | null | undefine
    * the honest behaviour for a canvas: an element is a thing with a position,
    * so it either fits or it moves. It is also visible and fixable, which a
    * silently clipped page is not.
+   *
+   * Splitting on the **bottom** edge instead — so a block that would cross the
+   * boundary moves whole — looks like the obvious improvement and was tried.
+   * It is not, without a reflow to go with it: a paragraph at 290mm bumped to
+   * the next sheet lands at 290 − 297 = −7mm, above the top of its own page,
+   * and every block after it keeps the offset it had, so the two overlap. Page
+   * breaks need the rest of the column to move down with them, and that is a
+   * flow engine, not a modulo. Until there is one, a block that straddles the
+   * boundary stays where the person put it and the page clips it, which is at
+   * least a thing they can see and drag.
+   *
+   * The gallery does not have to live with that, because a card is a picture
+   * rather than a document: `previewDesign` trims sheet one to the last block
+   * that fits whole. See `design-sample.ts`.
    */
   const pages: Page[] = [blankPage()];
   for (const el of elements) {
@@ -516,3 +681,332 @@ export function seedDesign(content: Resume, templateId: string | null | undefine
 
   return { version: 1, pages };
 }
+
+/* ------------------------------------------------------- the new layouts */
+
+/**
+ * A coloured column with the photo at the top of it.
+ *
+ * The most common shape in the reference set, and the one that carries the
+ * widest range: the column can be dark or light, the page can be tinted or
+ * white, and changing those two colours is most of what separates six of the
+ * designs from each other. Everything structural is here once.
+ */
+function photoSidebarLayout(c: Resume, t: Template): Element[] {
+  const wash = t.theme.wash ?? "#2f3640";
+  const asideText = t.theme.asideText ?? t.theme.onAccent ?? "#ffffff";
+  const asideHeading = t.theme.asideHeading ?? asideText;
+  const accent = t.theme.accent ?? asideHeading;
+  const asideW = t.theme.asideMm ?? 68;
+  const photo = showsPhoto(t) ? Math.min(38, asideW - 18) : 0;
+
+  const out: Element[] = [shape({ x: 0, y: 0, w: asideW, h: A4.h, fill: wash })];
+  if (photo) out.push(photoFrame(asideW / 2 - photo / 2, 16, photo));
+
+  // Without a frame the column starts where the frame would have, not below
+  // where it would have ended — otherwise the design keeps its hole.
+  const aside = new Column(10, photo ? 16 + photo + 9 : 18, asideW - 20);
+  const asideInk: Ink = { heading: asideHeading, body: asideText, muted: asideText, rule: asideText };
+
+  aside.text("Contact", { size: 10.5, bold: true, color: asideHeading, lineHeight: 1.2 });
+  aside.rule(asideText, { gap: 1.4 });
+  iconContact(aside, c, asideInk);
+
+  if (c.skills.length) {
+    aside.text("Skills", { gap: 6, size: 10.5, bold: true, color: asideHeading, lineHeight: 1.2 });
+    aside.rule(asideText, { gap: 1.4 });
+    // The meters take the *sidebar's* heading colour, not the page accent.
+    // On a dark column those two are usually the same hex — `accent` and
+    // `wash` are both the navy — and five navy dots on a navy panel is a
+    // section that renders as nothing at all. It passed the element count and
+    // it passed typecheck; it only failed by being looked at.
+    if (t.theme.skillMeters) skillMeters(aside, c.skills, asideInk, asideHeading);
+    else aside.text(c.skills.join("\n"), { gap: 2.4, size: 9, color: asideText, lineHeight: 1.55 });
+  }
+
+  for (const key of ["education", "certifications"]) {
+    sectionInto(aside, key, c, asideInk, { stackContact: true });
+  }
+  for (const el of aside.out) if (el.type === "line") el.opacity = 0.45;
+  out.push(...aside.out);
+
+  // The right-hand column: the name, then the substance.
+  const mainX = asideW + 12;
+  const main = new Column(mainX, 20, A4.w - mainX - M);
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+
+  main.text(c.full_name ?? "Your name", { size: 24, bold: true, color: ink.heading, lineHeight: 1.1 });
+  main.text(c.headline ?? "", { gap: 1.4, size: 11.5, color: ink.muted, lineHeight: 1.3 });
+  main.rule(ink.rule, { gap: 3.4 });
+
+  for (const key of ["summary", "experience", "projects", "achievements"]) {
+    sectionInto(main, key, c, ink, {});
+  }
+  out.push(...main.out);
+  return out;
+}
+
+/**
+ * A colour band across the top, with the photo inside it.
+ *
+ * Distinct from `bandLayout` in one way that matters: the body below is two
+ * columns rather than one, which is what the reference designs use the saved
+ * vertical space for.
+ */
+function headerPhotoLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#2f3640";
+  const onAccent = t.theme.onAccent ?? "#ffffff";
+  const bandH = t.theme.bandMm ?? 54;
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const photo = showsPhoto(t) ? bandH - 16 : 0;
+
+  const out: Element[] = [shape({ x: 0, y: 0, w: A4.w, h: bandH, fill: accent })];
+  if (photo) out.push(photoFrame(M, (bandH - photo) / 2, photo));
+
+  const headX = photo ? M + photo + 10 : M;
+  const head = new Column(headX, bandH / 2 - 13, A4.w - headX - M);
+  head.text(c.full_name ?? "Your name", { size: 23, bold: true, color: onAccent, lineHeight: 1.1 });
+  head.text(c.headline ?? "", { gap: 1.4, size: 11, color: onAccent, opacity: 0.85, lineHeight: 1.3 });
+  out.push(...head.out);
+
+  // Two columns under the band, narrow on the left.
+  const asideW = 60;
+  const aside = new Column(M, bandH + 12, asideW);
+  iconHeading(aside, "About me", "user", ink, { gap: 0 });
+  aside.text(c.summary ?? "", { gap: 1.6, size: 8.8, color: ink.body, lineHeight: 1.45 });
+  iconHeading(aside, "Contact", "phone", ink);
+  iconContact(aside, c, ink);
+  if (c.skills.length) {
+    iconHeading(aside, "Skills", "skills", ink);
+    aside.text(c.skills.join("\n"), { gap: 1.6, size: 8.8, color: ink.body, list: "bullet", lineHeight: 1.5 });
+  }
+  /**
+   * Certifications and awards, in the narrow column.
+   *
+   * These were missing, and the omission was invisible until the sample
+   * résumé got long enough to notice: this layout drew a summary, contact,
+   * skills, education and experience, and silently dropped the other three
+   * sections a résumé can hold. Rendered against a full CV it stopped two
+   * thirds of the way down the page while every other layout ran to the
+   * bottom — the four templates on it looked like the *thin* ones, when in
+   * fact they were the ones throwing content away.
+   *
+   * Dropping somebody's certifications because the template that draws them
+   * forgot to is the worst kind of bug: nothing errors, nothing looks broken,
+   * and the person never learns their award is not on the page they sent.
+   */
+  if (c.certifications.length) {
+    iconHeading(aside, "Certifications", "award", ink);
+    aside.text(c.certifications.join("\n"), { gap: 1.6, size: 8.8, color: ink.body, list: "bullet", lineHeight: 1.5 });
+  }
+  out.push(...aside.out);
+
+  const mainX = M + asideW + 12;
+  const main = new Column(mainX, bandH + 12, A4.w - mainX - M);
+  iconHeading(main, "Education", "cap", ink, { gap: 0 });
+  timelineEntries(main, educationBlocks(c).map((e) => ({ ...e, bullets: "" })), ink, accent);
+  iconHeading(main, "Experience", "briefcase", ink);
+  timelineEntries(main, roleBlocks(c), ink, accent);
+  const projects = projectBlocks(c);
+  if (projects.length) {
+    iconHeading(main, "Projects", "star", ink);
+    timelineEntries(main, projects, ink, accent);
+  }
+  if (c.achievements.length) {
+    iconHeading(main, "Achievements", "quote", ink);
+    main.text(c.achievements.join("\n"), {
+      gap: 1.6,
+      size: 9.2,
+      color: ink.body,
+      list: "bullet",
+      lineHeight: 1.45,
+      indent: 7,
+    });
+  }
+  out.push(...main.out);
+
+  return out;
+}
+
+/**
+ * Two columns divided by a rule, and no colour at all.
+ *
+ * The quietest of the set. Its whole character is the vertical hairline down
+ * the middle and the markers that sit on it, so those are the only decoration
+ * — anything else added here would make it a different template.
+ */
+function ruleSplitLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  // Headings in the accent, not in black.
+  //
+  // The first version painted the accent onto the divider and the two markers
+  // and nothing else. Rendered, the five templates in this family were the
+  // same document five times: the rule is a third of a millimetre wide at 50%
+  // opacity, so a slate rule and a black one are indistinguishable, and two of
+  // them had no tint at all. A colour that only appears on a hairline is a
+  // colour the person choosing it will never see.
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#d9d9d9" };
+  const out: Element[] = [];
+
+  // A centred name in a soft band, as the reference draws it.
+  const bandY = 18;
+  const bandH = 20;
+  if (t.theme.wash) out.push(shape({ x: 0, y: bandY, w: A4.w, h: bandH, fill: t.theme.wash }));
+
+  const head = new Column(M, bandY + 3.5, A4.w - M * 2);
+  head.text(c.full_name ?? "Your name", {
+    size: 20, bold: false, caps: true, letterSpacing: 0.1, align: "center", color: ink.heading, lineHeight: 1.15,
+  });
+  head.text(c.headline ?? "", { gap: 1, size: 10, align: "center", color: ink.muted });
+  out.push(...head.out);
+
+  const top = bandY + bandH + 14;
+  const gutter = A4.w / 2;
+  out.push(shape({ x: gutter, y: top, w: 0.3, h: A4.h - top - 22, fill: accent, opacity: 0.5 }));
+
+  const photo = showsPhoto(t) ? 30 : 0;
+  if (photo) out.push(photoFrame(M, top, photo));
+
+  const left = new Column(M, top + (photo ? photo + 8 : 0), gutter - M - 10);
+  const leftInk = ink;
+  left.text("Contact", { size: 10.5, bold: true, caps: true, letterSpacing: 0.06, color: ink.heading });
+  iconContact(left, c, leftInk);
+  for (const key of ["education", "skills", "certifications"]) {
+    sectionInto(left, key, c, leftInk, { stackContact: true });
+  }
+  out.push(...left.out);
+
+  const right = new Column(gutter + 10, top, A4.w - gutter - 10 - M);
+  right.text("Personal statement", { size: 10.5, bold: true, caps: true, letterSpacing: 0.06, color: ink.heading });
+  right.text(c.summary ?? "", { gap: 1.8, size: 9, color: ink.body, lineHeight: 1.5 });
+  for (const key of ["experience", "projects", "achievements"]) {
+    sectionInto(right, key, c, ink, {});
+  }
+  out.push(...right.out);
+
+  /**
+   * The diamonds that cap the rule.
+   *
+   * They were at `top + 1` and `top + 60` — the first is the top of the rule,
+   * the second is sixty millimetres down it, which is a number and not a
+   * place. Rendered, it landed beside a degree title in the right-hand column
+   * and read as a bullet somebody had misplaced. End caps instead: both ends
+   * of the line, which is where the eye already expects a terminal.
+   */
+  const ruleBottom = A4.h - 22;
+  for (const y of [top - 1.8, ruleBottom - 1.8]) {
+    out.push(shape({ x: gutter - 1.8, y, w: 3.6, h: 3.6, shape: "diamond", fill: accent }));
+  }
+  return out;
+}
+
+/**
+ * Section labels in a left gutter, content in one wide measure.
+ *
+ * The most unusual of the references and the most legible: nothing competes
+ * with the text, and the labels read as an index down the side.
+ */
+function labelLeftLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  /**
+   * The accent lands on the gutter labels, and on nothing else.
+   *
+   * It previously landed nowhere: the only element carrying it was a
+   * zero-height shape at `opacity: 0`, left over from working out where the
+   * gutter sat. Four of the five templates in this family therefore rendered
+   * as the same black-and-white page, and the gallery offered somebody a
+   * choice between a blue one and a green one that were byte-identical.
+   *
+   * The labels are the right place for it and the only place. They are the
+   * one part of this design that is furniture rather than content, so tinting
+   * them separates the templates without touching a word anybody wrote — and
+   * putting it on the body text instead would have made the quietest layout
+   * in the set the loudest.
+   */
+  const ink: Ink = { heading: "#1c1c1c", body: "#1c1c1c", muted: "#7a7a7a", rule: "#e2e2e2" };
+  const labelW = 34;
+  const bodyX = M + labelW + 10;
+  const bodyW = A4.w - bodyX - M;
+  const out: Element[] = [];
+
+  const photo = showsPhoto(t) ? 26 : 0;
+  if (photo) out.push(photoFrame(bodyX, 16, photo));
+
+  const headX = photo ? bodyX + photo + 6 : bodyX;
+  const head = new Column(headX, 18, bodyW - (headX - bodyX));
+  head.text(contactLine(c), { size: 8.2, color: ink.muted, lineHeight: 1.4 });
+  head.text(c.full_name ?? "Your name", { gap: 1.6, size: 19, bold: true, color: ink.heading, lineHeight: 1.15 });
+  head.text(c.summary ?? "", { gap: 1.6, size: 10.5, color: ink.body, lineHeight: 1.45 });
+  out.push(...head.out);
+
+  let y = Math.max(head.bottom, 16 + photo) + 12;
+  const rows: { label: string; run: (col: Column) => void }[] = [
+    { label: "Skills", run: (col) => { col.text(c.skills.join("\n"), { size: 9, color: ink.body, list: "bullet", lineHeight: 1.5 }); } },
+    { label: "Employment History", run: (col) => entries(col, roleBlocks(c), ink) },
+    /**
+     * Projects, certifications and achievements were missing here, exactly as
+     * they were missing from `headerPhotoLayout`, and for the same reason: the
+     * layouts were written against a two-job sample that had nothing in those
+     * fields, so nobody noticed there was no code to draw them.
+     *
+     * A row renders nothing when its section is empty — `body.out.length` below
+     * is the check — so adding them costs a thin résumé nothing and stops a
+     * full one having a third of itself silently dropped.
+     */
+    { label: "Projects", run: (col) => entries(col, projectBlocks(c), ink) },
+    { label: "Education", run: (col) => { for (const e of educationBlocks(c)) { col.text(e.head, { gap: 2.6, size: 10, bold: true, color: ink.body, lineHeight: 1.25 }); col.text(e.dates, { gap: 0.5, size: 8.5, color: ink.muted }); } } },
+    { label: "Certifications", run: (col) => { col.text(c.certifications.join("\n"), { size: 9, color: ink.body, list: "bullet", lineHeight: 1.5 }); } },
+    { label: "Achievements", run: (col) => { col.text(c.achievements.join("\n"), { size: 9, color: ink.body, list: "bullet", lineHeight: 1.5 }); } },
+    { label: "References", run: (col) => { col.text("Available on request", { size: 10, bold: true, color: ink.body }); } },
+  ];
+
+  for (const row of rows) {
+    const body = new Column(bodyX, y, bodyW);
+    row.run(body);
+    if (!body.out.length) continue;
+    out.push(
+      text({
+        text: row.label,
+        x: M,
+        y,
+        w: labelW,
+        h: 6,
+        size: 8.8,
+        bold: true,
+        color: accent,
+        lineHeight: 1.3,
+      }),
+    );
+    // A short mark under each label, so the gutter reads as an index rather
+    // than as four stray words down the margin.
+    out.push(shape({ x: M, y: y + 5.2, w: 9, h: 0.35, fill: accent, opacity: 0.55 }));
+    out.push(...body.out);
+    y = body.bottom + 9;
+  }
+
+  return out;
+}
+
+/* ------------------------------------------------------------ the mapping */
+
+/**
+ * Layout name to the function that draws it.
+ *
+ * A table rather than the chain of ternaries this replaced, for one reason
+ * that is worth more than the tidiness: it is `Record<Layout, …>`, so adding a
+ * member to `Layout` without writing the function to draw it is a type error
+ * here rather than a résumé that silently renders as a plain column. The chain
+ * ended in `: columnLayout(…)`, which meant every unhandled layout quietly
+ * became the default one — the four new designs would have shipped looking
+ * identical and nothing would have complained.
+ */
+const LAYOUTS: Record<Layout, (c: Resume, t: Template) => Element[]> = {
+  column: (c, t) => columnLayout(c, t, t.id === "centred-serif"),
+  band: bandLayout,
+  sidebar: sidebarLayout,
+  split: splitLayout,
+  "photo-sidebar": photoSidebarLayout,
+  "header-photo": headerPhotoLayout,
+  "rule-split": ruleSplitLayout,
+  "label-left": labelLeftLayout,
+};

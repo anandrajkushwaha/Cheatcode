@@ -6,6 +6,7 @@ import {
   coverFit,
   type Design,
   type Element,
+  type IconElement,
   type ImageElement,
   type LineElement,
   type ShapeElement,
@@ -24,6 +25,7 @@ import {
   type AlignTo,
 } from "@/lib/app/design-ops";
 import { FONTS } from "@/lib/app/resume-style";
+import { ICONS, ICON_NAMES } from "@/lib/app/design-icons";
 
 /**
  * The toolbar is not a toolbar. It is a function of the selection.
@@ -59,7 +61,7 @@ type Props = {
   onDeletePage: () => void;
 };
 
-type Kind = "page" | "text" | "image" | "shape" | "line" | "multiple" | "group";
+type Kind = "page" | "text" | "image" | "shape" | "line" | "icon" | "multiple" | "group";
 
 function kind(selected: Element[]): Kind {
   if (!selected.length) return "page";
@@ -208,6 +210,10 @@ export function DesignToolbar({
 
       {what === "line" && first?.type === "line" && (
         <LineControls el={first} set={set} document={documentColours} />
+      )}
+
+      {what === "icon" && first?.type === "icon" && (
+        <IconControls el={first} set={set} document={documentColours} />
       )}
 
       {(what === "multiple" || what === "group") && (
@@ -697,6 +703,63 @@ async function compressImage(file: File): Promise<string> {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+/**
+ * A selected icon: which glyph, what colour, how heavy the stroke.
+ *
+ * Three controls and no more. An icon in a résumé is a 4mm mark beside a
+ * heading — everything else it could offer (rotation, opacity, position) is
+ * already in the shared section of the toolbar, and a size box is the corner
+ * handles it already has.
+ */
+function IconControls({
+  el,
+  set,
+  document: docColours,
+}: {
+  el: IconElement;
+  set: (f: string, v: unknown) => void;
+  document: string[];
+}) {
+  return (
+    <>
+      <Pop label="Icon" button={<span className="text-[0.8rem]">Icon</span>} width={228}>
+        <div className="grid grid-cols-5 gap-1.5">
+          {ICON_NAMES.map((name) => (
+            <button
+              key={name}
+              type="button"
+              title={name}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => set("name", name)}
+              className={`grid aspect-square place-items-center rounded-lg border transition-colors ${
+                el.name === name ? "border-ink bg-ink-04" : "border-ink-08 hover:border-ink-30"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d={ICONS[name]} />
+              </svg>
+            </button>
+          ))}
+        </div>
+      </Pop>
+
+      <Colour label="Colour" value={el.colour} document={docColours} onPick={(c) => set("colour", c)} />
+
+      <Pop label="Weight" button={<span className="text-[0.8rem]">Weight</span>} width={220}>
+        <Slider
+          label="Stroke weight"
+          value={el.weight}
+          min={0.1}
+          max={1.2}
+          step={0.05}
+          onChange={(v) => set("weight", v)}
+          format={(v) => `${v.toFixed(2)}mm`}
+        />
+      </Pop>
+    </>
+  );
 }
 
 /* ----------------------------------------------------------------- shape */

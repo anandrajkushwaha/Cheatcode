@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { DesignPage } from "@/components/app/DesignPage";
 import { A4, image, line, shape, text, type Design, type Element } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
+import { previewDesign } from "@/lib/app/design-sample";
 import type { Resume } from "@/lib/app/resume-schema";
 import { TEMPLATES } from "@/lib/app/resume-templates";
 
@@ -196,6 +197,11 @@ function Templates({
 
       <div className="grid grid-cols-2 gap-2.5">
         {list.map((t) => {
+          // Two different designs on purpose: the card shows the sample so the
+          // layout is legible at 118px, and applying seeds the person's own
+          // words. Rendering the sample and then applying it would put a
+          // stranger's résumé into their document.
+          const shown = previewDesign(t.id);
           const seeded = seedDesign(content, t.id);
           return (
             <button
@@ -215,7 +221,7 @@ function Templates({
                     className="block origin-top-left"
                     style={{ transform: `scale(${118 / (A4.w * (96 / 25.4))})` }}
                   >
-                    <DesignPage page={seeded.pages[0]} />
+                    <DesignPage page={shown.pages[0]} />
                   </span>
                 </span>
               </span>

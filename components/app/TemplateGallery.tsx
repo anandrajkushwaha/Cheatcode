@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DesignPage, DesignStyles } from "@/components/app/DesignPage";
 import { A4 } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
+import { previewDesign } from "@/lib/app/design-sample";
 import {
   FACETS,
   filterTemplates,
@@ -15,13 +16,21 @@ import {
 import type { Resume } from "@/lib/app/resume-schema";
 
 /**
- * The wall of templates, with the person's own resume inside every one.
+ * The wall of templates.
  *
- * Canva shows you a stranger's CV, because Canva has never seen yours. By the
- * time anybody reaches this screen there is a draft seeded from their upload,
- * so each card renders the real document with their name and their jobs in it.
- * That removes the "will it look like that with my content in it" step, which
- * is the step where template galleries usually lose people.
+ * Cards show a **sample** résumé, not the person's own — a reversal, and worth
+ * saying why. The original rule was "we have their document, so show it", on
+ * the reasoning that it removes the "will it look like that with my content"
+ * step. In practice most people arrive with a thin résumé, and a thin résumé
+ * renders into every template as the same short page with white space under
+ * it. Ten cards, one apparent design, and the differences that make the choice
+ * — the sidebar, the split, the timeline — invisible in all of them.
+ *
+ * So the sample is long enough to fill every section a template can lay out,
+ * and the photo frames are filled so a frame reads as "your photo goes here"
+ * rather than as a missing image. There is a switch below for anybody who
+ * would rather see their own words; it is off by default because the job of
+ * this screen is choosing a layout, not previewing content.
  *
  * The previews are the component, not pictures of it — the same `DesignPage`
  * the editor and the PDF use. A template cannot look one way on the card and
@@ -36,6 +45,15 @@ export function TemplateGallery({ content, current }: { content: Resume; current
   const [filters, setFilters] = useState<Filters>({});
   const [draft, setDraft] = useState<Filters>({});
   const [panel, setPanel] = useState(false);
+  /**
+   * Show my own résumé in the cards instead of the sample.
+   *
+   * Off by default. The switch exists because the reasoning behind the old
+   * behaviour was not wrong — seeing your own words in a layout genuinely does
+   * answer a question — it was just the wrong default for a screen whose job
+   * is to make ten layouts distinguishable from each other.
+   */
+  const [mine, setMine] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,12 +138,22 @@ export function TemplateGallery({ content, current }: { content: Resume; current
 
       {error && <p className="mt-3 text-[0.84rem]">{error}</p>}
 
+      <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-[0.78rem] text-ink-50">
+        <input
+          type="checkbox"
+          checked={mine}
+          onChange={(e) => setMine(e.target.checked)}
+          className="h-3.5 w-3.5 accent-black"
+        />
+        Show my own details in the previews
+      </label>
+
       <div
         ref={grid}
         className="mt-5 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 xl:grid-cols-4"
       >
         {shown.map((t) => {
-          const design = seedDesign(content, t.id);
+          const design = mine ? seedDesign(content, t.id) : previewDesign(t.id);
           const scale = card / PAGE_PX;
           return (
             <button

@@ -1,6 +1,7 @@
 import {
   A4,
   type Element,
+  type IconElement,
   type ImageElement,
   type LineElement,
   type Page,
@@ -8,6 +9,7 @@ import {
   type TextElement,
 } from "@/lib/app/design";
 import { fontStack, GOOGLE_FONTS_HREF } from "@/lib/app/resume-style";
+import { ICONS } from "@/lib/app/design-icons";
 
 /**
  * One renderer. Not one per surface.
@@ -169,6 +171,8 @@ function ElementView({ el, hidden }: { el: Element; hidden?: boolean }) {
       return <ShapeView el={el} frame={frame} />;
     case "line":
       return <LineView el={el} frame={frame} />;
+    case "icon":
+      return <IconView el={el} frame={frame} />;
   }
 }
 
@@ -213,6 +217,34 @@ function TextView({ el, frame }: { el: TextElement; frame: React.CSSProperties }
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ icon */
+
+/**
+ * One stroked glyph from the library, scaled to its box.
+ *
+ * `vectorEffect: non-scaling-stroke` is the load-bearing line. Without it the
+ * stroke scales with the viewBox, so the same icon comes out hairline at 3mm
+ * and a slab at 30mm — and `weight` stops meaning millimetres, which is the
+ * unit every other measurement in this file is in.
+ */
+function IconView({ el, frame }: { el: IconElement; frame: React.CSSProperties }) {
+  return (
+    <div className="dp-el" data-el={el.id} style={frame}>
+      <svg
+        viewBox="0 0 24 24"
+        style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
+        fill="none"
+        stroke={el.colour}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={(el.weight / Math.max(el.w, el.h)) * 24}
+      >
+        <path d={ICONS[el.name]} />
+      </svg>
+    </div>
   );
 }
 

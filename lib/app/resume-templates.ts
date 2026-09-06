@@ -8,11 +8,12 @@
  * is a gallery somebody wants to browse. Five variations of one document read
  * as one document with a font picker.
  *
- * So a template is now a **layout plus a theme**. Four structures — a plain
- * column, a coloured header band, a left sidebar, and a two-column body — and
- * each is dressed differently. Ten of them here; the list is meant to grow,
- * and the shape of this file is what decides whether growing it is a row or a
- * rewrite. Adding a template should be a row.
+ * So a template is now a **layout plus a theme**. Eight structures — a plain
+ * column, a coloured header band, a left sidebar, a two-column body, and the
+ * four added for the reference designs — each dressed differently. Thirty of
+ * them here; the list is meant to grow, and the shape of this file is what
+ * decides whether growing it is a row or a rewrite. Adding a template should
+ * be a row, and the twenty at the bottom are twenty rows.
  *
  * Two consequences worth being honest about, because both are real:
  *
@@ -25,10 +26,14 @@
  * two-column resume rather than as the single-column one it is not. That
  * number is not on screen yet; the machinery for it is.
  *
- * **Nothing here uses a photograph.** Not squeamishness — there is no photo in
- * the resume schema to use. Where a Canva template would put a headshot, these
- * put a monogram, which needs no upload and cannot be a picture of somebody
- * else. If photographs are wanted the schema is where that starts.
+ * **A photograph is a property of the template, not of the layout.** Nine of
+ * these reserve a frame and twenty-one do not, and that is copied from the
+ * design each came from rather than derived from a rule — two templates share
+ * `photo-sidebar` and disagree about it. `showsPhoto()` below is the single
+ * answer, and the frame it describes ships *empty*: it says "your photo goes
+ * here", it fills when somebody drops a file on it, and it prints as nothing
+ * if they never do. The résumé schema still holds no image, so a photograph
+ * only ever exists in a design somebody is editing.
  */
 
 /**
@@ -43,15 +48,34 @@ const SERIF = '"Times New Roman", Times, "Liberation Serif", serif';
 /* --------------------------------------------------------------- layouts */
 
 /**
- * The four structures. These are the thing a parser sees; everything else in
- * a template is paint.
+ * The structures. These are the thing a parser sees; everything else in a
+ * template is paint.
  *
  * - `column` — one column, top to bottom. What a machine reads best.
  * - `band` — a coloured header block, then one column. Same reading order.
  * - `sidebar` — a narrow left column beside a wide right one.
  * - `split` — an equal-ish two-column body under a full-width header.
+ *
+ * And four more, added for the reference designs. Each of these earned its
+ * place by being a *different reading order*, not a different palette — the
+ * twenty designs they carry differ mostly in colour, and colour is a theme.
+ *
+ * - `photo-sidebar` — a coloured column with a portrait at the top of it, the
+ *   name in the wide column rather than the narrow one. Six of the references.
+ * - `header-photo` — a full-bleed band with the portrait inside it, and a
+ *   two-column body below, which is what the saved vertical space buys.
+ * - `rule-split` — two columns divided by a hairline. No fill anywhere.
+ * - `label-left` — section labels in a left gutter, one wide measure of text.
  */
-export type Layout = "column" | "band" | "sidebar" | "split";
+export type Layout =
+  | "column"
+  | "band"
+  | "sidebar"
+  | "split"
+  | "photo-sidebar"
+  | "header-photo"
+  | "rule-split"
+  | "label-left";
 
 /** The blocks a resume is made of, in the order they can be arranged. */
 export type SectionKey =
@@ -96,6 +120,23 @@ export function sectionOrder(layout: Layout): { aside: SectionKey[]; main: Secti
       return {
         aside: ["skills", "certifications", "achievements"],
         main: ["summary", "experience", "projects", "education"],
+      };
+    case "photo-sidebar":
+      return {
+        aside: ["skills", "education", "certifications"],
+        main: ["summary", "experience", "projects", "achievements"],
+      };
+    case "header-photo":
+      // The narrow left column carries the summary here, not the skills — the
+      // seeder puts "About me" there, and the scorer has to read what is drawn.
+      return {
+        aside: ["summary", "skills"],
+        main: ["education", "experience", "projects", "achievements"],
+      };
+    case "rule-split":
+      return {
+        aside: ["education", "skills", "certifications"],
+        main: ["summary", "experience", "projects", "achievements"],
       };
     default:
       return { aside: [], main: ALL };
@@ -146,6 +187,20 @@ export type Theme = {
 
   /** Sidebar width, when there is one. */
   asideWidth?: string;
+
+  /* ------------------------------------------------ geometry, in millimetres
+   *
+   * Everything above is a CSS string, left from the HTML layout engine this
+   * replaced. These are numbers because the seeder lays elements out in
+   * millimetres, and mixing "68mm" with 68 in the same object is how a
+   * template ends up half a page wide. Named apart for the same reason. */
+
+  /** Sidebar width for the element layouts. */
+  asideMm?: number;
+  /** Header band height for the element layouts. */
+  bandMm?: number;
+  /** Draw skills as a row of dots rather than a list. */
+  skillMeters?: boolean;
 };
 
 export type Template = {
@@ -160,9 +215,34 @@ export type Template = {
   /** One of a small closed set, so the filter list stays short. */
   style: "Professional" | "Modern" | "Minimalist" | "Creative" | "Corporate" | "Simple";
   /** The colour somebody would say it is, not the hex. */
-  colour: "Black" | "Blue" | "Green" | "Teal" | "Purple" | "Maroon" | "Grey" | "Orange";
+  colour:
+    | "Black"
+    | "Blue"
+    | "Green"
+    | "Teal"
+    | "Purple"
+    | "Maroon"
+    | "Grey"
+    | "Orange"
+    | "Brown"
+    | "Pink";
   /** Who it suits. Free-form on purpose — this is the list that grows fastest. */
   roles: string[];
+
+  /**
+   * Whether this design reserves a place for a portrait.
+   *
+   * Per template, not per layout. That is the whole point of the field: two
+   * templates can share `photo-sidebar` and only one of them draw a frame,
+   * because the reference designs they came from differ on exactly that. When
+   * it is left out, the layout's own habit applies (`showsPhoto` below).
+   *
+   * A résumé is not obliged to carry a face, and in India the convention runs
+   * both ways depending on the employer — so this is a property of the design
+   * somebody chose, and the Frames panel remains the answer for anybody who
+   * wants one where the design does not offer it.
+   */
+  photo?: boolean;
 };
 
 export const DEFAULT_TEMPLATE = "classic-column";
@@ -468,21 +548,346 @@ export const TEMPLATES: Template[] = [
       roleGap: "3.2mm",
     },
   },
+
+  /* ==================================================== the reference set ==
+   *
+   * Twenty designs, drawn from the reference screenshots. They carry far less
+   * per entry than the ten above, and the difference is not carelessness: the
+   * CSS-string half of `Theme` — `size`, `h2Rule`, `sectionGap`, `asideWidth`
+   * and the rest — is read by nothing any more. The HTML layout engine that
+   * consumed it was replaced by the element seeder, which lays out in
+   * millimetres and reads exactly six fields: `accent`, `onAccent`, `wash`,
+   * `asideText`/`asideHeading`, `asideMm`/`bandMm`, and `skillMeters`.
+   *
+   * So these entries state the six. Copying forty dead lines into each would
+   * have made twenty templates look thorough while describing nothing, and
+   * the next person to change a heading size would have changed twenty
+   * strings that do not reach the page. The old ten keep theirs because
+   * deleting them is a separate change with its own way of going wrong.
+   *
+   * `photo` is set explicitly on every one of them, true or false, because
+   * that is the field the reference decides and the one thing here that is
+   * not a colour. Nine have a portrait; eleven do not.
+   */
+
+  /* ------------------------------------------- photo sidebar (six designs) */
+
+  {
+    id: "charcoal-photo",
+    name: "Black and White Modern Professional CV",
+    layout: "photo-sidebar",
+    style: "Modern",
+    colour: "Black",
+    roles: ["Any role", "Management", "Consulting", "Operations"],
+    photo: true,
+    theme: {
+      accent: "#26292e",
+      onAccent: "#ffffff",
+      wash: "#26292e",
+      asideMm: 66,
+      skillMeters: true,
+    },
+  },
+
+  {
+    id: "olive-photo",
+    name: "Olive Green Minimalist Photo Resume",
+    layout: "photo-sidebar",
+    style: "Minimalist",
+    colour: "Green",
+    roles: ["Marketing", "Content", "Administration", "Any role"],
+    photo: true,
+    theme: {
+      accent: "#5a6141",
+      onAccent: "#ffffff",
+      wash: "#6b7150",
+      asideMm: 68,
+    },
+  },
+
+  {
+    id: "cream-photo",
+    name: "Cream and Brown Elegant CV",
+    layout: "photo-sidebar",
+    style: "Creative",
+    colour: "Brown",
+    roles: ["Design", "Hospitality", "Fashion", "Content"],
+    photo: true,
+    theme: {
+      accent: "#7a5c3d",
+      wash: "#efe6d9",
+      // A pale column, so its text goes dark rather than white.
+      asideText: "#4a3b2c",
+      asideHeading: "#7a5c3d",
+      asideMm: 70,
+      skillMeters: true,
+    },
+  },
+
+  {
+    id: "navy-photo",
+    name: "Navy Blue Professional Photo Resume",
+    layout: "photo-sidebar",
+    style: "Professional",
+    colour: "Blue",
+    roles: ["Business", "Finance", "Sales", "Banking"],
+    photo: true,
+    theme: {
+      accent: "#1f3555",
+      onAccent: "#ffffff",
+      wash: "#1f3555",
+      asideMm: 66,
+      skillMeters: true,
+    },
+  },
+
+  {
+    id: "plum-photo",
+    name: "Plum and Blush Creative CV",
+    layout: "photo-sidebar",
+    style: "Creative",
+    colour: "Purple",
+    roles: ["Design", "Social Media", "Events", "Content"],
+    photo: true,
+    theme: {
+      accent: "#4a2340",
+      onAccent: "#ffffff",
+      wash: "#4a2340",
+      asideMm: 68,
+    },
+  },
+
+  {
+    id: "mist-sidebar",
+    name: "Soft Teal Simple Resume",
+    layout: "photo-sidebar",
+    style: "Simple",
+    colour: "Teal",
+    roles: ["Student", "Fresher", "Teaching", "Healthcare"],
+    // The reference for this one has no portrait — a pale column of contact
+    // details and skills, and the name carrying the top of the page instead.
+    photo: false,
+    theme: {
+      accent: "#1f4c49",
+      wash: "#dceceb",
+      asideText: "#1f4c49",
+      asideHeading: "#14706b",
+      asideMm: 68,
+    },
+  },
+
+  /* ------------------------------------------- header photo (four designs) */
+
+  {
+    id: "emerald-header",
+    name: "Green Modern Photo Header CV",
+    layout: "header-photo",
+    style: "Modern",
+    colour: "Green",
+    roles: ["Engineering", "Product", "Operations", "Any role"],
+    photo: true,
+    theme: {
+      accent: "#1f5c46",
+      onAccent: "#ffffff",
+      bandMm: 54,
+    },
+  },
+
+  {
+    id: "graphite-header",
+    name: "Grey Corporate Header Resume",
+    layout: "header-photo",
+    style: "Corporate",
+    colour: "Grey",
+    roles: ["Management", "Consulting", "Finance", "Senior"],
+    photo: true,
+    theme: {
+      accent: "#3b3f46",
+      onAccent: "#ffffff",
+      bandMm: 52,
+    },
+  },
+
+  {
+    id: "rust-header",
+    name: "Rust Orange Creative Resume",
+    layout: "header-photo",
+    style: "Creative",
+    colour: "Orange",
+    roles: ["Design", "Marketing", "Media", "Content"],
+    photo: true,
+    theme: {
+      accent: "#a8502e",
+      onAccent: "#ffffff",
+      bandMm: 56,
+    },
+  },
+
+  {
+    id: "sky-header",
+    name: "Light Blue Simple Header CV",
+    layout: "header-photo",
+    style: "Simple",
+    colour: "Blue",
+    roles: ["Student", "Fresher", "Internship", "Administration"],
+    // A name band rather than a portrait band: the reference fills the strip
+    // with the name alone, which is why the band is shallower here.
+    photo: false,
+    theme: {
+      accent: "#2b6ea8",
+      onAccent: "#ffffff",
+      bandMm: 40,
+    },
+  },
+
+  /* --------------------------------------------- rule split (five designs) */
+
+  {
+    id: "hairline-mono",
+    name: "Black and White Minimalist Divided CV",
+    layout: "rule-split",
+    style: "Minimalist",
+    colour: "Black",
+    roles: ["Any role", "Writing", "Research", "Law"],
+    photo: false,
+    theme: { accent: "#1c1c1c" },
+  },
+
+  {
+    id: "ivory-rule",
+    name: "Ivory Classic Two Column Resume",
+    layout: "rule-split",
+    style: "Professional",
+    colour: "Brown",
+    roles: ["Academic", "Law", "Hospitality", "Management"],
+    photo: false,
+    theme: { accent: "#6b5a42", wash: "#f2ece1" },
+  },
+
+  {
+    id: "sage-rule",
+    name: "Sage Divided Simple CV",
+    layout: "rule-split",
+    style: "Simple",
+    colour: "Green",
+    roles: ["Teaching", "Healthcare", "Administration", "Student"],
+    photo: false,
+    theme: { accent: "#4e6b58", wash: "#e6ede7" },
+  },
+
+  {
+    id: "mauve-rule",
+    name: "Mauve Elegant Divided Resume",
+    layout: "rule-split",
+    style: "Creative",
+    colour: "Pink",
+    roles: ["Design", "Events", "Fashion", "Content"],
+    photo: false,
+    theme: { accent: "#6a4560", wash: "#f0e7ee" },
+  },
+
+  {
+    id: "slate-rule",
+    name: "Slate Grey Professional Divided CV",
+    layout: "rule-split",
+    style: "Professional",
+    colour: "Grey",
+    roles: ["Engineering", "Operations", "Senior", "Any role"],
+    photo: false,
+    theme: { accent: "#3a444f" },
+  },
+
+  /* --------------------------------------------- label left (five designs) */
+
+  {
+    id: "gutter-mono",
+    name: "Black and White Side Label Resume",
+    layout: "label-left",
+    style: "Minimalist",
+    colour: "Black",
+    roles: ["Any role", "Engineering", "Writing", "Research"],
+    photo: false,
+    theme: { accent: "#1c1c1c" },
+  },
+
+  {
+    id: "gutter-photo",
+    name: "Minimalist Side Label CV with Photo",
+    layout: "label-left",
+    style: "Minimalist",
+    colour: "Grey",
+    roles: ["Any role", "Management", "Consulting"],
+    // The one design in this family that reserves a frame, and the reason
+    // `photo` had to stop being a property of the layout.
+    photo: true,
+    theme: { accent: "#4a4a4a" },
+  },
+
+  {
+    id: "gutter-blue",
+    name: "Blue Accent Side Label Resume",
+    layout: "label-left",
+    style: "Modern",
+    colour: "Blue",
+    roles: ["Developer", "Data", "Product", "Engineering"],
+    photo: false,
+    theme: { accent: "#2f5bd6" },
+  },
+
+  {
+    id: "gutter-warm",
+    name: "Warm Beige Side Label CV",
+    layout: "label-left",
+    style: "Simple",
+    colour: "Brown",
+    roles: ["Hospitality", "Retail", "Administration", "Student"],
+    photo: false,
+    theme: { accent: "#8a6a45" },
+  },
+
+  {
+    id: "gutter-green",
+    name: "Green Side Label Professional Resume",
+    layout: "label-left",
+    style: "Professional",
+    colour: "Green",
+    roles: ["Healthcare", "Teaching", "Operations", "Any role"],
+    photo: false,
+    theme: { accent: "#2f6b4f" },
+  },
 ];
 
 /* ---------------------------------------------------------------- lookup */
 
 /**
- * Whether this layout has somewhere to put a photograph.
+ * Whether this template has somewhere to put a photograph.
  *
- * A plain column and the two-column split do not: there is no composition hole
- * for one, and dropping a circle into a text column looks like a mistake. The
- * toolbar reads this so the upload button can say so, rather than accepting a
- * photo that then appears nowhere — which is the kind of silence people spend
- * ten minutes debugging as their own error.
+ * Two questions, answered in order. The template's own `photo` wins, because
+ * the design is the authority — it was drawn with a frame or without one, and
+ * no rule about layouts should overrule the drawing.
+ *
+ * Failing that, the layout's habit. A plain column and the two-column split
+ * have nowhere: there is no composition hole, and dropping a circle into a
+ * text column looks like a mistake. `label-left` likewise runs one wide
+ * measure. The rest reserve a block of colour a picture can live in.
+ *
+ * The toolbar reads this so the upload button can say so, rather than
+ * accepting a photo that then appears nowhere — the kind of silence people
+ * spend ten minutes debugging as their own error.
  */
-export function showsPhoto(layout: Layout): boolean {
-  return layout === "band" || layout === "sidebar";
+const LAYOUT_TAKES_PHOTO: Record<Layout, boolean> = {
+  column: false,
+  band: true,
+  sidebar: true,
+  split: false,
+  "photo-sidebar": true,
+  "header-photo": true,
+  "rule-split": false,
+  "label-left": false,
+};
+
+export function showsPhoto(t: Template): boolean {
+  return t.photo ?? LAYOUT_TAKES_PHOTO[t.layout];
 }
 
 export function templateById(id: string | null | undefined): Template {
@@ -519,6 +924,10 @@ export const LAYOUT_NAMES: Record<Layout, string> = {
   band: "Header band",
   sidebar: "Sidebar",
   split: "Two column",
+  "photo-sidebar": "Photo sidebar",
+  "header-photo": "Photo header",
+  "rule-split": "Divided column",
+  "label-left": "Side labels",
 };
 
 export const FACETS = {
