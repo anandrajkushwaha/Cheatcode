@@ -72,9 +72,27 @@ export const DESIGN_SHEET = `
 .dp-list li > span:last-child { flex: 1; min-width: 0; }
 .dp-img { display: block; width: 100%; height: 100%; }
 
+/* An unfilled frame. Editing furniture, so it never reaches paper. */
+/* Mid grey rather than a tint of black: these frames sit on white paper in
+   some templates and on a navy or maroon band in others, and a black-based
+   placeholder disappears completely on the dark ones. A neutral grey at these
+   alphas is visible against both without belonging to either. */
+.dp-empty {
+  display: flex; width: 100%; height: 100%;
+  align-items: center; justify-content: center;
+  background: rgba(128,128,128,0.22);
+  box-shadow: inset 0 0 0 0.35mm rgba(128,128,128,0.7);
+  color: rgba(128,128,128,0.95);
+}
+.dp-empty svg { width: 42%; height: 42%; max-width: 14mm; max-height: 14mm; }
+
 @media print {
   .dp-page { box-shadow: none !important; break-after: page; }
   .dp-page:last-child { break-after: auto; }
+  /* Hidden rather than removed: the frame keeps its place in the layout, it
+     simply prints as nothing. A dashed placeholder on a résumé that goes to an
+     employer would be worse than no photo at all. */
+  .dp-empty { display: none !important; }
 }
 `;
 
@@ -215,22 +233,46 @@ function ImageView({ el, frame }: { el: ImageElement; frame: React.CSSProperties
         borderRadius: el.shape === "circle" ? "50%" : el.radius ? `${el.radius}mm` : undefined,
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="dp-img"
-        src={el.src}
-        alt=""
-        style={{
-          objectFit: "cover",
-          // The picture inside the hole. `objectPosition` moves it, `scale`
-          // pushes it past the edges — between them that is a crop, with no
-          // second element and no clipping wrapper.
-          objectPosition: `${el.fit.x}% ${el.fit.y}%`,
-          transform: [flip, el.fit.scale !== 1 ? `scale(${el.fit.scale})` : ""]
-            .filter(Boolean)
-            .join(" ") || undefined,
-        }}
-      />
+      {el.src ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          className="dp-img"
+          src={el.src}
+          alt=""
+          style={{
+            objectFit: "cover",
+            // The picture inside the hole. `objectPosition` moves it, `scale`
+            // pushes it past the edges — between them that is a crop, with no
+            // second element and no clipping wrapper.
+            objectPosition: `${el.fit.x}% ${el.fit.y}%`,
+            transform: [flip, el.fit.scale !== 1 ? `scale(${el.fit.scale})` : ""]
+              .filter(Boolean)
+              .join(" ") || undefined,
+          }}
+        />
+      ) : (
+        <Placeholder />
+      )}
+    </div>
+  );
+}
+
+/**
+ * An empty frame: where a picture goes, before there is one.
+ *
+ * Carries `dp-empty`, and the print stylesheet hides that class. An unfilled
+ * frame is a piece of editing furniture — it says "click here, add your
+ * photo" — and a dashed box with an icon in it has no business appearing on a
+ * résumé somebody sends to an employer. It occupies no space either way, so
+ * hiding it changes nothing about the layout of the page around it.
+ */
+function Placeholder() {
+  return (
+    <div className="dp-empty" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+        <circle cx="12" cy="9" r="3.2" />
+        <path d="M4.5 19.5c1.6-3.4 4.3-5.1 7.5-5.1s5.9 1.7 7.5 5.1" strokeLinecap="round" />
+      </svg>
     </div>
   );
 }

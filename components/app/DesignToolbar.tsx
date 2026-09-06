@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   A4,
+  coverFit,
   type Design,
   type Element,
   type ImageElement,
@@ -16,6 +17,8 @@ import {
   group,
   layer,
   removeElements,
+  replaceImage,
+  resetFit,
   setField,
   ungroup,
   type AlignTo,
@@ -48,6 +51,9 @@ type Props = {
   /** Snapshot for undo, before a change. */
   begin: () => void;
   onChange: (design: Design) => void;
+  /** The picture open for adjustment, and the way in and out of that mode. */
+  adjusting: string | null;
+  onAdjust: (id: string | null) => void;
   onAddPage: () => void;
   onDuplicatePage: () => void;
   onDeletePage: () => void;
@@ -71,6 +77,8 @@ export function DesignToolbar({
   onSelect,
   begin,
   onChange,
+  adjusting,
+  onAdjust,
   onAddPage,
   onDuplicatePage,
   onDeletePage,
@@ -82,6 +90,20 @@ export function DesignToolbar({
   );
   const what = kind(selected);
   const first = selected[0];
+
+  /**
+   * The picture open for adjustment.
+   *
+   * When there is one it takes the whole row. Adjusting a photo is a mode, and
+   * a mode with the ordinary controls still sitting next to it invites people
+   * to reach for one and wonder why it applies to the frame rather than to
+   * what they are looking at.
+   */
+  const open = adjusting
+    ? (current?.elements.find((e) => e.id === adjusting && e.type === "image") as
+        | ImageElement
+        | undefined)
+    : undefined;
   const locked = selected.some((e) => e.locked);
 
   /** Change a field on everything selected, as one undo step. */
@@ -106,6 +128,32 @@ export function DesignToolbar({
     }
     return [...seen].filter((c) => c !== "transparent").slice(0, 18);
   }, [design]);
+
+  /**
+   * Adjusting a photo takes the row over entirely.
+   *
+   * Returned early rather than folded into the conditions below, so there is
+   * no chance of a stray control from another branch appearing beside it.
+   */
+  if (open) {
+    return (
+      <div className="no-print flex min-h-[46px] flex-wrap items-center gap-1 border-b border-ink-08 bg-paper px-3 py-1.5">
+        <AdjustControls
+          el={open}
+          set={set}
+          onReplace={(src) => {
+            begin();
+            onChange(replaceImage(design, page, open.id, src));
+          }}
+          onReset={() => {
+            begin();
+            onChange(resetFit(design, page, open.id));
+          }}
+          onDone={() => onAdjust(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="no-print flex min-h-[46px] flex-wrap items-center gap-1 border-b border-ink-08 bg-paper px-3 py-1.5">
@@ -138,8 +186,20 @@ export function DesignToolbar({
         <TextControls el={first} set={set} document={documentColours} />
       )}
 
-      {what === "image" && first?.type === "image" && (
-        <ImageControls el={first} set={set} />
+      {what === "image" && first?.type === "image" && !open && (
+        <ImageControls
+          el={first}
+          set={set}
+          onAdjust={() => onAdjust(first.id)}
+          onReplace={(src) => {
+            begin();
+            onChange(replaceImage(design, page, first.id, src));
+          }}
+          onReset={() => {
+            begin();
+            onChange(resetFit(design, page, first.id));
+          }}
+        />
       )}
 
       {what === "shape" && first?.type === "shape" && (
@@ -411,13 +471,67 @@ function Step({ label, onClick, children }: { label: string; onClick: () => void
 
 /* ----------------------------------------------------------------- image */
 
-function ImageControls({ el, set }: { el: ImageElement; set: (f: string, v: unknown) => void }) {
+/**
+ * A selected frame.
+ *
+ * The spec's row, in its order: Replace, Edit image, Crop, Flip, shape, and
+ * the position controls the shared section already adds. "Edit image" and
+ * "Crop" are the same door — double-clicking the picture — because they are
+ * the same operation: in a frame, cropping *is* moving the picture behind a
+ * fixed hole, and offering them as two buttons that open one mode would be
+ * two names for one thing.
+ */
+function ImageControls({
+  el,
+  set,
+  onAdjust,
+  onReplace,
+  onReset,
+}: {
+  el: ImageElement;
+  set: (f: string, v: unknown) => void;
+  onAdjust: () => void;
+  onReplace: (src: string) => void;
+  onReset: () => void;
+}) {
+  const file = useRef<HTMLInputElement>(null);
+
+  async function pick(files: FileList | null) {
+    const chosen = files?.[0];
+    if (!chosen) return;
+    try {
+      onReplace(await compressImage(chosen));
+    } finally {
+      if (file.current) file.current.value = "";
+    }
+  }
+
   return (
     <>
-      <Text onClick={() => set("flipX", !el.flipX)}>Flip across</Text>
-      <Text onClick={() => set("flipY", !el.flipY)}>Flip down</Text>
+      <Text onClick={() => file.current?.click()}>{el.src ? "Replace" : "Add a photo"}</Text>
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => void pick(e.target.files)}
+      />
+
+      {el.src && (
+        <>
+          <Text onClick={onAdjust}>Crop</Text>
+          <Divide />
+          <Text onClick={() => set("flipX", !el.flipX)}>Flip across</Text>
+          <Text onClick={() => set("flipY", !el.flipY)}>Flip down</Text>
+        </>
+      )}
+
       <Divide />
-      <Toggle on={el.shape === "circle"} label="Circle" onClick={() => set("shape", el.shape === "circle" ? "rect" : "circle")}>
+      <Toggle
+        on={el.shape === "circle"}
+        label="Circle"
+        onClick={() => set("shape", el.shape === "circle" ? "rect" : "circle")}
+      >
         <svg viewBox="0 0 20 20" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.5">
           <circle cx="10" cy="10" r="6.2" />
         </svg>
@@ -435,45 +549,154 @@ function ImageControls({ el, set }: { el: ImageElement; set: (f: string, v: unkn
           />
         </Pop>
       )}
-      <Pop label="Adjust" button={<span className="text-[0.8rem]">Adjust</span>} width={244}>
-        <Slider
-          label="Zoom the picture"
-          value={el.fit.scale}
+
+      {el.src && (
+        <Pop label="Adjust" button={<span className="text-[0.8rem]">Adjust</span>} width={244}>
+          <Slider
+            label="Zoom the picture"
+            value={el.fit.scale}
+            min={1}
+            max={4}
+            step={0.02}
+            onChange={(v) => set("fit", coverFit({ ...el.fit, scale: v }))}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
+          <Slider
+            label="Move across"
+            value={el.fit.x}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => set("fit", coverFit({ ...el.fit, x: v }))}
+            format={(v) => `${Math.round(v)}%`}
+          />
+          <Slider
+            label="Move down"
+            value={el.fit.y}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => set("fit", coverFit({ ...el.fit, y: v }))}
+            format={(v) => `${Math.round(v)}%`}
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onReset}
+            className="mt-1 w-full rounded-lg border border-ink-15 py-1.5 text-[0.78rem] font-medium transition-colors hover:border-ink"
+          >
+            Reset the picture
+          </button>
+        </Pop>
+      )}
+    </>
+  );
+}
+
+/**
+ * A picture open for adjustment: the whole row, and nothing else.
+ *
+ * Zoom, flip, replace, the two resets and Done — the spec's list. The frame
+ * is not editable from here on purpose; that is the distinction the mode
+ * exists to draw, and putting a width box next to a zoom slider would undo it
+ * in one click.
+ */
+function AdjustControls({
+  el,
+  set,
+  onReplace,
+  onReset,
+  onDone,
+}: {
+  el: ImageElement;
+  set: (f: string, v: unknown) => void;
+  onReplace: (src: string) => void;
+  onReset: () => void;
+  onDone: () => void;
+}) {
+  const file = useRef<HTMLInputElement>(null);
+
+  async function pick(files: FileList | null) {
+    const chosen = files?.[0];
+    if (!chosen) return;
+    try {
+      onReplace(await compressImage(chosen));
+    } finally {
+      if (file.current) file.current.value = "";
+    }
+  }
+
+  return (
+    <>
+      <span className="px-2 text-[0.8rem] font-medium">Adjusting the picture</span>
+      <Divide />
+
+      <div className="flex min-w-[13rem] items-center gap-2 px-2">
+        <span className="text-[0.76rem] text-ink-50">Zoom</span>
+        <input
+          type="range"
           min={1}
           max={4}
           step={0.02}
-          onChange={(v) => set("fit", { ...el.fit, scale: v })}
-          format={(v) => `${Math.round(v * 100)}%`}
+          value={el.fit.scale}
+          onChange={(e) => set("fit", coverFit({ ...el.fit, scale: Number(e.target.value) }))}
+          className="h-1 flex-1 accent-black"
+          aria-label="Zoom the picture"
         />
-        <Slider
-          label="Move across"
-          value={el.fit.x}
-          min={0}
-          max={100}
-          step={1}
-          onChange={(v) => set("fit", { ...el.fit, x: v })}
-          format={(v) => `${Math.round(v)}%`}
-        />
-        <Slider
-          label="Move down"
-          value={el.fit.y}
-          min={0}
-          max={100}
-          step={1}
-          onChange={(v) => set("fit", { ...el.fit, y: v })}
-          format={(v) => `${Math.round(v)}%`}
-        />
+        <span className="w-10 text-right text-[0.74rem] tabular-nums text-ink-50">
+          {Math.round(el.fit.scale * 100)}%
+        </span>
+      </div>
+
+      <Divide />
+      <Text onClick={() => set("flipX", !el.flipX)}>Flip across</Text>
+      <Text onClick={() => set("flipY", !el.flipY)}>Flip down</Text>
+      <Divide />
+      <Text onClick={() => file.current?.click()}>Replace</Text>
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => void pick(e.target.files)}
+      />
+      <Text onClick={() => set("fit", coverFit({ ...el.fit, x: 50, y: 50 }))}>Recentre</Text>
+      <Text onClick={() => set("fit", coverFit({ ...el.fit, scale: 1 }))}>Reset zoom</Text>
+      <Text onClick={onReset}>Reset all</Text>
+
+      <div className="ml-auto pr-1">
         <button
           type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => set("fit", { scale: 1, x: 50, y: 50 })}
-          className="mt-1 w-full rounded-lg border border-ink-15 py-1.5 text-[0.78rem] font-medium transition-colors hover:border-ink"
+          onClick={onDone}
+          className="rounded-full bg-ink px-4 py-1.5 text-[0.8rem] font-semibold text-paper transition-transform hover:scale-[1.03]"
         >
-          Reset the picture
+          Done
         </button>
-      </Pop>
+      </div>
     </>
   );
+}
+
+/**
+ * Shrink a chosen picture before it becomes part of the document.
+ *
+ * A design is stored as one JSON row, so a 4MB photograph straight off a
+ * phone would be carried in every autosave, every undo snapshot and every
+ * render of the PDF. Done here rather than server-side because the picture
+ * then never leaves the browser at full size at all.
+ */
+async function compressImage(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const max = 1400;
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("This browser could not read that picture.");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 /* ----------------------------------------------------------------- shape */

@@ -110,9 +110,14 @@ export function SidePanel({
   onChange,
   onSelect,
   onReplacePage,
+  selection,
+  onFill,
 }: {
   id: PanelId;
   onClose: () => void;
+  /** What is selected on the canvas, so a picture can land in a chosen frame. */
+  selection: string[];
+  onFill: (id: string, src: string) => void;
   /** The résumé this design was seeded from, for the template previews. */
   content: Resume;
   design: Design;
@@ -154,7 +159,9 @@ export function SidePanel({
         {id === "templates" && <Templates content={content} onApply={onReplacePage} />}
         {id === "elements" && <Elements onAdd={add} />}
         {id === "text" && <TextBlocks onAdd={add} />}
-        {id === "uploads" && <Uploads design={design} onAdd={add} />}
+        {id === "uploads" && (
+          <Uploads design={design} selection={selection} onAdd={add} onFill={onFill} />
+        )}
       </div>
     </aside>
   );
@@ -223,6 +230,20 @@ function Templates({
 
 /* -------------------------------------------------------------- elements */
 
+/**
+ * The frame shapes the spec asks for: circle, rounded, square, rectangle.
+ *
+ * Sizes are chosen for a résumé rather than for a moodboard — the circle is a
+ * 32mm profile photo, which is about what a passport picture occupies on an
+ * A4 page, and the rectangle is a landscape banner.
+ */
+const FRAMES: { label: string; w: number; h: number; shape: "rect" | "circle"; radius: number }[] = [
+  { label: "Circle", w: 32, h: 32, shape: "circle", radius: 0 },
+  { label: "Rounded", w: 34, h: 34, shape: "rect", radius: 6 },
+  { label: "Square", w: 34, h: 34, shape: "rect", radius: 0 },
+  { label: "Rectangle", w: 60, h: 40, shape: "rect", radius: 0 },
+];
+
 function Elements({ onAdd }: { onAdd: (el: Element) => void }) {
   const shapes = [
     { kind: "rect" as const, label: "Square" },
@@ -252,6 +273,34 @@ function Elements({ onAdd }: { onAdd: (el: Element) => void }) {
           </button>
         ))}
       </div>
+
+      <p className="mb-2 mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-ink-30">
+        Photo frames
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {FRAMES.map((f) => (
+          <button
+            key={f.label}
+            type="button"
+            title={f.label}
+            onClick={() => onAdd(image({ w: f.w, h: f.h, shape: f.shape, radius: f.radius }))}
+            className="grid aspect-square place-items-center rounded-lg border border-ink-08 text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
+          >
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.5">
+              {f.shape === "circle" ? (
+                <circle cx="12" cy="12" r="8.5" />
+              ) : (
+                <rect x={f.w === f.h ? 4 : 2} y={f.w === f.h ? 4 : 6} width={f.w === f.h ? 16 : 20} height={f.w === f.h ? 16 : 12} rx={f.radius ? 3 : 0.5} />
+              )}
+              <circle cx="12" cy={f.w === f.h ? 10.5 : 11} r="2" />
+            </svg>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[0.72rem] leading-relaxed text-ink-50">
+        An empty frame. Drop a picture on it, or select it and upload one — the photo fills the
+        shape and never stretches. Frames do not print until they have a picture in them.
+      </p>
 
       <p className="mb-2 mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-ink-30">Lines</p>
       <div className="space-y-2">
@@ -386,33 +435,73 @@ async function compress(file: File, limit = 200 * 1024): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.4);
 }
 
-function Uploads({ design, onAdd }: { design: Design; onAdd: (el: Element) => void }) {
+function Uploads({
+  design,
+  selection,
+  onAdd,
+  onFill,
+}: {
+  design: Design;
+  selection: string[];
+  onAdd: (el: Element) => void;
+  /** Put this picture in the frame that is already selected. */
+  onFill: (id: string, src: string) => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The frame a picture would land in, if there is one.
+   *
+   * Exactly one image element selected means "put it here" — that is the
+   * spec's first route into a frame, and it is the difference between adding
+   * a photo to the circle in your header and dropping a second, unrelated
+   * photo on top of it.
+   */
+  const elements = design.pages.flatMap((p) => p.elements);
+  const target =
+    selection.length === 1
+      ? elements.find((e) => e.id === selection[0] && e.type === "image")
+      : undefined;
+
   // Pictures already in this design, so one can be used again on another page
-  // without being uploaded twice.
+  // without being uploaded twice. Empty frames contribute no source.
   const used = [
     ...new Set(
-      design.pages.flatMap((p) => p.elements.filter((e) => e.type === "image").map((e) => e.src)),
+      elements
+        .filter((e) => e.type === "image")
+        .map((e) => (e as { src: string | null }).src)
+        .filter((v): v is string => !!v),
     ),
   ];
+
+  /** One picture: into the selected frame, or as a new frame of its own. */
+  async function place(file: File) {
+    const src = await compress(file);
+    if (target) {
+      onFill(target.id, src);
+      return;
+    }
+    const img = await new Promise<HTMLImageElement>((resolve) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.src = src;
+    });
+    const w = 55;
+    onAdd(image({ src, w, h: (w * img.height) / img.width }));
+  }
 
   async function take(files: FileList | null) {
     if (!files?.length) return;
     setBusy(true);
     setError(null);
     try {
-      for (const file of Array.from(files).slice(0, 6)) {
-        const src = await compress(file);
-        const img = await new Promise<HTMLImageElement>((resolve) => {
-          const i = new Image();
-          i.onload = () => resolve(i);
-          i.src = src;
-        });
-        const w = 55;
-        onAdd(image({ src, w, h: (w * img.height) / img.width }));
+      // Only the first one when a frame is selected: a frame holds one
+      // picture, and silently scattering the other five across the page is
+      // not what "put this in here" meant.
+      for (const file of Array.from(files).slice(0, target ? 1 : 6)) {
+        await place(file);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
@@ -430,7 +519,7 @@ function Uploads({ design, onAdd }: { design: Design; onAdd: (el: Element) => vo
         disabled={busy}
         className="w-full rounded-xl bg-ink py-2.5 text-[0.84rem] font-semibold text-paper transition-transform hover:scale-[1.02] disabled:opacity-50"
       >
-        {busy ? "Working…" : "Upload an image"}
+        {busy ? "Working…" : target ? "Upload into this frame" : "Upload an image"}
       </button>
       <input
         ref={input}
@@ -441,7 +530,9 @@ function Uploads({ design, onAdd }: { design: Design; onAdd: (el: Element) => vo
         onChange={(e) => void take(e.target.files)}
       />
       <p className="mt-2 text-[0.74rem] leading-relaxed text-ink-50">
-        Shrunk to under 200KB in your browser before it goes anywhere.
+        {target
+          ? "It will fill the selected frame, keeping the frame's shape and position."
+          : "Shrunk to under 200KB in your browser before it goes anywhere."}
       </p>
       {error && <p className="mt-2 text-[0.78rem]">{error}</p>}
 
@@ -455,7 +546,10 @@ function Uploads({ design, onAdd }: { design: Design; onAdd: (el: Element) => vo
               <button
                 key={i}
                 type="button"
-                onClick={() => onAdd(image({ src, w: 55, h: 55 }))}
+                title={target ? "Put this in the selected frame" : "Add to the page"}
+                onClick={() =>
+                  target ? onFill(target.id, src) : onAdd(image({ src, w: 55, h: 55 }))
+                }
                 className="aspect-square overflow-hidden rounded-lg border border-ink-08 transition-colors hover:border-ink-30"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}

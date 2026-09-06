@@ -15,6 +15,7 @@ import {
   layer,
   removeElements,
   removePage,
+  replaceImage,
   ungroup,
 } from "@/lib/app/design-ops";
 import type { Resume } from "@/lib/app/resume-schema";
@@ -67,6 +68,14 @@ export function DesignEditor({
   const [page, setPage] = useState(0);
   const [selection, setSelection] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
+  /**
+   * The picture open for adjustment.
+   *
+   * Only ever one, and only ever an image. Held here rather than in the canvas
+   * because the toolbar needs it too — the controls that appear while a photo
+   * is open are a different row from the ones for a selected frame.
+   */
+  const [adjusting, setAdjusting] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.72);
   const [panel, setPanel] = useState<PanelId | null>("templates");
   const [share, setShare] = useState(false);
@@ -215,7 +224,10 @@ export function DesignEditor({
         (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
       if (e.key === "Escape") {
-        if (editing) setEditing(null);
+        // Innermost mode first: adjusting a photo, then editing text, then
+        // the selection itself. Escape should close one thing at a time.
+        if (adjusting) setAdjusting(null);
+        else if (editing) setEditing(null);
         else setSelection([]);
         return;
       }
@@ -474,6 +486,8 @@ export function DesignEditor({
         onSelect={setSelection}
         begin={begin}
         onChange={change}
+        adjusting={adjusting}
+        onAdjust={setAdjusting}
         onAddPage={pageOps.add}
         onDuplicatePage={pageOps.duplicate}
         onDeletePage={pageOps.remove}
@@ -485,6 +499,12 @@ export function DesignEditor({
 
         {panel && (
           <SidePanel
+            selection={selection}
+            onFill={(id, src) => {
+              begin();
+              setDesign((d) => replaceImage(d, page, id, src));
+              setSelection([id]);
+            }}
             id={panel}
             onClose={() => setPanel(null)}
             content={content}
@@ -513,6 +533,8 @@ export function DesignEditor({
             zoom={zoom}
             editing={editing}
             onEditing={setEditing}
+            adjusting={adjusting}
+            onAdjust={setAdjusting}
             begin={begin}
             onChange={change}
             onMeasure={measured}

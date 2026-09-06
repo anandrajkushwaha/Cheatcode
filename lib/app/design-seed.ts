@@ -1,6 +1,7 @@
 import {
   A4,
   blankPage,
+  image,
   line,
   PT,
   shape,
@@ -166,13 +167,6 @@ function educationBlocks(c: Resume): { head: string; dates: string }[] {
   }));
 }
 
-/** Two capital letters for the monogram the banded and sidebar templates use. */
-function initials(name: string | null): string {
-  const parts = nonEmpty([name])[0]?.split(/\s+/) ?? [];
-  if (!parts.length) return "";
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
-
 /* ------------------------------------------------------------- the pieces */
 
 type Ink = {
@@ -299,6 +293,28 @@ function sectionInto(
 
 const M = 14; // page margin, millimetres
 
+/**
+ * An empty photo frame, for the layouts that have somewhere to put one.
+ *
+ * Not every template. `showsPhoto()` in resume-templates.ts is the rule and it
+ * predates this file: **banded and sidebar layouts only**. Those two reserve a
+ * block of colour that a picture can live in — both of them were already
+ * drawing a monogram there, which is a placeholder for a face by another name.
+ *
+ * The plain column and the two-column split are deliberately without one. In
+ * both, the only way to fit a photo is to take the space from the words: a
+ * frame top-right narrows the name, and one at the top of the split's aside
+ * costs four centimetres of the tightest column on the page. A template should
+ * not spend somebody's layout on a picture they may not want — and if they do
+ * want it, the Frames panel puts one anywhere in two clicks.
+ *
+ * Empty is the point. It says "your photo goes here", it fills by dropping a
+ * file on it, and if it is never filled it prints as nothing at all.
+ */
+function photoFrame(x: number, y: number, size: number, shapeKind: "circle" | "rect" = "circle") {
+  return image({ x, y, w: size, h: size, shape: shapeKind, radius: shapeKind === "rect" ? 3 : 0 });
+}
+
 function columnLayout(c: Resume, t: Template, centred: boolean): Element[] {
   const ink: Ink = {
     heading: t.theme.accent ?? "#000",
@@ -306,7 +322,22 @@ function columnLayout(c: Resume, t: Template, centred: boolean): Element[] {
     muted: "#6b6b6b",
     rule: "#d9d9d9",
   };
+  /**
+   * No photo frame here, deliberately.
+   *
+   * This is the plain single-column résumé — one measure of text from margin
+   * to margin, and the layout every ATS reads best. There is nowhere for a
+   * picture to go that is not *taken from* the words: putting one top-right
+   * narrowed the name and headline column to make room, and putting one above
+   * a centred name pushed the whole document down a centimetre. Both were a
+   * real cost paid for something this template is not for.
+   *
+   * Somebody who wants a photo on this layout can still add one from the
+   * Frames panel — the difference is that it is then their decision, made
+   * with the space in front of them, rather than ours made in advance.
+   */
   const col = new Column(M, M, A4.w - M * 2);
+
   const align = centred ? "center" : "left";
   const serif = centred ? "EB Garamond" : "Inter";
 
@@ -345,6 +376,8 @@ function bandLayout(c: Resume, t: Template): Element[] {
     shape({ x: 0, y: 0, w: A4.w, h: bandH, fill: accent }),
   ];
 
+  out.push(photoFrame(A4.w - M - 26, (bandH - 26) / 2, 26));
+
   const head = new Column(M, 12, A4.w - M * 2 - 34);
   head.text(c.full_name ?? "Your name", {
     size: 19,
@@ -357,34 +390,6 @@ function bandLayout(c: Resume, t: Template): Element[] {
   head.text(c.headline ?? "", { gap: 1.6, size: 10.5, color: onAccent, opacity: 0.88 });
   head.text(contactLine(c), { gap: 2, size: 8.5, color: onAccent, opacity: 0.8 });
   out.push(...head.out);
-
-  const mono = initials(c.full_name);
-  if (mono) {
-    out.push(
-      shape({
-        x: A4.w - M - 26,
-        y: bandH / 2 - 13,
-        w: 26,
-        h: 26,
-        shape: "ellipse",
-        fill: "transparent",
-        stroke: onAccent,
-        strokeWidth: 0.4,
-      }),
-      text({
-        text: mono,
-        x: A4.w - M - 26,
-        y: bandH / 2 - 4.5,
-        w: 26,
-        h: 9,
-        size: 13,
-        bold: true,
-        align: "center",
-        color: onAccent,
-        lineHeight: 1,
-      }),
-    );
-  }
 
   const col = new Column(M, bandH + 12, A4.w - M * 2);
   for (const key of ["summary", "experience", "projects", "education", "skills", "certifications", "achievements"]) {
@@ -403,34 +408,11 @@ function sidebarLayout(c: Resume, t: Template): Element[] {
   const out: Element[] = [shape({ x: 0, y: 0, w: asideW, h: A4.h, fill: wash })];
 
   const aside = new Column(9, 14, asideW - 18);
-  const mono = initials(c.full_name);
-  if (mono) {
-    out.push(
-      shape({
-        x: asideW / 2 - 11,
-        y: 14,
-        w: 22,
-        h: 22,
-        shape: "ellipse",
-        fill: "transparent",
-        stroke: asideText,
-        strokeWidth: 0.4,
-      }),
-      text({
-        text: mono,
-        x: asideW / 2 - 11,
-        y: 21,
-        w: 22,
-        h: 8,
-        size: 11,
-        bold: true,
-        align: "center",
-        color: asideText,
-        lineHeight: 1,
-      }),
-    );
-    aside.space(28);
-  }
+  // A photo, where the monogram used to be. The initials were a stand-in for
+  // a face; this is the face, and it falls back to nothing rather than to two
+  // letters when there is no picture.
+  out.push(photoFrame(asideW / 2 - 13, 13, 26));
+  aside.space(30);
 
   aside.text(c.full_name ?? "Your name", { size: 14, bold: true, color: asideText, lineHeight: 1.2 });
   aside.text(c.headline ?? "", { gap: 1.4, size: 9, color: asideText, opacity: 0.85, lineHeight: 1.3 });
@@ -477,6 +459,9 @@ function splitLayout(c: Resume, t: Template): Element[] {
   const top = headH + 12;
   out.push(shape({ x: M, y: top, w: asideW, h: A4.h - top - M, fill: wash }));
 
+  // No frame here either: the aside is a narrow column of skills and dates
+  // that runs the height of the page, and a photo at the top of it costs four
+  // centimetres of the one column that was already the tightest.
   const aside = new Column(M + 7, top + 8, asideW - 14);
   const asideInk: Ink = { heading: accent, body: "#2a2a2a", muted: "#5c5c5c", rule: accent };
   for (const key of ["skills", "education", "certifications", "contact"]) {

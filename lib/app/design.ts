@@ -113,11 +113,36 @@ export type TextElement = Base & {
   autoHeight: boolean;
 };
 
+/**
+ * A picture, or a place for one.
+ *
+ * The element is the *frame*; the picture is its contents. That split is the
+ * whole design and it comes straight from how Canva behaves: a frame has a
+ * position, a size, a shape and a place in the layer order, and swapping the
+ * photo inside it changes none of those. Modelling the photo as the element
+ * instead would make "replace this picture" mean "delete this element and
+ * make a new one", which loses every one of those properties.
+ *
+ * It also gives the empty state for free. `src: null` is a frame waiting for
+ * a photo — the state a template ships with, so somebody opening a résumé
+ * sees where their picture goes before they have one.
+ */
 export type ImageElement = Base & {
   type: "image";
-  /** A data URL. Compressed in the browser before it ever gets here. */
-  src: string;
-  /** Where the picture sits inside its box, for cropping. */
+  /**
+   * A data URL, compressed in the browser before it ever gets here — or null
+   * for an empty frame that has not been filled yet.
+   */
+  src: string | null;
+  /**
+   * Where the picture sits inside its frame: the crop, in three numbers.
+   *
+   * `scale` is relative to "just covers the frame", so 1 always fills it and
+   * anything above 1 is zoomed in. `x` and `y` are percentages in the sense
+   * CSS `object-position` uses them, which is what makes the constraint in
+   * `coverFit` expressible at all: 0 and 100 are the two edges, so keeping the
+   * picture over the hole is just a clamp.
+   */
   fit: { scale: number; x: number; y: number };
   shape: ImageShape;
   /** Corner radius in millimetres. Ignored when the shape is a circle. */
@@ -125,6 +150,40 @@ export type ImageElement = Base & {
   flipX: boolean;
   flipY: boolean;
 };
+
+/**
+ * A fit that cannot leave a gap inside the frame.
+ *
+ * The spec asks for this directly — the frame must stay filled, no empty
+ * corners — and it is the one image rule that has to live in the model rather
+ * than in the interaction code. A drag, a slider, a wheel gesture and a
+ * pasted document are four different ways to set the same three numbers, and
+ * a rule enforced in only three of them is not a rule.
+ *
+ * The rule turns out to be two clamps, and it is worth writing down why it is
+ * not more than that. The picture is laid in with `object-fit: cover`, which
+ * already sizes it to be *at least* as big as the frame on both axes — so it
+ * always overflows, and `object-position` only slides it along that overflow.
+ * Anywhere in 0–100% is therefore covered by construction; it is only values
+ * outside that range that would pull an edge into view. `transform: scale()`
+ * on top makes the picture larger still, so it can only ever add slack.
+ *
+ * Which leaves exactly two ways to open a gap: a position outside 0–100, or a
+ * scale below 1 that shrinks the picture back inside the hole. Both are shut
+ * here rather than in the four different places that set these numbers — a
+ * drag, a slider, a wheel gesture and a pasted document are all the same
+ * three fields, and a rule enforced in three of them is not a rule.
+ */
+export function coverFit(fit: ImageElement["fit"]): ImageElement["fit"] {
+  const range = (v: number, min: number, max: number, fallback: number) =>
+    Math.min(max, Math.max(min, Number.isFinite(v) ? v : fallback));
+
+  return {
+    scale: range(fit.scale, 1, 8, 1),
+    x: range(fit.x, 0, 100, 50),
+    y: range(fit.y, 0, 100, 50),
+  };
+}
 
 export type ShapeElement = Base & {
   type: "shape";
@@ -208,11 +267,12 @@ export function text(partial: Partial<TextElement> & { text: string }): TextElem
   };
 }
 
-export function image(partial: Partial<ImageElement> & { src: string }): ImageElement {
+export function image(partial: Partial<ImageElement> = {}): ImageElement {
   return {
     ...BASE,
     id: newId(),
     type: "image",
+    src: null,
     x: 20,
     y: 20,
     w: 40,
@@ -464,18 +524,21 @@ function cleanElement(raw: unknown): Element | null {
       };
 
     case "image": {
-      const s = src(r.src);
-      if (!s) return null;
+      // No `src` is an empty frame, not a broken element. Refusing it here
+      // would delete every unfilled photo container the moment a document
+      // round-tripped through the gate.
       const f = (r.fit ?? {}) as Record<string, unknown>;
       return {
         ...base,
         type: "image",
-        src: s,
-        fit: {
-          scale: num(f.scale, 1, 0.1, 8),
-          x: num(f.x, 50, -200, 300),
-          y: num(f.y, 50, -200, 300),
-        },
+        src: src(r.src),
+        // Rebuilt through the same constraint the editor uses, so a document
+        // that arrived with a gap in a frame comes back without one.
+        fit: coverFit({
+          scale: num(f.scale, 1, 1, 8),
+          x: num(f.x, 50, 0, 100),
+          y: num(f.y, 50, 0, 100),
+        }),
         shape: one(r.shape, ["rect", "circle"] as const, "rect"),
         radius: num(r.radius, 0, 0, 100),
         flipX: bool(r.flipX),

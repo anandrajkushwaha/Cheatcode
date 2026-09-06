@@ -5,10 +5,12 @@ import { DesignPage, textCss } from "@/components/app/DesignPage";
 import {
   A4,
   bounds,
+  coverFit,
   hits,
   unionBounds,
   type Design,
   type Element,
+  type ImageElement,
   type TextElement,
 } from "@/lib/app/design";
 import { groupMates, patch, resize, snap, type Guide, type Handle } from "@/lib/app/design-ops";
@@ -56,6 +58,15 @@ type Props = {
   zoom: number;
   editing: string | null;
   onEditing: (id: string | null) => void;
+  /**
+   * The picture currently open for adjustment, if any.
+   *
+   * Kept beside `editing` rather than folded into it: they are two different
+   * modes on two different kinds of element, and one of them puts a textarea
+   * on screen while the other changes what a drag means.
+   */
+  adjusting: string | null;
+  onAdjust: (id: string | null) => void;
   /** Called once at the start of a gesture, so undo has something to go back to. */
   begin: () => void;
   onChange: (design: Design) => void;
@@ -81,6 +92,22 @@ type Gesture =
   | { kind: "resize"; handle: Handle; x: number; y: number; from: Element[]; began: boolean }
   | { kind: "rotate"; cx: number; cy: number; start: number; from: number; began: boolean }
   | { kind: "marquee"; x0: number; y0: number }
+  /**
+   * Dragging the picture inside a frame that does not move.
+   *
+   * Its own gesture rather than a flag on "move", because it is the opposite
+   * interaction: the element stays exactly where it is and its contents
+   * travel. Sharing that branch would mean every line in the move handler
+   * asking which of the two it was doing.
+   */
+  | {
+      kind: "adjust";
+      id: string;
+      x: number;
+      y: number;
+      from: { x: number; y: number };
+      began: boolean;
+    }
   | null;
 
 export function DesignCanvas({
@@ -92,6 +119,8 @@ export function DesignCanvas({
   zoom,
   editing,
   onEditing,
+  adjusting,
+  onAdjust,
   begin,
   onChange,
   onMeasure,
@@ -162,6 +191,12 @@ export function DesignCanvas({
 
   const selected = current?.elements.filter((e) => selection.includes(e.id)) ?? [];
   const frame = unionBounds(selected);
+
+  /** The picture open for adjustment on this page, if there is one. */
+  const open =
+    (adjusting
+      ? current?.elements.find((e) => e.id === adjusting && e.type === "image")
+      : undefined) as ImageElement | undefined;
 
   /* ------------------------------------------------------------- gestures */
 
@@ -268,6 +303,43 @@ export function DesignCanvas({
         return;
       }
 
+      if (g.kind === "adjust") {
+        const el = current.elements.find((e2) => e2.id === g.id);
+        if (!el || el.type !== "image") return;
+
+        /**
+         * Millimetres of pointer travel into a percentage of the picture.
+         *
+         * `object-position` is a percentage of the *overflow*, not of the
+         * frame, so the same drag has to move the picture further when it is
+         * barely overflowing and less when it is zoomed right in — otherwise
+         * the photo shoots away from the cursor at low zoom. Dividing by the
+         * slack is what keeps the picture under the finger.
+         *
+         * Dragging the picture right must reveal what is on its left, so the
+         * sign is inverted: this is the same convention as dragging a map.
+         */
+        const slack = Math.max(0.0001, 1 - 1 / el.fit.scale);
+        const pct = (mm: number, span: number) => (-mm / (span * slack)) * 100;
+
+        record();
+        onChange(
+          patch(design, page, [g.id], (e2) =>
+            e2.type === "image"
+              ? {
+                  ...e2,
+                  fit: coverFit({
+                    scale: e2.fit.scale,
+                    x: g.from.x + pct(at.x - g.x, el.w),
+                    y: g.from.y + pct(at.y - g.y, el.h),
+                  }),
+                }
+              : e2,
+          ),
+        );
+        return;
+      }
+
       if (g.kind === "marquee") {
         const box = {
           x: Math.min(g.x0, at.x),
@@ -317,6 +389,31 @@ export function DesignCanvas({
 
     const at = toMm(index, e.clientX, e.clientY);
     const list = design.pages[index]?.elements ?? [];
+
+    /**
+     * While a picture is open, a press on it drags the picture, not the frame.
+     *
+     * Checked before hit-testing everything else so the open frame wins even
+     * if something overlaps it — inside adjustment mode the rest of the page
+     * is not what the pointer is for. Pressing anywhere else leaves the mode
+     * and behaves normally, which is the same "click outside to finish" rule
+     * text editing already follows.
+     */
+    if (adjusting) {
+      const open = list.find((el) => el.id === adjusting);
+      if (open && open.type === "image" && hits(open, at.x, at.y)) {
+        gesture.current = {
+          kind: "adjust",
+          id: open.id,
+          began: false,
+          x: at.x,
+          y: at.y,
+          from: { x: open.fit.x, y: open.fit.y },
+        };
+        return;
+      }
+      onAdjust(null);
+    }
 
     // Top of the stack downwards: the thing somebody sees on top is the thing
     // they mean, and the list is in paint order.
@@ -382,6 +479,13 @@ export function DesignCanvas({
       if (el.type === "text") {
         onSelect([el.id]);
         onEditing(el.id);
+      }
+      // A picture opens for adjustment: the frame is fixed from here and the
+      // photo inside it is what moves. Single click resizes the frame, double
+      // click resizes the picture — the distinction the spec is built around.
+      if (el.type === "image" && el.src) {
+        onSelect([el.id]);
+        onAdjust(el.id);
       }
       return;
     }
@@ -472,6 +576,10 @@ export function DesignCanvas({
                           className="pointer-events-none absolute border border-[#7c3aed] bg-[#7c3aed]/10"
                           style={{ left: mm(marquee.x), top: mm(marquee.y), width: mm(marquee.w), height: mm(marquee.h) }}
                         />
+                      )}
+
+                      {index === page && open && (
+                        <CropPreview el={open} mm={mm} zoom={zoom} />
                       )}
 
                       {selected.map((el) => (
@@ -675,5 +783,86 @@ function TextEditor({
         paddingLeft: el.list === "none" ? 0 : `${el.size * 1.2 * 0.3528}mm`,
       }}
     />
+  );
+}
+
+/**
+ * What the crop is hiding, while you are choosing it.
+ *
+ * The spec asks for three things visible at once: the frame, the picture
+ * extending past it, and the crop that results. So the whole photograph is
+ * drawn again — unclipped, dimmed, behind everything — laid out so its
+ * visible portion falls exactly under the frame. The frame's own contents are
+ * still painted on top by the normal renderer, which means the bright rectangle
+ * *is* the crop rather than a second drawing of it that could drift.
+ *
+ * Geometry: `object-fit: cover` sizes the picture so the tighter axis matches
+ * the frame, then `scale` grows it. `object-position` slides it along whatever
+ * overflows. Reproducing that here needs the picture's natural aspect ratio,
+ * which is why this waits for the image to load rather than assuming a square.
+ */
+function CropPreview({
+  el,
+  mm,
+  zoom,
+}: {
+  el: ImageElement;
+  mm: (v: number) => string;
+  zoom: number;
+}) {
+  const [ratio, setRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!el.src) return;
+    let live = true;
+    const img = new Image();
+    img.onload = () => live && setRatio(img.naturalWidth / img.naturalHeight);
+    img.src = el.src;
+    return () => {
+      live = false;
+    };
+  }, [el.src]);
+
+  if (!el.src || !ratio) return null;
+
+  // Cover: whichever axis is tighter decides the size, then the zoom.
+  const frameRatio = el.w / el.h;
+  const coverW = (ratio > frameRatio ? el.h * ratio : el.w) * el.fit.scale;
+  const coverH = (ratio > frameRatio ? el.h : el.w / ratio) * el.fit.scale;
+
+  // The overflow, distributed by object-position.
+  const left = el.x - (coverW - el.w) * (el.fit.x / 100);
+  const top = el.y - (coverH - el.h) * (el.fit.y / 100);
+
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{
+        left: mm(left),
+        top: mm(top),
+        width: mm(coverW),
+        height: mm(coverH),
+        transform: el.rot ? `rotate(${el.rot}deg)` : undefined,
+        opacity: 0.32,
+        zIndex: 0,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={el.src}
+        alt=""
+        className="h-full w-full"
+        style={{
+          objectFit: "fill",
+          transform: [el.flipX ? "scaleX(-1)" : "", el.flipY ? "scaleY(-1)" : ""]
+            .filter(Boolean)
+            .join(" ") || undefined,
+        }}
+      />
+      <div
+        className="absolute inset-0 border border-dashed border-[#7c3aed]"
+        style={{ borderWidth: 0.25 / zoom + "mm" }}
+      />
+    </div>
   );
 }

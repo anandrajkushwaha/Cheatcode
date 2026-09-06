@@ -2,6 +2,7 @@ import {
   A4,
   blankPage,
   bounds,
+  coverFit,
   newId,
   reorder,
   unionBounds,
@@ -390,4 +391,60 @@ export function resize(
   }
 
   return { ...el, x, y, w, h };
+}
+
+/* ------------------------------------------------------------------ images */
+
+/**
+ * Put a different picture in a frame, and change nothing else.
+ *
+ * The spec is explicit that position, size, shape, rotation and layer order
+ * all survive a replacement — which is exactly what you get for free by
+ * setting one field on the element that is already there. The tempting
+ * alternative, deleting the frame and adding a new image, loses all five and
+ * drops the element to the top of the stack.
+ *
+ * The crop is deliberately *not* carried over. A crop is a statement about
+ * one particular photograph — this corner of this face — and applying it to a
+ * different picture produces a confident, wrong framing that the person then
+ * has to notice and undo.
+ */
+export function replaceImage(design: Design, page: number, id: string, src: string | null): Design {
+  return patch(design, page, [id], (el) =>
+    el.type === "image" ? { ...el, src, fit: { scale: 1, x: 50, y: 50 } } : el,
+  );
+}
+
+/** Back to how the picture sat when it was first dropped in. */
+export function resetFit(design: Design, page: number, id: string): Design {
+  return patch(design, page, [id], (el) =>
+    el.type === "image" ? { ...el, fit: { scale: 1, x: 50, y: 50 } } : el,
+  );
+}
+
+/**
+ * Move and zoom the picture inside a fixed frame.
+ *
+ * Every adjustment gesture funnels through here so the "no gaps" rule is
+ * applied once. `dx`/`dy` arrive as a fraction of the frame, which is what
+ * both the pointer drag and the arrow keys can express without either of them
+ * needing to know the element's size in millimetres.
+ */
+export function nudgeFit(
+  design: Design,
+  page: number,
+  id: string,
+  change: { dx?: number; dy?: number; scale?: number },
+): Design {
+  return patch(design, page, [id], (el) => {
+    if (el.type !== "image") return el;
+    return {
+      ...el,
+      fit: coverFit({
+        scale: change.scale ?? el.fit.scale,
+        x: el.fit.x + (change.dx ?? 0),
+        y: el.fit.y + (change.dy ?? 0),
+      }),
+    };
+  });
 }
