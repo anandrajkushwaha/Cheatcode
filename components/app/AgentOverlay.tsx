@@ -7,6 +7,7 @@ import { ResumePanel } from "@/components/app/ResumePanel";
 import { ManualInput } from "@/components/app/ManualInput";
 import { soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
+import type { LiveUsage } from "@/lib/app/live-types";
 import type { JobCard, ShowJobs, ToolResult, UiAction } from "@/lib/app/agent-types";
 import type { FieldSpec, Resume } from "@/lib/app/resume-schema";
 import { readAnyFile, ExtractError } from "@/lib/app/read-file";
@@ -230,6 +231,8 @@ export function AgentOverlay({
         channel?: "text" | "voice";
         /** The realtime model that answered, so the call can be costed. */
         model?: string | null;
+        /** What the provider said the call used. Clamped server-side. */
+        usage?: LiveUsage;
       } = {},
     ) => {
       if (!messages.length && !extra.seconds) return;
@@ -242,6 +245,7 @@ export function AgentOverlay({
           seconds: extra.seconds,
           ended: extra.ended,
           model: extra.model ?? null,
+          usage: extra.usage ?? null,
           messages: messages.map((m) => ({
             role: m.role,
             content: m.text,
@@ -521,9 +525,9 @@ export function AgentOverlay({
         if (jobs.length) pendingCards.current = { jobs, reason: show.reason };
       },
 
-      onEnded: (seconds) => {
+      onEnded: (seconds, usage) => {
         setLevel(0);
-        keep([], { seconds, ended: true, channel: "voice", model: live.model });
+        keep([], { seconds, ended: true, channel: "voice", model: live.model, usage });
         // Optimistic, so the number on screen does not lag a whole session
         // behind. The server's answer overwrites it on the next request.
         setVoiceLeft((v) => (v === null ? null : Math.max(0, v - seconds)));

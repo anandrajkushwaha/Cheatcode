@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { rateFor, type Feature, type Rate } from "@/lib/app/ai-cost";
+import { rateFor, setRateOverrides, type Feature, type Rate } from "@/lib/app/ai-cost";
+import { CostEstimate } from "@/components/admin/CostEstimate";
+import type { Chosen, TextFeature } from "@/lib/app/voice-estimate";
 import type { Flags } from "@/lib/app/flags";
 import type { ListedModel, ModelList } from "@/lib/app/model-list";
 
@@ -120,6 +122,29 @@ export function FlagsForm({ initial, features, configured, seen }: Props) {
    * ones that have actually been billed recently. Not the whole provider
    * catalogue — a hundred rows of models nobody runs is a form nobody reads.
    */
+  /**
+   * The estimator has to see the prices being typed, not only the built-in
+   * table — otherwise correcting a rate would leave the figure above it stale,
+   * which is the one thing that would make people stop trusting it.
+   *
+   * `rateFor` reads module-level overrides, so they are pushed in here before
+   * anything reads them. Harmless on the client: this page is the only thing
+   * in the tab, and the server keeps its own copy from the database.
+   */
+  const chosen: Chosen = useMemo(() => {
+    setRateOverrides(flags.rates);
+    const text: Chosen["text"] = {};
+    for (const f of features) {
+      if (f.key === "voice_conversation") continue;
+      const row = flags.agent[f.key];
+      // A feature that is switched off spends nothing, so it must not appear
+      // in an estimate of what a conversation costs.
+      text[f.key as TextFeature] = row.enabled ? row.model : null;
+    }
+    const voice = flags.agent.voice_conversation;
+    return { voice: voice.enabled ? voice.model : null, text };
+  }, [flags, features]);
+
   const priceable = useMemo(() => {
     const names = new Map<string, { calls: number; unpriced: number }>();
     for (const s of seen) names.set(s.model, { calls: s.calls, unpriced: s.unpriced });
@@ -164,6 +189,12 @@ export function FlagsForm({ initial, features, configured, seen }: Props) {
           {list.problems.map((p) => `${PROVIDER_LABEL[p.provider] ?? p.provider}: ${p.reason}`).join(" · ")}
         </p>
       ) : null}
+
+      <CostEstimate chosen={chosen} voiceOn={flags.agent.voice_conversation.enabled} />
+
+      <h2 className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+        Which model answers what
+      </h2>
 
       <div className="rounded-2xl border border-ink-08">
         <ul className="divide-y divide-ink-08">

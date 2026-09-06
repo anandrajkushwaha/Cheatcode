@@ -38,9 +38,112 @@ export type LiveHandlers = {
   /** 0..1, for anything that should move while somebody is talking. */
   onLevel?: (level: number) => void;
   onError?: (message: string) => void;
-  /** Seconds the connection was open. The server bills against this. */
-  onEnded?: (seconds: number) => void;
+  /**
+   * Seconds the connection was open, and what the provider says it used.
+   *
+   * The usage half is the difference between a voice row that reads
+   * `0 in · 0 out · $0` and one that reads what the call actually cost. Both
+   * providers report per-response token counts on the wire — OpenAI on
+   * `response.done`, Gemini as `usageMetadata` — and this used to drop them on
+   * the floor, so voice was the one feature whose spend nobody could see.
+   *
+   * Still only a report from a browser, so the server clamps it. But a
+   * bounded measurement beats a null, and it beats an estimate derived from
+   * duration that would sit in the same column looking equally measured.
+   */
+  onEnded?: (seconds: number, usage?: LiveUsage) => void;
 };
+
+/** Tokens a live session used, accumulated across its responses. */
+export type LiveUsage = {
+  /** Text tokens in and out; audio is counted apart because it is dearer. */
+  input: number;
+  output: number;
+  audioInput: number;
+  audioOutput: number;
+  /** Billed at a reduced rate. Reported so an estimate can be checked. */
+  cachedInput: number;
+  /** How many model responses these totals came from. */
+  responses: number;
+};
+
+export function emptyUsage(): LiveUsage {
+  return { input: 0, output: 0, audioInput: 0, audioOutput: 0, cachedInput: 0, responses: 0 };
+}
+
+const count = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+
+/** The usage block OpenAI puts on `response.done`. */
+export type RealtimeUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  input_token_details?: { audio_tokens?: number; text_tokens?: number; cached_tokens?: number };
+  output_token_details?: { audio_tokens?: number; text_tokens?: number };
+};
+
+/**
+ * Fold one response's usage into the session total. Pure, so it can be tested.
+ *
+ * Two things it must get right, and both are silent when wrong:
+ *
+ * **Summing.** Realtime bills per response, so a session's cost is the sum
+ * over responses. Taking the last block would report one turn's worth.
+ *
+ * **Not double-counting audio.** `input_tokens` is the total *including* the
+ * audio tokens, so the text half is what remains after audio is subtracted.
+ * Adding both would inflate a voice bill by counting its most expensive part
+ * twice — an overstatement, which is just as unusable as losing it.
+ */
+export function foldRealtimeUsage(total: LiveUsage, u: RealtimeUsage | undefined): LiveUsage {
+  if (!u) return total;
+  const audioIn = count(u.input_token_details?.audio_tokens);
+  const audioOut = count(u.output_token_details?.audio_tokens);
+  return {
+    audioInput: total.audioInput + audioIn,
+    audioOutput: total.audioOutput + audioOut,
+    input: total.input + Math.max(0, count(u.input_tokens) - audioIn),
+    output: total.output + Math.max(0, count(u.output_tokens) - audioOut),
+    cachedInput: total.cachedInput + count(u.input_token_details?.cached_tokens),
+    responses: total.responses + 1,
+  };
+}
+
+/** The `usageMetadata` Gemini Live puts on its messages. */
+export type GeminiUsage = {
+  promptTokenCount?: number;
+  responseTokenCount?: number;
+  totalTokenCount?: number;
+  promptTokensDetails?: { modality?: string; tokenCount?: number }[];
+  responseTokensDetails?: { modality?: string; tokenCount?: number }[];
+};
+
+/**
+ * Take Gemini's totals, which are cumulative for the session already.
+ *
+ * This **replaces** rather than adds — the opposite of the OpenAI path, and
+ * the reason both live here side by side where the difference is visible.
+ * Summing a cumulative counter would multiply a session's cost by its number
+ * of turns.
+ */
+export function takeGeminiUsage(total: LiveUsage, u: GeminiUsage | undefined): LiveUsage {
+  if (!u) return total;
+  const modality = (rows: { modality?: string; tokenCount?: number }[] | undefined, want: string) =>
+    (rows ?? [])
+      .filter((r) => (r.modality ?? "").toUpperCase() === want)
+      .reduce((t, r) => t + count(r.tokenCount), 0);
+
+  const audioIn = modality(u.promptTokensDetails, "AUDIO");
+  const audioOut = modality(u.responseTokensDetails, "AUDIO");
+  return {
+    audioInput: audioIn,
+    audioOutput: audioOut,
+    input: Math.max(0, count(u.promptTokenCount) - audioIn),
+    output: Math.max(0, count(u.responseTokenCount) - audioOut),
+    cachedInput: total.cachedInput,
+    responses: total.responses + 1,
+  };
+}
 
 /** Everything a transport is given, and nothing it is not. */
 export type TransportContext = {
@@ -81,6 +184,14 @@ export interface Transport {
   sendText(text: string): void;
   /** Release everything: sockets, peers, audio graphs, timers. */
   close(): void;
+  /**
+   * Tokens used so far, as the provider reported them.
+   *
+   * Read at the end of the call rather than pushed, because the session has
+   * to read it during teardown — after the last `response.done` and before
+   * the transport is dropped.
+   */
+  used(): LiveUsage;
 }
 
 export type Ticket = {

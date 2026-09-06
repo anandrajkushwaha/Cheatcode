@@ -86,14 +86,20 @@ async function write(input: RecordInput): Promise<void> {
  * A voice call, priced on the way out.
  *
  * The realtime session bills through a WebRTC connection the server never
- * sees, so unlike every text call there is no response body to read a usage
- * block out of. What we have is the duration the browser reports, which the
- * allowance system already collects and bills against — this records the same
- * number in money.
+ * sees, so unlike every text call there is no response body here to read a
+ * usage block out of. But there *is* one on the wire: both providers report
+ * per-response token counts to the browser, and the browser now forwards them.
  *
- * The token counts are left null on purpose rather than estimated from the
- * duration. An estimate in a column next to measured values is a number that
- * will be read as measured.
+ * That is a report rather than a measurement we made, and the route clamps it
+ * before it arrives. It is still the right trade: for weeks this recorded
+ * nothing, so a ten-minute spoken conversation — the most expensive thing the
+ * product does — showed up as `0 in · 0 out`, and voice was the one feature
+ * whose cost nobody could see.
+ *
+ * What is still refused is estimating tokens from the duration. An estimate
+ * sitting in a column next to measured values is a number that will be read as
+ * measured, and the estimator on the Settings screen is where guesses belong —
+ * labelled, and next to the assumptions they came from.
  */
 export function recordVoiceCall(input: {
   userId: string;
@@ -107,6 +113,8 @@ export function recordVoiceCall(input: {
    * rate card.
    */
   provider?: "openai" | "gemini";
+  /** What the provider reported, already bounded by the route. */
+  usage?: TokenUsage | null;
 }): void {
   recordUsage({
     feature: "voice_conversation",
@@ -114,9 +122,57 @@ export function recordVoiceCall(input: {
     sessionId: input.sessionId ?? null,
     provider: input.provider ?? "openai",
     model: input.model,
-    usage: {},
+    usage: input.usage ?? {},
     durationSeconds: input.seconds,
   });
 }
 
 export type { Feature };
+
+/* ------------------------------------------------- what a browser claims */
+
+/**
+ * A ceiling on any single token count a client may claim.
+ *
+ * The realtime API bills audio at 600 input and 1,200 output tokens a minute,
+ * and re-sends the conversation on every response, so a long session's *input*
+ * total legitimately runs to millions. Ten million is far above anything a
+ * fifteen-minute report can honestly contain and far below a number that could
+ * distort the dashboard — the point is to bound a hostile client, not to
+ * second-guess an honest one.
+ */
+const MAX_TOKENS_PER_REPORT = 10_000_000;
+
+/**
+ * The token counts, taken as a report rather than as a fact.
+ *
+ * The same trust position as `seconds`: only the browser can see what the
+ * provider said, so the number cannot be verified — but it can be bounded, and
+ * a bounded measurement is worth far more than the null this used to record.
+ * Anything malformed drops to zero rather than failing the request; losing an
+ * accounting row must never cost somebody their transcript.
+ */
+export function readUsageReport(raw: unknown): {
+  input: number;
+  output: number;
+  audioInput: number;
+  audioOutput: number;
+} | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const n = (v: unknown): number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0
+      ? Math.min(Math.round(v), MAX_TOKENS_PER_REPORT)
+      : 0;
+
+  const usage = {
+    input: n(r.input),
+    output: n(r.output),
+    audioInput: n(r.audioInput),
+    audioOutput: n(r.audioOutput),
+  };
+
+  // All zeros is the same as not reporting: recording it would write a row
+  // that costs $0, which is the exact claim this whole change exists to stop.
+  return usage.input + usage.output + usage.audioInput + usage.audioOutput > 0 ? usage : null;
+}

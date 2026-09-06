@@ -187,6 +187,11 @@ export class LiveSession {
       this.budget = 0;
     }
 
+    // Read before closing. `close()` drops the transport, and the token counts
+    // live on it — asking afterwards returns nothing, which is how voice spend
+    // would quietly go unrecorded again in a way no type would catch.
+    const usage = this.transport?.used();
+
     this.transport?.close();
     this.transport = null;
 
@@ -195,7 +200,7 @@ export class LiveSession {
 
     this.set("closed");
     if (reason) this.on.onError?.(reason);
-    if (seconds > 0) this.on.onEnded?.(seconds);
+    if (seconds > 0) this.on.onEnded?.(seconds, usage);
 
     this.ending = false;
     this.startedAt = 0;

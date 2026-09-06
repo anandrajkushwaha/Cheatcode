@@ -81,6 +81,18 @@ export type Rate = {
   audioInput?: number;
   audioOutput?: number;
   /**
+   * Input tokens the provider had already seen, billed far lower.
+   *
+   * Only used by the estimator, never by `costOf` — a recorded call is costed
+   * from what the provider actually charged, and guessing which half of a real
+   * call was cached would put an estimate in the measured column. But for a
+   * realtime session this rate decides almost everything: the whole
+   * conversation is re-sent on every response, and at $32 versus $0.40 per
+   * million the difference between counting that as fresh or cached is two
+   * orders of magnitude.
+   */
+  cachedInput?: number;
+  /**
    * Per minute of wall clock, for models that are not billed by token at all.
    *
    * `gpt-realtime-translate` and the transcription models are priced this way.
@@ -166,8 +178,22 @@ const RATES: Record<string, Rate> = {
    * difference is the entire economics of the voice feature — which is exactly
    * why pricing them identically was worth catching.
    */
-  "gpt-realtime-2.1": { provider: "openai", input: 4.0, output: 24.0, audioInput: 32.0, audioOutput: 64.0 },
-  "gpt-realtime-2.1-mini": { provider: "openai", input: 0.6, output: 2.4, audioInput: 10.0, audioOutput: 20.0 },
+  "gpt-realtime-2.1": {
+    provider: "openai",
+    input: 4.0,
+    output: 24.0,
+    audioInput: 32.0,
+    audioOutput: 64.0,
+    cachedInput: 0.4,
+  },
+  "gpt-realtime-2.1-mini": {
+    provider: "openai",
+    input: 0.6,
+    output: 2.4,
+    audioInput: 10.0,
+    audioOutput: 20.0,
+    cachedInput: 0.3,
+  },
 
   /**
    * Billed by the minute, not by the token.
@@ -418,6 +444,19 @@ export function costOf(
     }
     return null;
   }
+
+  /**
+   * No tokens at all is not a free call — it is a call we know nothing about.
+   *
+   * This returned 0 for a while, and the dashboard duly showed a voice
+   * conversation costing **$0**. That is the single worst thing this column
+   * can say, because it is a confident claim rather than a gap: nobody
+   * investigates a zero. A token-priced model with no token counts is
+   * unpriced, and the screen already knows how to show that.
+   */
+  const counted =
+    (usage.input ?? 0) + (usage.output ?? 0) + (usage.audioInput ?? 0) + (usage.audioOutput ?? 0);
+  if (counted <= 0) return null;
 
   const per = (tokens: number | undefined, perMillion: number | undefined) =>
     tokens && perMillion ? (tokens / 1_000_000) * perMillion : 0;

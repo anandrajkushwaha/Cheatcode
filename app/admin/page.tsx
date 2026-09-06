@@ -26,6 +26,20 @@ const USD = (n: number) =>
 /** Roughly, and labelled as roughly. The stored figure is dollars. */
 const INR_PER_USD = 88;
 
+/**
+ * A number we recorded, or an em dash for one we did not.
+ *
+ * The distinction this draws is the whole point: `0` is a measurement and `—`
+ * is its absence, and printing the first when you mean the second is how a
+ * voice conversation came to read `0 in · 0 out · $0` on this page. Nobody
+ * opens a ticket about a zero.
+ */
+const known = (value: number, metered: number): string => (metered > 0 ? num(value) : "—");
+
+/** The same rule for money: unmetered calls have no cost, not a free one. */
+const knownUSD = (value: number, calls: number, metered: number): string =>
+  calls === 0 ? "—" : metered === 0 ? "—" : USD(value);
+
 function ist(iso: string) {
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
@@ -97,11 +111,23 @@ export default async function AdminDashboard({
       <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <Stat label="Agent sessions" value={list.length} hint="conversations started" />
         <Stat label="Model calls" value={t.calls} hint={`${num(t.people)} people`} />
-        <Stat label="Input tokens" value={t.inputTokens} hint="sent to the model" />
-        <Stat label="Output tokens" value={t.outputTokens} hint="written back" />
+        <Stat
+          label="Input tokens"
+          value={known(t.inputTokens, t.metered)}
+          hint={
+            t.metered < t.calls
+              ? `${num(t.calls - t.metered)} of ${num(t.calls)} calls not metered`
+              : "sent to the model"
+          }
+        />
+        <Stat
+          label="Output tokens"
+          value={known(t.outputTokens, t.metered)}
+          hint="written back"
+        />
         <Stat
           label="Cost"
-          value={USD(t.costUsd)}
+          value={knownUSD(t.costUsd, t.calls, t.metered)}
           hint={
             t.unpriced
               ? `≈ ₹${Math.round(t.costUsd * INR_PER_USD)} · ${num(t.unpriced)} unpriced`
@@ -191,7 +217,8 @@ export default async function AdminDashboard({
                           </div>
                         </div>
                         <p className="mt-1 text-[0.72rem] text-ink-30">
-                          {num(f.inputTokens)} in · {num(f.outputTokens)} out
+                          {known(f.inputTokens, f.metered)} in ·{" "}
+                          {known(f.outputTokens, f.metered)} out
                         </p>
                       </li>
                     );
@@ -248,10 +275,10 @@ export default async function AdminDashboard({
                           <User row={s} />
                         </Td>
                         <Td right>{num(s.calls)}</Td>
-                        <Td right>{num(s.inputTokens)}</Td>
-                        <Td right>{num(s.outputTokens)}</Td>
+                        <Td right>{known(s.inputTokens, s.metered)}</Td>
+                        <Td right>{known(s.outputTokens, s.metered)}</Td>
                         <Td right>
-                          {s.calls === 0 ? "—" : USD(s.costUsd)}
+                          {knownUSD(s.costUsd, s.calls, s.metered)}
                           {s.unpriced > 0 && <span className="text-ink-30"> +</span>}
                         </Td>
                         <Td>
@@ -279,7 +306,7 @@ export default async function AdminDashboard({
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="text-[0.78rem] text-ink-50">{ist(s.startedAt)}</span>
                       <span className="text-[0.78rem] tabular-nums">
-                        {s.calls === 0 ? "—" : USD(s.costUsd)}
+                        {knownUSD(s.costUsd, s.calls, s.metered)}
                       </span>
                     </div>
                     <div className="mt-2">
@@ -287,8 +314,8 @@ export default async function AdminDashboard({
                     </div>
                     <dl className="mt-3 grid grid-cols-3 gap-2 text-[0.74rem]">
                       <Cell k="Calls" v={num(s.calls)} />
-                      <Cell k="In" v={num(s.inputTokens)} />
-                      <Cell k="Out" v={num(s.outputTokens)} />
+                      <Cell k="In" v={known(s.inputTokens, s.metered)} />
+                      <Cell k="Out" v={known(s.outputTokens, s.metered)} />
                     </dl>
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.76rem]">
                       <ResumeCell row={s} />

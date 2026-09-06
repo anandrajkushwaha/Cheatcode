@@ -1,5 +1,12 @@
 import { readShowJobs } from "@/lib/app/agent-types";
-import type { Transport, TransportContext } from "@/lib/app/live-types";
+import {
+  emptyUsage,
+  takeGeminiUsage,
+  type GeminiUsage,
+  type LiveUsage,
+  type Transport,
+  type TransportContext,
+} from "@/lib/app/live-types";
 
 /**
  * A live conversation over Gemini's Live API.
@@ -39,6 +46,9 @@ export class GeminiTransport implements Transport {
 
   private userBuf = "";
   private agentBuf = "";
+
+  /** Running total of what the provider says this session has used. */
+  private usage = emptyUsage();
 
   constructor(private readonly ctx: TransportContext) {}
 
@@ -147,6 +157,12 @@ export class GeminiTransport implements Transport {
       );
     }
 
+    // Gemini reports usage on the message rather than on a response event, and
+    // reports the running total for the session rather than a per-turn delta —
+    // so this replaces rather than adds. Summing it, as the OpenAI path must,
+    // would multiply the session's cost by its number of turns.
+    this.addUsage(msg.usageMetadata);
+
     const server = msg.serverContent;
     if (!server) return;
 
@@ -226,6 +242,15 @@ export class GeminiTransport implements Transport {
     this.ws.send(JSON.stringify({ realtimeInput: { text } }));
   }
 
+  /** What this session has cost so far, in tokens. Read when the call ends. */
+  used(): LiveUsage {
+    return { ...this.usage };
+  }
+
+  private addUsage(u: GeminiUsage | undefined): void {
+    this.usage = takeGeminiUsage(this.usage, u);
+  }
+
   close(): void {
     this.closed = true;
 
@@ -259,6 +284,7 @@ type LiveMessage = {
   toolCall?: {
     functionCalls?: { id?: string; name?: string; args?: Record<string, unknown> }[];
   };
+  usageMetadata?: GeminiUsage;
 };
 
 function base64(buf: ArrayBuffer): string {

@@ -1,6 +1,6 @@
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { spend } from "@/lib/app/allowance";
-import { recordVoiceCall } from "@/lib/app/ai-usage";
+import { recordVoiceCall, readUsageReport } from "@/lib/app/ai-usage";
 import { preferredOpenAIModel } from "@/lib/app/openai-models";
 import { preferredModel as preferredGeminiModel } from "@/lib/app/gemini-models";
 import { configFor } from "@/lib/app/flags";
@@ -37,7 +37,10 @@ type Incoming = {
   messages?: unknown;
   /** Which realtime model actually answered, for costing. */
   model?: unknown;
+  /** What the provider told the browser the call used. Clamped below. */
+  usage?: unknown;
 };
+
 
 type Message = { role: "user" | "model"; content: string; spoken?: boolean; actions?: unknown };
 
@@ -67,15 +70,6 @@ export async function POST(request: Request) {
     left = await spend(user.id, { seconds }, user.email);
 
     /**
-     * The same seconds, recorded in money.
-     *
-     * The realtime session bills through a WebRTC connection the server never
-     * touches, so there is no response body with a usage block in it — the
-     * duration the browser reports is all there is. It is the number we
-     * already bill the allowance against, so costing it changes no trust
-     * assumption: it is bounded above by MAX_SECONDS_PER_REPORT either way.
-     */
-    /**
      * Which model to write down when the client did not say.
      *
      * The admin's choice first, because that is what the ticket was minted
@@ -100,6 +94,7 @@ export async function POST(request: Request) {
           : fallbackModel,
       provider: fallbackProvider,
       seconds,
+      usage: readUsageReport(body.usage),
     });
   }
 

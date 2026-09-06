@@ -57,6 +57,15 @@ export type FeatureRow = {
   costUsd: number;
   /** How many rows had no rate, so the cost above is an understatement. */
   unpriced: number;
+  /**
+   * How many rows carried token counts at all.
+   *
+   * Zero here and a zero token total are different facts: one means nobody
+   * used any tokens, the other means nobody wrote them down. Summing nulls to
+   * 0 made a voice conversation read as `0 in · 0 out`, which is a claim
+   * rather than a gap — and nobody investigates a zero.
+   */
+  metered: number;
   users: number;
 };
 
@@ -71,6 +80,8 @@ export type SessionRow = {
   outputTokens: number;
   costUsd: number;
   unpriced: number;
+  /** Rows that carried token counts. Zero means "not recorded", not "none". */
+  metered: number;
   models: string[];
   /** The résumé this conversation produced, if it produced one. */
   resume: {
@@ -92,6 +103,7 @@ export type Totals = {
   outputTokens: number;
   costUsd: number;
   unpriced: number;
+  metered: number;
   downloads: number;
   resumesShared: number;
 };
@@ -114,6 +126,13 @@ const n = (v: unknown): number => {
   const x = typeof v === "string" ? Number.parseFloat(v) : typeof v === "number" ? v : 0;
   return Number.isFinite(x) ? x : 0;
 };
+
+/** Did this row record any token counts at all? */
+const metered = (r: UsageRow): boolean =>
+  r.input_tokens != null ||
+  r.output_tokens != null ||
+  r.audio_input_tokens != null ||
+  r.audio_output_tokens != null;
 
 /* ------------------------------------------------------------- the reads */
 
@@ -168,6 +187,7 @@ export function byFeature(rows: UsageRow[]): FeatureRow[] {
         outputTokens: 0,
         costUsd: 0,
         unpriced: 0,
+        metered: 0,
         users: 0,
         userSet: new Set<string>(),
       };
@@ -176,6 +196,7 @@ export function byFeature(rows: UsageRow[]): FeatureRow[] {
     row.calls += 1;
     row.inputTokens += n(r.input_tokens) + n(r.audio_input_tokens);
     row.outputTokens += n(r.output_tokens) + n(r.audio_output_tokens);
+    if (metered(r)) row.metered += 1;
     if (r.cost_usd == null) row.unpriced += 1;
     else row.costUsd += n(r.cost_usd);
     if (r.user_id) row.userSet.add(r.user_id);
@@ -193,8 +214,10 @@ export function totals(rows: UsageRow[]): Omit<Totals, "downloads" | "resumesSha
   let outputTokens = 0;
   let costUsd = 0;
   let unpriced = 0;
+  let meteredRows = 0;
 
   for (const r of rows) {
+    if (metered(r)) meteredRows += 1;
     if (r.session_id) sessions.add(r.session_id);
     if (r.user_id) people.add(r.user_id);
     inputTokens += n(r.input_tokens) + n(r.audio_input_tokens);
@@ -203,7 +226,16 @@ export function totals(rows: UsageRow[]): Omit<Totals, "downloads" | "resumesSha
     else costUsd += n(r.cost_usd);
   }
 
-  return { calls: rows.length, sessions: sessions.size, people: people.size, inputTokens, outputTokens, costUsd, unpriced };
+  return {
+    calls: rows.length,
+    sessions: sessions.size,
+    people: people.size,
+    inputTokens,
+    outputTokens,
+    costUsd,
+    unpriced,
+    metered: meteredRows,
+  };
 }
 
 /**
@@ -303,6 +335,7 @@ export async function sessions(days: number, rows: UsageRow[]): Promise<SessionR
       outputTokens: mine.reduce((t, r) => t + n(r.output_tokens) + n(r.audio_output_tokens), 0),
       costUsd: mine.reduce((t, r) => t + (r.cost_usd == null ? 0 : n(r.cost_usd)), 0),
       unpriced: mine.filter((r) => r.cost_usd == null).length,
+      metered: mine.filter(metered).length,
       models: [...new Set(mine.map((r) => r.model))],
       resume: d
         ? {

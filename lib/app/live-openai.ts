@@ -1,5 +1,12 @@
 import { readShowJobs } from "@/lib/app/agent-types";
-import type { Transport, TransportContext } from "@/lib/app/live-types";
+import {
+  emptyUsage,
+  foldRealtimeUsage,
+  type LiveUsage,
+  type RealtimeUsage,
+  type Transport,
+  type TransportContext,
+} from "@/lib/app/live-types";
 
 /**
  * A live conversation over OpenAI's Realtime API.
@@ -45,7 +52,19 @@ export class OpenAITransport implements Transport {
   private pending = new Map<string, { name: string; args: string }>();
   private shown = new Set<string>();
 
+  /** Running total of what the provider says this session has used. */
+  private usage = emptyUsage();
+
   constructor(private readonly ctx: TransportContext) {}
+
+  /** What this session has cost so far, in tokens. Read when the call ends. */
+  used(): LiveUsage {
+    return { ...this.usage };
+  }
+
+  private addUsage(u: RealtimeUsage | undefined): void {
+    this.usage = foldRealtimeUsage(this.usage, u);
+  }
 
   async open(): Promise<void> {
     const pc = new RTCPeerConnection();
@@ -245,6 +264,11 @@ export class OpenAITransport implements Transport {
         break;
 
       case "response.done":
+        // The provider's own count for the turn that just finished. Realtime
+        // bills per response and re-sends the whole conversation each time, so
+        // these must be summed across responses — reading only the last one
+        // would report a fraction of the session.
+        this.addUsage(msg.response?.usage);
         for (const item of msg.response?.output ?? []) {
           if (item.type !== "function_call" || !item.call_id) continue;
           this.pending.set(item.call_id, { name: item.name ?? "", args: item.arguments ?? "{}" });
@@ -431,5 +455,7 @@ type RealtimeEvent = {
   error?: unknown;
   response?: {
     output?: { type?: string; name?: string; call_id?: string; arguments?: string }[];
+    usage?: RealtimeUsage;
   };
 };
+
