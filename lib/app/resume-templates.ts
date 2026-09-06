@@ -8,12 +8,11 @@
  * is a gallery somebody wants to browse. Five variations of one document read
  * as one document with a font picker.
  *
- * So a template is now a **layout plus a theme**. Eight structures — a plain
- * column, a coloured header band, a left sidebar, a two-column body, and the
- * four added for the reference designs — each dressed differently. Thirty of
- * them here; the list is meant to grow, and the shape of this file is what
- * decides whether growing it is a row or a rewrite. Adding a template should
- * be a row, and the twenty at the bottom are twenty rows.
+ * So a template is now a **layout plus a theme**. Fourteen structures, each
+ * dressed several ways, and sixty templates over them. The list is meant to
+ * grow and the shape of this file is what decides whether growing it is a row
+ * or a rewrite — adding a template is a row; adding a *layout* is a function,
+ * and is only worth it when the page genuinely reads differently.
  *
  * Two consequences worth being honest about, because both are real:
  *
@@ -26,10 +25,10 @@
  * two-column resume rather than as the single-column one it is not. That
  * number is not on screen yet; the machinery for it is.
  *
- * **A photograph is a property of the template, not of the layout.** Nine of
- * these reserve a frame and twenty-one do not, and that is copied from the
- * design each came from rather than derived from a rule — two templates share
- * `photo-sidebar` and disagree about it. `showsPhoto()` below is the single
+ * **A photograph is a property of the template, not of the layout.** Twenty-
+ * seven of these reserve a frame and thirty-three do not, and that is copied
+ * from the design each came from rather than derived from a rule — two
+ * templates share `photo-sidebar` and disagree about it. `showsPhoto()` below is the single
  * answer, and the frame it describes ships *empty*: it says "your photo goes
  * here", it fills when somebody drops a file on it, and it prints as nothing
  * if they never do. The résumé schema still holds no image, so a photograph
@@ -66,6 +65,18 @@ const SERIF = '"Times New Roman", Times, "Liberation Serif", serif';
  *   two-column body below, which is what the saved vertical space buys.
  * - `rule-split` — two columns divided by a hairline. No fill anywhere.
  * - `label-left` — section labels in a left gutter, one wide measure of text.
+ *
+ * And six more, for the same reason the first four were added and under the
+ * same rule: a layout earns a place by changing what the page *is*, not what
+ * colour it is. A recolour is a theme, and a theme is two fields.
+ *
+ * - `right-sidebar` — the narrow column on the right, so the name and the work
+ *   are read first. The mirror of `photo-sidebar`, and a different document.
+ * - `boxed` — every section in its own tinted panel.
+ * - `top-banner` — a deep colour block holding the name *and* the summary.
+ * - `rail-timeline` — the whole résumé hung off one full-width timeline.
+ * - `initial-block` — a square photo block top-left, beside the name.
+ * - `footer-band` — plain black-on-white name at the top, colour at the foot.
  */
 export type Layout =
   | "column"
@@ -75,7 +86,13 @@ export type Layout =
   | "photo-sidebar"
   | "header-photo"
   | "rule-split"
-  | "label-left";
+  | "label-left"
+  | "right-sidebar"
+  | "boxed"
+  | "top-banner"
+  | "rail-timeline"
+  | "initial-block"
+  | "footer-band";
 
 /** The blocks a resume is made of, in the order they can be arranged. */
 export type SectionKey =
@@ -136,6 +153,22 @@ export function sectionOrder(layout: Layout): { aside: SectionKey[]; main: Secti
     case "rule-split":
       return {
         aside: ["education", "skills", "certifications"],
+        main: ["summary", "experience", "projects", "achievements"],
+      };
+    case "right-sidebar":
+      // The one layout where the aside is read *second*, and the only reason
+      // this function takes a layout rather than a family: a right sidebar
+      // scores better than a left one for exactly this reason, and a scorer
+      // that lumped them together would be describing the wrong page.
+      return {
+        aside: ["skills", "education", "certifications"],
+        main: ["summary", "experience", "projects", "achievements"],
+      };
+    case "top-banner":
+    case "initial-block":
+    case "footer-band":
+      return {
+        aside: ["skills", "education", "certifications"],
         main: ["summary", "experience", "projects", "achievements"],
       };
     default:
@@ -203,6 +236,58 @@ export type Theme = {
   skillMeters?: boolean;
 };
 
+/**
+ * The audiences, closed.
+ *
+ * Sixteen, chosen to be the coarsest set that still tells somebody something —
+ * an engineer and a designer want different pages, an engineer and a developer
+ * do not. These are *categories*, deliberately, and they are what the gallery
+ * filter shows: a browse list wants to fit on a screen.
+ *
+ * Job titles are a separate vocabulary (`ROLE_TITLES` below) sitting on top of
+ * these, because the two lists answer different questions. Somebody browsing
+ * wants "Design"; somebody who typed "graphic-designer-resume-format" into a
+ * search box wants to land on a page that says Graphic Designer. Keeping one
+ * list would have meant either a filter panel of forty-five job titles or a
+ * set of landing pages nobody searches for.
+ */
+export type Role =
+  | "Any role"
+  | "Engineering"
+  | "Design"
+  | "Data"
+  | "Marketing"
+  | "Sales"
+  | "Finance"
+  | "Operations"
+  | "Management"
+  | "Student"
+  | "Healthcare"
+  | "Teaching"
+  | "Content"
+  | "Administration"
+  | "Hospitality"
+  | "Legal";
+
+export const ROLES: Role[] = [
+  "Any role",
+  "Engineering",
+  "Design",
+  "Data",
+  "Marketing",
+  "Sales",
+  "Finance",
+  "Operations",
+  "Management",
+  "Student",
+  "Healthcare",
+  "Teaching",
+  "Content",
+  "Administration",
+  "Hospitality",
+  "Legal",
+];
+
 export type Template = {
   id: string;
   /** What it is called under the card. Canva-shaped: colour, style, kind. */
@@ -226,8 +311,21 @@ export type Template = {
     | "Orange"
     | "Brown"
     | "Pink";
-  /** Who it suits. Free-form on purpose — this is the list that grows fastest. */
-  roles: string[];
+  /**
+   * Who it suits. A closed list, and it did not start that way.
+   *
+   * Free-form tags looked like the flexible choice and produced a filter panel
+   * with a long tail of ones: "Banking (1)", "Media (1)", "Graphic Design (1)",
+   * "Retail (1)". Every one of those is a dead end — a person ticks it, sees a
+   * single card, and learns the filter is not worth using. Worse, the tail was
+   * arbitrary: "Graphic Design" and "Design" were the same audience typed twice.
+   *
+   * So the vocabulary is fixed at `Role`, and the invariant is stated where a
+   * test can check it: **every role carries at least five templates.** Adding a
+   * template is still a row; adding a *category* is a deliberate act that has
+   * to be paid for with five designs.
+   */
+  roles: Role[];
 
   /**
    * Whether this design reserves a place for a portrait.
@@ -281,7 +379,7 @@ export const TEMPLATES: Template[] = [
     layout: "column",
     style: "Minimalist",
     colour: "Black",
-    roles: ["Academic", "Law", "Research", "Writing"],
+    roles: ["Teaching", "Legal", "Data", "Content"],
     theme: {
       font: SERIF,
       size: "10.5pt",
@@ -309,7 +407,7 @@ export const TEMPLATES: Template[] = [
     layout: "column",
     style: "Professional",
     colour: "Grey",
-    roles: ["Senior", "Management", "Operations"],
+    roles: ["Management", "Operations"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -336,7 +434,7 @@ export const TEMPLATES: Template[] = [
     layout: "band",
     style: "Corporate",
     colour: "Blue",
-    roles: ["Business", "Sales", "Finance", "Consulting"],
+    roles: ["Sales", "Finance", "Management"],
     theme: {
       font: SANS,
       size: "10pt",
@@ -366,7 +464,7 @@ export const TEMPLATES: Template[] = [
     layout: "band",
     style: "Professional",
     colour: "Maroon",
-    roles: ["Student", "Fresher", "Computer Science", "Internship"],
+    roles: ["Student", "Engineering"],
     theme: {
       font: SANS,
       size: "10pt",
@@ -397,7 +495,7 @@ export const TEMPLATES: Template[] = [
     layout: "sidebar",
     style: "Minimalist",
     colour: "Black",
-    roles: ["Design", "Marketing", "Product"],
+    roles: ["Design", "Marketing"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -428,7 +526,7 @@ export const TEMPLATES: Template[] = [
     layout: "sidebar",
     style: "Simple",
     colour: "Green",
-    roles: ["Student", "Fresher", "Administration", "Teaching"],
+    roles: ["Student", "Administration", "Teaching"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -458,7 +556,7 @@ export const TEMPLATES: Template[] = [
     layout: "sidebar",
     style: "Creative",
     colour: "Orange",
-    roles: ["Design", "Graphic Design", "Content", "Social Media"],
+    roles: ["Design", "Content", "Marketing"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -492,7 +590,7 @@ export const TEMPLATES: Template[] = [
     layout: "split",
     style: "Modern",
     colour: "Teal",
-    roles: ["Engineering", "Data", "Product", "Any role"],
+    roles: ["Engineering", "Data", "Design", "Any role"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -523,7 +621,7 @@ export const TEMPLATES: Template[] = [
     layout: "split",
     style: "Modern",
     colour: "Blue",
-    roles: ["Engineering", "Developer", "Computer Science", "Data"],
+    roles: ["Engineering", "Data"],
     theme: {
       font: SANS,
       size: "9.5pt",
@@ -578,7 +676,7 @@ export const TEMPLATES: Template[] = [
     layout: "photo-sidebar",
     style: "Modern",
     colour: "Black",
-    roles: ["Any role", "Management", "Consulting", "Operations"],
+    roles: ["Any role", "Management", "Operations"],
     photo: true,
     theme: {
       accent: "#26292e",
@@ -611,7 +709,7 @@ export const TEMPLATES: Template[] = [
     layout: "photo-sidebar",
     style: "Creative",
     colour: "Brown",
-    roles: ["Design", "Hospitality", "Fashion", "Content"],
+    roles: ["Design", "Hospitality", "Content"],
     photo: true,
     theme: {
       accent: "#7a5c3d",
@@ -630,7 +728,7 @@ export const TEMPLATES: Template[] = [
     layout: "photo-sidebar",
     style: "Professional",
     colour: "Blue",
-    roles: ["Business", "Finance", "Sales", "Banking"],
+    roles: ["Sales", "Finance"],
     photo: true,
     theme: {
       accent: "#1f3555",
@@ -647,7 +745,7 @@ export const TEMPLATES: Template[] = [
     layout: "photo-sidebar",
     style: "Creative",
     colour: "Purple",
-    roles: ["Design", "Social Media", "Events", "Content"],
+    roles: ["Design", "Marketing", "Content"],
     photo: true,
     theme: {
       accent: "#4a2340",
@@ -663,7 +761,7 @@ export const TEMPLATES: Template[] = [
     layout: "photo-sidebar",
     style: "Simple",
     colour: "Teal",
-    roles: ["Student", "Fresher", "Teaching", "Healthcare"],
+    roles: ["Student", "Teaching", "Healthcare"],
     // The reference for this one has no portrait — a pale column of contact
     // details and skills, and the name carrying the top of the page instead.
     photo: false,
@@ -684,7 +782,7 @@ export const TEMPLATES: Template[] = [
     layout: "header-photo",
     style: "Modern",
     colour: "Green",
-    roles: ["Engineering", "Product", "Operations", "Any role"],
+    roles: ["Engineering", "Design", "Operations", "Any role"],
     photo: true,
     theme: {
       accent: "#1f5c46",
@@ -699,7 +797,7 @@ export const TEMPLATES: Template[] = [
     layout: "header-photo",
     style: "Corporate",
     colour: "Grey",
-    roles: ["Management", "Consulting", "Finance", "Senior"],
+    roles: ["Management", "Finance"],
     photo: true,
     theme: {
       accent: "#3b3f46",
@@ -714,7 +812,7 @@ export const TEMPLATES: Template[] = [
     layout: "header-photo",
     style: "Creative",
     colour: "Orange",
-    roles: ["Design", "Marketing", "Media", "Content"],
+    roles: ["Design", "Marketing", "Content"],
     photo: true,
     theme: {
       accent: "#a8502e",
@@ -729,7 +827,7 @@ export const TEMPLATES: Template[] = [
     layout: "header-photo",
     style: "Simple",
     colour: "Blue",
-    roles: ["Student", "Fresher", "Internship", "Administration"],
+    roles: ["Student", "Administration"],
     // A name band rather than a portrait band: the reference fills the strip
     // with the name alone, which is why the band is shallower here.
     photo: false,
@@ -748,7 +846,7 @@ export const TEMPLATES: Template[] = [
     layout: "rule-split",
     style: "Minimalist",
     colour: "Black",
-    roles: ["Any role", "Writing", "Research", "Law"],
+    roles: ["Any role", "Content", "Data", "Legal"],
     photo: false,
     theme: { accent: "#1c1c1c" },
   },
@@ -759,7 +857,7 @@ export const TEMPLATES: Template[] = [
     layout: "rule-split",
     style: "Professional",
     colour: "Brown",
-    roles: ["Academic", "Law", "Hospitality", "Management"],
+    roles: ["Teaching", "Legal", "Hospitality", "Management"],
     photo: false,
     theme: { accent: "#6b5a42", wash: "#f2ece1" },
   },
@@ -781,7 +879,7 @@ export const TEMPLATES: Template[] = [
     layout: "rule-split",
     style: "Creative",
     colour: "Pink",
-    roles: ["Design", "Events", "Fashion", "Content"],
+    roles: ["Design", "Marketing", "Content"],
     photo: false,
     theme: { accent: "#6a4560", wash: "#f0e7ee" },
   },
@@ -792,7 +890,7 @@ export const TEMPLATES: Template[] = [
     layout: "rule-split",
     style: "Professional",
     colour: "Grey",
-    roles: ["Engineering", "Operations", "Senior", "Any role"],
+    roles: ["Engineering", "Operations", "Management", "Any role"],
     photo: false,
     theme: { accent: "#3a444f" },
   },
@@ -805,7 +903,7 @@ export const TEMPLATES: Template[] = [
     layout: "label-left",
     style: "Minimalist",
     colour: "Black",
-    roles: ["Any role", "Engineering", "Writing", "Research"],
+    roles: ["Any role", "Engineering", "Content", "Data"],
     photo: false,
     theme: { accent: "#1c1c1c" },
   },
@@ -816,7 +914,7 @@ export const TEMPLATES: Template[] = [
     layout: "label-left",
     style: "Minimalist",
     colour: "Grey",
-    roles: ["Any role", "Management", "Consulting"],
+    roles: ["Any role", "Management"],
     // The one design in this family that reserves a frame, and the reason
     // `photo` had to stop being a property of the layout.
     photo: true,
@@ -829,7 +927,7 @@ export const TEMPLATES: Template[] = [
     layout: "label-left",
     style: "Modern",
     colour: "Blue",
-    roles: ["Developer", "Data", "Product", "Engineering"],
+    roles: ["Engineering", "Data", "Design"],
     photo: false,
     theme: { accent: "#2f5bd6" },
   },
@@ -840,7 +938,7 @@ export const TEMPLATES: Template[] = [
     layout: "label-left",
     style: "Simple",
     colour: "Brown",
-    roles: ["Hospitality", "Retail", "Administration", "Student"],
+    roles: ["Hospitality", "Sales", "Administration", "Student"],
     photo: false,
     theme: { accent: "#8a6a45" },
   },
@@ -854,6 +952,430 @@ export const TEMPLATES: Template[] = [
     roles: ["Healthcare", "Teaching", "Operations", "Any role"],
     photo: false,
     theme: { accent: "#2f6b4f" },
+  },
+
+  /* ================================================= the second thirty ==
+   *
+   * Six more layouts, five templates each. The count is the point — somebody
+   * searching "data-analyst-resume-format" should land on a page with five or
+   * six designs on it, not one, and that arithmetic runs backwards into this
+   * list: sixteen categories times five is the floor, and a template can only
+   * honestly carry three or four categories.
+   *
+   * Every one of these differs from its neighbours in *both* structure and
+   * palette. Five recolours of one layout would have grown the number without
+   * growing the choice, which is the failure mode this whole file was
+   * rewritten to avoid.
+   */
+
+  {
+    id: "forest-right",
+    name: "Forest Green Right Column Resume",
+    layout: "right-sidebar",
+    style: "Professional",
+    colour: "Green",
+    roles: ["Engineering", "Operations", "Management", "Any role"],
+    photo: true,
+    theme: {
+      accent: "#1f4d38",
+      onAccent: "#ffffff",
+      wash: "#1f4d38",
+      asideMm: 64,
+      skillMeters: true,
+    },
+  },
+  {
+    id: "indigo-right",
+    name: "Indigo Right Sidebar CV",
+    layout: "right-sidebar",
+    style: "Modern",
+    colour: "Blue",
+    roles: ["Engineering", "Data", "Design", "Management"],
+    photo: true,
+    theme: {
+      accent: "#2b3a72",
+      onAccent: "#ffffff",
+      wash: "#2b3a72",
+      asideMm: 66,
+    },
+  },
+  {
+    id: "clay-right",
+    name: "Clay Neutral Right Column Resume",
+    layout: "right-sidebar",
+    style: "Simple",
+    colour: "Brown",
+    roles: ["Administration", "Hospitality", "Sales", "Student"],
+    photo: false,
+    theme: {
+      accent: "#7d5a3c",
+      wash: "#f1eae1",
+      asideText: "#5b452f",
+      asideHeading: "#7d5a3c",
+      asideMm: 64,
+    },
+  },
+  {
+    id: "charcoal-right",
+    name: "Charcoal Right Sidebar Professional CV",
+    layout: "right-sidebar",
+    style: "Corporate",
+    colour: "Black",
+    roles: ["Management", "Finance", "Operations", "Legal"],
+    photo: true,
+    theme: {
+      accent: "#23262b",
+      onAccent: "#ffffff",
+      wash: "#23262b",
+      asideMm: 62,
+      skillMeters: true,
+    },
+  },
+  {
+    id: "rose-right",
+    name: "Rose Right Column Creative Resume",
+    layout: "right-sidebar",
+    style: "Creative",
+    colour: "Pink",
+    roles: ["Design", "Content", "Marketing", "Hospitality"],
+    photo: false,
+    theme: {
+      accent: "#a1466a",
+      wash: "#f7e9ef",
+      asideText: "#5e3245",
+      asideHeading: "#a1466a",
+      asideMm: 64,
+    },
+  },
+  {
+    id: "steel-boxed",
+    name: "Grey Boxed Sections Resume",
+    layout: "boxed",
+    style: "Professional",
+    colour: "Grey",
+    roles: ["Any role", "Engineering", "Operations", "Administration"],
+    photo: false,
+    theme: {
+      accent: "#3f4650",
+      wash: "#f2f3f5",
+    },
+  },
+  {
+    id: "mint-boxed",
+    name: "Mint Green Boxed Resume",
+    layout: "boxed",
+    style: "Modern",
+    colour: "Green",
+    roles: ["Healthcare", "Teaching", "Student", "Administration"],
+    photo: false,
+    theme: {
+      accent: "#2b6a55",
+      wash: "#eaf4f0",
+    },
+  },
+  {
+    id: "sand-boxed",
+    name: "Sand Boxed Classic CV",
+    layout: "boxed",
+    style: "Simple",
+    colour: "Brown",
+    roles: ["Hospitality", "Sales", "Content", "Any role"],
+    photo: false,
+    theme: {
+      accent: "#7a6142",
+      wash: "#f5f0e7",
+    },
+  },
+  {
+    id: "sky-boxed",
+    name: "Sky Blue Boxed Resume",
+    layout: "boxed",
+    style: "Modern",
+    colour: "Blue",
+    roles: ["Data", "Engineering", "Finance", "Student"],
+    photo: false,
+    theme: {
+      accent: "#2a6291",
+      wash: "#eaf2f9",
+    },
+  },
+  {
+    id: "lilac-boxed",
+    name: "Lilac Boxed Creative CV",
+    layout: "boxed",
+    style: "Creative",
+    colour: "Purple",
+    roles: ["Design", "Marketing", "Content", "Legal"],
+    photo: false,
+    theme: {
+      accent: "#5b4a86",
+      wash: "#f1eefa",
+    },
+  },
+  {
+    id: "midnight-banner",
+    name: "Midnight Banner Executive Resume",
+    layout: "top-banner",
+    style: "Corporate",
+    colour: "Black",
+    roles: ["Management", "Finance", "Sales", "Legal"],
+    photo: true,
+    theme: {
+      accent: "#1a1f2b",
+      onAccent: "#ffffff",
+      bandMm: 74,
+    },
+  },
+  {
+    id: "teal-banner",
+    name: "Teal Banner Modern CV",
+    layout: "top-banner",
+    style: "Modern",
+    colour: "Teal",
+    roles: ["Engineering", "Data", "Design", "Any role"],
+    photo: true,
+    theme: {
+      accent: "#146a68",
+      onAccent: "#ffffff",
+      bandMm: 72,
+    },
+  },
+  {
+    id: "crimson-banner",
+    name: "Crimson Banner Professional Resume",
+    layout: "top-banner",
+    style: "Professional",
+    colour: "Maroon",
+    roles: ["Marketing", "Sales", "Content", "Management"],
+    photo: false,
+    theme: {
+      accent: "#7a1f38",
+      onAccent: "#ffffff",
+      bandMm: 68,
+    },
+  },
+  {
+    id: "forest-banner",
+    name: "Forest Banner Graduate CV",
+    layout: "top-banner",
+    style: "Simple",
+    colour: "Green",
+    roles: ["Student", "Teaching", "Healthcare", "Administration"],
+    photo: true,
+    theme: {
+      accent: "#245c40",
+      onAccent: "#ffffff",
+      bandMm: 72,
+    },
+  },
+  {
+    id: "violet-banner",
+    name: "Violet Banner Creative Resume",
+    layout: "top-banner",
+    style: "Creative",
+    colour: "Purple",
+    roles: ["Design", "Content", "Marketing", "Hospitality"],
+    photo: false,
+    theme: {
+      accent: "#4a3573",
+      onAccent: "#ffffff",
+      bandMm: 70,
+    },
+  },
+  {
+    id: "mono-rail",
+    name: "Black and White Timeline Resume",
+    layout: "rail-timeline",
+    style: "Minimalist",
+    colour: "Black",
+    roles: ["Any role", "Engineering", "Legal", "Content"],
+    photo: false,
+    theme: {
+      accent: "#1c1c1c",
+    },
+  },
+  {
+    id: "azure-rail",
+    name: "Azure Timeline Developer CV",
+    layout: "rail-timeline",
+    style: "Modern",
+    colour: "Blue",
+    roles: ["Engineering", "Data", "Design", "Student"],
+    photo: false,
+    theme: {
+      accent: "#1f5fa8",
+    },
+  },
+  {
+    id: "olive-rail",
+    name: "Olive Timeline Professional Resume",
+    layout: "rail-timeline",
+    style: "Professional",
+    colour: "Green",
+    roles: ["Operations", "Management", "Administration", "Healthcare"],
+    photo: false,
+    theme: {
+      accent: "#556134",
+    },
+  },
+  {
+    id: "copper-rail",
+    name: "Copper Timeline Creative CV",
+    layout: "rail-timeline",
+    style: "Creative",
+    colour: "Orange",
+    roles: ["Design", "Marketing", "Hospitality", "Content"],
+    photo: true,
+    theme: {
+      accent: "#9c5426",
+    },
+  },
+  {
+    id: "plum-rail",
+    name: "Plum Timeline Career CV",
+    layout: "rail-timeline",
+    style: "Modern",
+    colour: "Purple",
+    roles: ["Teaching", "Student", "Healthcare", "Any role"],
+    photo: false,
+    theme: {
+      accent: "#59315c",
+    },
+  },
+  {
+    id: "slate-initial",
+    name: "Slate Photo Block Minimal Resume",
+    layout: "initial-block",
+    style: "Minimalist",
+    colour: "Grey",
+    roles: ["Any role", "Management", "Legal", "Finance"],
+    photo: true,
+    theme: {
+      accent: "#3a4048",
+      onAccent: "#ffffff",
+    },
+  },
+  {
+    id: "navy-initial",
+    name: "Navy Photo Block Professional CV",
+    layout: "initial-block",
+    style: "Professional",
+    colour: "Blue",
+    roles: ["Finance", "Sales", "Data", "Management"],
+    photo: true,
+    theme: {
+      accent: "#1d3a63",
+      onAccent: "#ffffff",
+    },
+  },
+  {
+    id: "emerald-initial",
+    name: "Emerald Photo Block Modern Resume",
+    layout: "initial-block",
+    style: "Modern",
+    colour: "Green",
+    roles: ["Healthcare", "Teaching", "Operations", "Student"],
+    photo: true,
+    theme: {
+      accent: "#1f6b4f",
+      onAccent: "#ffffff",
+    },
+  },
+  {
+    id: "burgundy-initial",
+    name: "Burgundy Photo Block Classic CV",
+    layout: "initial-block",
+    style: "Corporate",
+    colour: "Maroon",
+    roles: ["Legal", "Finance", "Administration", "Management"],
+    photo: true,
+    theme: {
+      accent: "#6b1f33",
+      onAccent: "#ffffff",
+    },
+  },
+  {
+    id: "amber-initial",
+    name: "Amber Photo Block Creative Resume",
+    layout: "initial-block",
+    style: "Creative",
+    colour: "Orange",
+    roles: ["Design", "Content", "Marketing", "Hospitality"],
+    photo: true,
+    theme: {
+      accent: "#a35d15",
+      onAccent: "#ffffff",
+    },
+  },
+  {
+    id: "ink-footer",
+    name: "Black Footer Band ATS Resume",
+    layout: "footer-band",
+    style: "Simple",
+    colour: "Black",
+    roles: ["Any role", "Engineering", "Data", "Student"],
+    photo: false,
+    theme: {
+      accent: "#141414",
+      onAccent: "#ffffff",
+      bandMm: 26,
+    },
+  },
+  {
+    id: "ocean-footer",
+    name: "Ocean Footer Band Resume",
+    layout: "footer-band",
+    style: "Professional",
+    colour: "Blue",
+    roles: ["Finance", "Operations", "Sales", "Administration"],
+    photo: false,
+    theme: {
+      accent: "#17527a",
+      onAccent: "#ffffff",
+      bandMm: 26,
+    },
+  },
+  {
+    id: "moss-footer",
+    name: "Moss Footer Band Simple CV",
+    layout: "footer-band",
+    style: "Simple",
+    colour: "Green",
+    roles: ["Teaching", "Healthcare", "Student", "Administration"],
+    photo: false,
+    theme: {
+      accent: "#3d5c3a",
+      onAccent: "#ffffff",
+      bandMm: 26,
+    },
+  },
+  {
+    id: "rust-footer",
+    name: "Rust Footer Band Creative Resume",
+    layout: "footer-band",
+    style: "Creative",
+    colour: "Orange",
+    roles: ["Design", "Marketing", "Content", "Hospitality"],
+    photo: true,
+    theme: {
+      accent: "#96431f",
+      onAccent: "#ffffff",
+      bandMm: 28,
+    },
+  },
+  {
+    id: "grape-footer",
+    name: "Grape Footer Band Modern CV",
+    layout: "footer-band",
+    style: "Modern",
+    colour: "Purple",
+    roles: ["Marketing", "Sales", "Legal", "Any role"],
+    photo: false,
+    theme: {
+      accent: "#4d2a63",
+      onAccent: "#ffffff",
+      bandMm: 26,
+    },
   },
 ];
 
@@ -884,6 +1406,13 @@ const LAYOUT_TAKES_PHOTO: Record<Layout, boolean> = {
   "header-photo": true,
   "rule-split": false,
   "label-left": false,
+  "right-sidebar": true,
+  boxed: false,
+  "top-banner": true,
+  "rail-timeline": false,
+  // Its block holds a photograph; a template that opts out gets the monogram.
+  "initial-block": true,
+  "footer-band": false,
 };
 
 export function showsPhoto(t: Template): boolean {
@@ -896,6 +1425,95 @@ export function templateById(id: string | null | undefined): Template {
 
 export function isTemplateId(id: unknown): id is string {
   return typeof id === "string" && TEMPLATES.some((t) => t.id === id);
+}
+
+
+/* ----------------------------------------------------------- job titles */
+
+/**
+ * The job titles people actually type, each pointing at a category.
+ *
+ * This exists because of one observation about how the traffic arrives: nobody
+ * searches "design resume". They search **"graphic-designer-resume-format"** —
+ * a job title, hyphenated, with "resume format" on the end. A gallery filtered
+ * by "Design" is the right thing to browse and the wrong thing to land on.
+ *
+ * ------------------------------------------------------- why not tag directly
+ *
+ * The obvious shape is a `titles` array on every template, and it is a trap.
+ * Forty-five titles across sixty templates is two-hundred-odd hand-written
+ * assignments, and the moment one of them is missed a landing page renders
+ * with three designs on it — which is worse than not having the page, because
+ * a thin page ranks once, disappoints, and does not rank again.
+ *
+ * Deriving instead makes the count structural: a title shows every template in
+ * its category, so "Data Analyst" is as well stocked as "Data" is, and the
+ * five-per-role invariant above covers all forty-five pages at once. Nothing
+ * to keep in sync, and nothing to forget.
+ *
+ * Two titles sharing a category show the same designs, and that is correct
+ * rather than a shortcut: a data analyst and a business analyst want the same
+ * page with a different word at the top of it.
+ */
+export type RoleTitle = { slug: string; title: string; role: Role };
+
+export const ROLE_TITLES: RoleTitle[] = [
+  { slug: "data-analyst", title: "Data Analyst", role: "Data" },
+  { slug: "data-scientist", title: "Data Scientist", role: "Data" },
+  { slug: "business-analyst", title: "Business Analyst", role: "Data" },
+  { slug: "mis-executive", title: "MIS Executive", role: "Data" },
+  { slug: "software-engineer", title: "Software Engineer", role: "Engineering" },
+  { slug: "full-stack-developer", title: "Full Stack Developer", role: "Engineering" },
+  { slug: "civil-engineer", title: "Civil Engineer", role: "Engineering" },
+  { slug: "mechanical-engineer", title: "Mechanical Engineer", role: "Engineering" },
+  { slug: "qa-engineer", title: "QA Engineer", role: "Engineering" },
+  { slug: "graphic-designer", title: "Graphic Designer", role: "Design" },
+  { slug: "ui-ux-designer", title: "UI UX Designer", role: "Design" },
+  { slug: "product-designer", title: "Product Designer", role: "Design" },
+  { slug: "digital-marketing-executive", title: "Digital Marketing Executive", role: "Marketing" },
+  { slug: "marketing-manager", title: "Marketing Manager", role: "Marketing" },
+  { slug: "seo-executive", title: "SEO Executive", role: "Marketing" },
+  { slug: "social-media-manager", title: "Social Media Manager", role: "Marketing" },
+  { slug: "sales-executive", title: "Sales Executive", role: "Sales" },
+  { slug: "business-development-manager", title: "Business Development Manager", role: "Sales" },
+  { slug: "accountant", title: "Accountant", role: "Finance" },
+  { slug: "financial-analyst", title: "Financial Analyst", role: "Finance" },
+  { slug: "chartered-accountant", title: "Chartered Accountant", role: "Finance" },
+  { slug: "operations-manager", title: "Operations Manager", role: "Operations" },
+  { slug: "supply-chain-executive", title: "Supply Chain Executive", role: "Operations" },
+  { slug: "project-manager", title: "Project Manager", role: "Management" },
+  { slug: "product-manager", title: "Product Manager", role: "Management" },
+  { slug: "team-lead", title: "Team Lead", role: "Management" },
+  { slug: "fresher", title: "Fresher", role: "Student" },
+  { slug: "mba", title: "MBA", role: "Student" },
+  { slug: "btech-student", title: "B.Tech Student", role: "Student" },
+  { slug: "internship", title: "Internship", role: "Student" },
+  { slug: "nurse", title: "Nurse", role: "Healthcare" },
+  { slug: "medical-representative", title: "Medical Representative", role: "Healthcare" },
+  { slug: "teacher", title: "Teacher", role: "Teaching" },
+  { slug: "assistant-professor", title: "Assistant Professor", role: "Teaching" },
+  { slug: "content-writer", title: "Content Writer", role: "Content" },
+  { slug: "technical-writer", title: "Technical Writer", role: "Content" },
+  { slug: "hr-executive", title: "HR Executive", role: "Administration" },
+  { slug: "hr-manager", title: "HR Manager", role: "Administration" },
+  { slug: "office-administrator", title: "Office Administrator", role: "Administration" },
+  { slug: "receptionist", title: "Receptionist", role: "Administration" },
+  { slug: "hotel-management", title: "Hotel Management", role: "Hospitality" },
+  { slug: "chef", title: "Chef", role: "Hospitality" },
+  { slug: "lawyer", title: "Lawyer", role: "Legal" },
+  { slug: "legal-associate", title: "Legal Associate", role: "Legal" },
+  { slug: "experienced-professional", title: "Experienced Professional", role: "Any role" },
+];
+
+export function roleTitleBySlug(slug: string): RoleTitle | undefined {
+  return ROLE_TITLES.find((t) => t.slug === slug);
+}
+
+/** Every template suited to a job title — that is, to the category behind it. */
+export function templatesForTitle(slug: string): Template[] {
+  const entry = roleTitleBySlug(slug);
+  if (!entry) return [];
+  return TEMPLATES.filter((t) => t.roles.includes(entry.role));
 }
 
 /* --------------------------------------------------------------- filters */
@@ -928,6 +1546,12 @@ export const LAYOUT_NAMES: Record<Layout, string> = {
   "header-photo": "Photo header",
   "rule-split": "Divided column",
   "label-left": "Side labels",
+  "right-sidebar": "Right sidebar",
+  boxed: "Boxed sections",
+  "top-banner": "Top banner",
+  "rail-timeline": "Timeline",
+  "initial-block": "Photo block",
+  "footer-band": "Footer band",
 };
 
 export const FACETS = {

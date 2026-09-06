@@ -833,10 +833,19 @@ const FURNITURE = 9;
  *    text. Asking the narrower question — did I do this? — cannot make that
  *    mistake, because a label whose body was never dropped is never touched.
  *
- * Both passes are keyed off height rather than off a `role` field the model
- * does not have. `h` is an estimate, so this is approximate — and approximate
- * in the safe direction, since the cost of trimming one block too many is a
- * slightly shorter card and the cost of trimming one too few is a card that
+ * 3. **Drop the panel it emptied.** The `boxed` templates draw a tinted
+ *    rectangle behind each section, and a rectangle survives pass one on its
+ *    own merits — it is a shape with a height, and nothing about it says what
+ *    it was drawn for. On a full-length résumé the last panel kept its tint
+ *    and lost its words, so the card ended with a large empty coloured box:
+ *    the one thing on the page that looks like a bug rather than an edge. So
+ *    a panel that ends up containing no text goes with the text it framed.
+ *
+ * All three passes are keyed off geometry rather than off a `role` field the
+ * model does not have. `h` is an estimate, so this is approximate — and
+ * approximate in the safe direction, since the cost of trimming one block too
+ * many is a slightly shorter card and the cost of trimming one too few is a
+ * card that
  * looks broken.
  */
 const SAME_COLUMN = 12;
@@ -856,5 +865,22 @@ function trimToPage(elements: Element[]): Element[] {
     return body !== undefined && !fits(body);
   };
 
-  return elements.filter((el, i) => fits(el) && !orphaned(el, i));
+  const kept = elements.filter((el, i) => fits(el) && !orphaned(el, i));
+
+  // A panel with nothing left inside it. Text only — a panel whose only
+  // remaining occupant is the rule under its own heading is still empty.
+  const holdsText = (box: Element) =>
+    kept.some(
+      (el) =>
+        el !== box &&
+        el.type === "text" &&
+        el.x >= box.x - 1 &&
+        el.x <= box.x + box.w + 1 &&
+        el.y >= box.y - 1 &&
+        el.y <= box.y + box.h + 1,
+    );
+
+  return kept.filter(
+    (el) => el.type !== "shape" || fullBleed(el) || el.h < FURNITURE || holdsText(el),
+  );
 }

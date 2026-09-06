@@ -459,6 +459,28 @@ function photoFrame(x: number, y: number, size: number, shapeKind: "circle" | "r
   return image({ x, y, w: size, h: size, shape: shapeKind, radius: shapeKind === "rect" ? 3 : 0 });
 }
 
+/**
+ * Break a column above a hard limit, and carry the rest to the next sheet.
+ *
+ * `seedDesign` splits on the page edge and cannot do better, because it sees a
+ * flat list of boxes and has no idea which of them belong to the same column
+ * (see the note there). A layout does know, so a layout that has furniture at
+ * the foot of the page can do the thing the general case cannot: find the
+ * first block that would collide, and move it *and everything after it in this
+ * column* down by one sheet, landing at the top margin rather than at whatever
+ * negative offset the arithmetic would otherwise produce.
+ *
+ * That is a real page break — the run keeps its internal spacing and its
+ * order, and the gap it leaves above the band reads as a page ending rather
+ * than as text disappearing under a colour block.
+ */
+function breakAbove(els: Element[], limit: number, topMargin = M): Element[] {
+  const at = els.findIndex((el) => el.y + el.h > limit);
+  if (at < 0) return els;
+  const delta = A4.h + topMargin - els[at].y;
+  return els.map((el, i) => (i < at ? el : { ...el, y: el.y + delta }));
+}
+
 function columnLayout(c: Resume, t: Template, centred: boolean): Element[] {
   const ink: Ink = {
     heading: t.theme.accent ?? "#000",
@@ -987,6 +1009,330 @@ function labelLeftLayout(c: Resume, t: Template): Element[] {
   return out;
 }
 
+/* ------------------------------------------------- the second six layouts */
+
+/**
+ * The sidebar, on the other side.
+ *
+ * Not a trick to pad the list. A résumé is read left to right, so which side
+ * the narrow column sits on decides what somebody sees *first* — a right
+ * sidebar leads with the name and the work and puts skills and dates second,
+ * which is the opposite emphasis to `photo-sidebar` and the one most hiring
+ * managers say they prefer. `sectionOrder` records the difference so the ATS
+ * score follows the page rather than the family.
+ */
+function rightSidebarLayout(c: Resume, t: Template): Element[] {
+  const wash = t.theme.wash ?? "#eef1f4";
+  const asideText = t.theme.asideText ?? t.theme.onAccent ?? "#ffffff";
+  const asideHeading = t.theme.asideHeading ?? asideText;
+  const accent = t.theme.accent ?? "#1c1c1c";
+  const asideW = t.theme.asideMm ?? 64;
+  const asideX = A4.w - asideW;
+  const photo = showsPhoto(t) ? Math.min(34, asideW - 18) : 0;
+
+  const out: Element[] = [shape({ x: asideX, y: 0, w: asideW, h: A4.h, fill: wash })];
+  if (photo) out.push(photoFrame(asideX + asideW / 2 - photo / 2, 16, photo));
+
+  const aside = new Column(asideX + 10, photo ? 16 + photo + 9 : 18, asideW - 20);
+  const asideInk: Ink = { heading: asideHeading, body: asideText, muted: asideText, rule: asideText };
+  aside.text("Contact", { size: 10.5, bold: true, color: asideHeading, lineHeight: 1.2 });
+  aside.rule(asideText, { gap: 1.4 });
+  iconContact(aside, c, asideInk);
+  if (c.skills.length) {
+    aside.text("Skills", { gap: 6, size: 10.5, bold: true, color: asideHeading, lineHeight: 1.2 });
+    aside.rule(asideText, { gap: 1.4 });
+    if (t.theme.skillMeters) skillMeters(aside, c.skills, asideInk, asideHeading);
+    else aside.text(c.skills.join("\n"), { gap: 2.4, size: 9, color: asideText, lineHeight: 1.55 });
+  }
+  for (const key of ["education", "certifications"]) sectionInto(aside, key, c, asideInk, { stackContact: true });
+  for (const el of aside.out) if (el.type === "line") el.opacity = 0.45;
+  out.push(...aside.out);
+
+  const main = new Column(M, 18, asideX - M - 12);
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  main.text(c.full_name ?? "Your name", { size: 24, bold: true, color: accent, lineHeight: 1.1 });
+  main.text(c.headline ?? "", { gap: 1.4, size: 11.5, color: ink.muted, lineHeight: 1.3 });
+  main.rule(ink.rule, { gap: 3.4 });
+  for (const key of ["summary", "experience", "projects", "achievements"]) sectionInto(main, key, c, ink, {});
+  out.push(...main.out);
+  return out;
+}
+
+/**
+ * Every section in its own tinted box.
+ *
+ * The one shape in the set with no shared vertical rhythm: each block is a
+ * panel with its own edge, so the page reads as a set of cards rather than as
+ * a run of text. It costs the most vertical space of any layout here — a
+ * panel needs padding above and below the words — and buys the clearest
+ * scanning, which is the trade a person picking this one is making.
+ *
+ * The panel is drawn after its contents, for the same reason the timeline rail
+ * is: the height is only known once the words are laid out.
+ */
+function boxedLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  const wash = t.theme.wash ?? "#f4f5f7";
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const out: Element[] = [];
+  const photo = showsPhoto(t) ? 26 : 0;
+
+  const headX = photo ? M + photo + 8 : M;
+  const head = new Column(headX, 16, A4.w - headX - M);
+  head.text(c.full_name ?? "Your name", { size: 22, bold: true, color: accent, lineHeight: 1.12 });
+  head.text(c.headline ?? "", { gap: 1.2, size: 11, color: ink.muted });
+  head.text(contactLine(c), { gap: 1.6, size: 8.6, color: ink.muted });
+  if (photo) out.push(photoFrame(M, 16, photo));
+  out.push(...head.out);
+
+  let y = Math.max(head.bottom, 16 + photo) + 8;
+  const PAD = 4.5;
+
+  const panel = (label: string, run: (col: Column) => void) => {
+    const body = new Column(M + PAD, y + PAD + 6.5, A4.w - M * 2 - PAD * 2);
+    run(body);
+    if (!body.out.length) return;
+    const h = body.bottom - y + PAD;
+    out.push(shape({ x: M, y, w: A4.w - M * 2, h, fill: wash, radius: 2 }));
+    out.push(
+      text({ text: label.toUpperCase(), x: M + PAD, y: y + PAD, w: 80, h: 5,
+        size: 8.5, bold: true, letterSpacing: 0.1, color: accent, lineHeight: 1.2 }),
+    );
+    out.push(...body.out);
+    y += h + 4;
+  };
+
+  panel("Profile", (col) => { col.text(c.summary ?? "", { size: 9.4, color: ink.body, lineHeight: 1.45 }); });
+  panel("Experience", (col) => entries(col, roleBlocks(c), ink));
+  panel("Projects", (col) => entries(col, projectBlocks(c), ink));
+  panel("Education", (col) => {
+    for (const e of educationBlocks(c)) {
+      col.text(e.head, { gap: 2.4, size: 10, bold: true, color: ink.body, lineHeight: 1.25 });
+      col.text(e.dates, { gap: 0.5, size: 8.5, color: ink.muted });
+    }
+  });
+  panel("Skills", (col) => { col.text(c.skills.join(" · "), { size: 9.4, color: ink.body, lineHeight: 1.5 }); });
+  panel("Certifications", (col) => { col.text(c.certifications.join("\n"), { size: 9.4, color: ink.body, list: "bullet", lineHeight: 1.45 }); });
+  panel("Achievements", (col) => { col.text(c.achievements.join("\n"), { size: 9.4, color: ink.body, list: "bullet", lineHeight: 1.45 }); });
+  return out;
+}
+
+/**
+ * A deep colour block at the top, carrying the name and the summary.
+ *
+ * `band` puts the contact line in the block; this puts the whole opening
+ * paragraph there, which is a different document: the first thing read is the
+ * pitch rather than the phone number. That only works if the block is deep
+ * enough to hold four lines of text, hence the larger default.
+ */
+function topBannerLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#22303c";
+  const onAccent = t.theme.onAccent ?? "#ffffff";
+  const bandH = t.theme.bandMm ?? 72;
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const photo = showsPhoto(t) ? Math.min(38, bandH - 20) : 0;
+
+  const out: Element[] = [shape({ x: 0, y: 0, w: A4.w, h: bandH, fill: accent })];
+  if (photo) out.push(photoFrame(A4.w - M - photo, (bandH - photo) / 2, photo));
+
+  const headW = A4.w - M * 2 - (photo ? photo + 10 : 0);
+  const head = new Column(M, 14, headW);
+  head.text(c.full_name ?? "Your name", { size: 25, bold: true, color: onAccent, lineHeight: 1.08 });
+  head.text(c.headline ?? "", { gap: 1.2, size: 11.5, color: onAccent, opacity: 0.85 });
+  head.text(c.summary ?? "", { gap: 2.6, size: 9, color: onAccent, opacity: 0.9, lineHeight: 1.45 });
+  head.text(contactLine(c), { gap: 2.4, size: 8.4, color: onAccent, opacity: 0.8 });
+  out.push(...head.out);
+
+  const asideW = 58;
+  const aside = new Column(M, bandH + 12, asideW);
+  const asideInk: Ink = { ...ink, rule: "#e2e2e2" };
+  for (const key of ["skills", "education", "certifications"]) sectionInto(aside, key, c, asideInk, {});
+  out.push(...aside.out);
+
+  const mainX = M + asideW + 12;
+  const main = new Column(mainX, bandH + 12, A4.w - mainX - M);
+  for (const key of ["experience", "projects", "achievements"]) sectionInto(main, key, c, ink, {});
+  out.push(...main.out);
+  return out;
+}
+
+/**
+ * The whole document hung off one rail.
+ *
+ * `header-photo` uses a timeline for two sections inside a narrow column; this
+ * gives the rail the full measure and runs every dated section down it, so the
+ * page reads as one chronology rather than as a set of lists. Undated sections
+ * — skills, certifications — sit below it, off the rail, because putting an
+ * undated thing on a timeline is a claim the résumé does not make.
+ */
+function railTimelineLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const out: Element[] = [];
+  const photo = showsPhoto(t) ? 28 : 0;
+
+  const headX = photo ? M + photo + 9 : M;
+  const head = new Column(headX, 16, A4.w - headX - M);
+  head.text(c.full_name ?? "Your name", { size: 24, bold: true, color: accent, lineHeight: 1.1 });
+  head.text(c.headline ?? "", { gap: 1.2, size: 11.5, color: ink.muted });
+  head.text(contactLine(c), { gap: 1.8, size: 8.6, color: ink.muted });
+  if (photo) out.push(photoFrame(M, 16, photo));
+  out.push(...head.out);
+
+  const col = new Column(M, Math.max(head.bottom, 16 + photo) + 8, A4.w - M * 2);
+  col.text(c.summary ?? "", { size: 9.6, color: ink.body, lineHeight: 1.5 });
+
+  iconHeading(col, "Experience", "briefcase", ink);
+  timelineEntries(col, roleBlocks(c), ink, accent);
+  const projects = projectBlocks(c);
+  if (projects.length) {
+    iconHeading(col, "Projects", "star", ink);
+    timelineEntries(col, projects, ink, accent);
+  }
+  iconHeading(col, "Education", "cap", ink);
+  timelineEntries(col, educationBlocks(c).map((e) => ({ ...e, bullets: "" })), ink, accent);
+
+  if (c.skills.length) {
+    iconHeading(col, "Skills", "skills", ink);
+    col.text(c.skills.join(" · "), { gap: 1.6, size: 9.4, color: ink.body, lineHeight: 1.5 });
+  }
+  if (c.certifications.length) {
+    iconHeading(col, "Certifications", "award", ink);
+    col.text(c.certifications.join("\n"), { gap: 1.6, size: 9.4, color: ink.body, list: "bullet", lineHeight: 1.45 });
+  }
+  out.push(...col.out);
+  return out;
+}
+
+/**
+ * A block of colour with the person's initials in it, top left.
+ *
+ * The one design here that needs no photograph and does not look like it is
+ * missing one — which is the point of keeping it. Plenty of people do not want
+ * a face on their résumé and every other bold design in the set is built
+ * around one; this gives them the same weight at the top of the page without
+ * it. The initials come from the name, so it is never empty and never someone
+ * else's picture.
+ */
+function initialBlockLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  const onAccent = t.theme.onAccent ?? "#ffffff";
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const box = 34;
+  const out: Element[] = [];
+
+  /**
+   * A face in the block, not two letters.
+   *
+   * This layout shipped with initials in the block and the reasoning was that
+   * a monogram can never be empty and can never be a picture of somebody else.
+   * Both of those are true and neither is what a person wants when they look
+   * at the card: a résumé with "AR" where the photograph goes reads as a
+   * profile that failed to load its picture, not as a design choice. Nobody
+   * puts their initials on a CV.
+   *
+   * So a template on this layout normally reserves a frame, and the initials
+   * are what it draws when one deliberately does not — `showsPhoto` decides,
+   * per template, as everywhere else. They cannot be stacked: an empty frame
+   * paints its own "drop a photo here" placeholder, which would cover a
+   * monogram sitting behind it, so this is a choice rather than a fallback.
+   */
+  if (showsPhoto(t)) {
+    out.push(photoFrame(M, 16, box, "rect"));
+  } else {
+    out.push(shape({ x: M, y: 16, w: box, h: box, fill: accent, radius: 2 }));
+    const initials = (c.full_name ?? "Your name")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+    out.push(
+      text({ text: initials || "CV", x: M, y: 16 + box / 2 - 8, w: box, h: 16,
+        size: 20, bold: true, align: "center", color: onAccent, lineHeight: 1.1 }),
+    );
+  }
+
+  const headX = M + box + 10;
+  const head = new Column(headX, 18, A4.w - headX - M);
+  head.text(c.full_name ?? "Your name", { size: 23, bold: true, color: accent, lineHeight: 1.1 });
+  head.text(c.headline ?? "", { gap: 1.2, size: 11, color: ink.muted });
+  head.text(contactLine(c), { gap: 1.8, size: 8.6, color: ink.muted });
+  out.push(...head.out);
+
+  const top = Math.max(head.bottom, 16 + box) + 10;
+  const asideW = 56;
+  const aside = new Column(M, top, asideW);
+  for (const key of ["skills", "certifications", "education"]) sectionInto(aside, key, c, ink, {});
+  out.push(...aside.out);
+
+  const mainX = M + asideW + 12;
+  const main = new Column(mainX, top, A4.w - mainX - M);
+  for (const key of ["summary", "experience", "projects", "achievements"]) sectionInto(main, key, c, ink, {});
+  out.push(...main.out);
+  return out;
+}
+
+/**
+ * Clean at the top, a band of colour along the foot.
+ *
+ * Unusual, and worth having for a reason that is not novelty: it is the only
+ * design here that gives the *first* line of the page to the name in plain
+ * black on white, which is what an applicant tracking system parses best,
+ * while still being a coloured template somebody would choose from a gallery.
+ * The band carries the contact details, so the colour has a job rather than
+ * being decoration at the bottom of the sheet.
+ */
+function footerBandLayout(c: Resume, t: Template): Element[] {
+  const accent = t.theme.accent ?? "#1c1c1c";
+  const onAccent = t.theme.onAccent ?? "#ffffff";
+  const ink: Ink = { heading: accent, body: "#1c1c1c", muted: "#6b6b6b", rule: "#dcdcdc" };
+  const bandH = t.theme.bandMm ?? 26;
+  const bandY = A4.h - bandH;
+  const out: Element[] = [shape({ x: 0, y: bandY, w: A4.w, h: bandH, fill: accent })];
+
+  const photo = showsPhoto(t) ? 26 : 0;
+  const headX = photo ? M + photo + 9 : M;
+  if (photo) out.push(photoFrame(M, 16, photo));
+
+  const head = new Column(headX, 17, A4.w - headX - M);
+  head.text(c.full_name ?? "Your name", {
+    size: 24, bold: true, caps: true, letterSpacing: 0.03, color: "#111111", lineHeight: 1.1,
+  });
+  head.text(c.headline ?? "", { gap: 1.4, size: 11.5, color: accent });
+  out.push(...head.out);
+  out.push(line({ x: M, y: Math.max(head.bottom, 16 + photo) + 4, w: A4.w - M * 2, h: 0.6, stroke: accent, strokeWidth: 0.6 }));
+
+  const top = Math.max(head.bottom, 16 + photo) + 12;
+  const asideW = 56;
+  const aside = new Column(M, top, asideW);
+  for (const key of ["skills", "education", "certifications"]) sectionInto(aside, key, c, ink, {});
+
+  const mainX = M + asideW + 12;
+  const main = new Column(mainX, top, A4.w - mainX - M);
+  for (const key of ["summary", "experience", "projects", "achievements"]) sectionInto(main, key, c, ink, {});
+
+  /**
+   * Both columns stop above the band.
+   *
+   * Without this the long column simply ran on and the band, drawn last,
+   * painted over the end of it — two lines of somebody's last project sitting
+   * *underneath* a block of colour, still there, no longer readable. Clipping
+   * at a page edge is at least legible as an edge; this looked like the
+   * renderer had lost the text. Per column, because the narrow one usually
+   * fits and should not be broken just because the wide one did not.
+   */
+  const limit = bandY - 6;
+  out.push(...breakAbove(aside.out, limit), ...breakAbove(main.out, limit));
+
+  // The contact details live in the band, spread across it.
+  out.push(
+    text({ text: contactLine(c), x: M, y: bandY + bandH / 2 - 3, w: A4.w - M * 2, h: 6,
+      size: 8.8, align: "center", color: onAccent, lineHeight: 1.3 }),
+  );
+  return out;
+}
+
 /* ------------------------------------------------------------ the mapping */
 
 /**
@@ -1009,4 +1355,10 @@ const LAYOUTS: Record<Layout, (c: Resume, t: Template) => Element[]> = {
   "header-photo": headerPhotoLayout,
   "rule-split": ruleSplitLayout,
   "label-left": labelLeftLayout,
+  "right-sidebar": rightSidebarLayout,
+  boxed: boxedLayout,
+  "top-banner": topBannerLayout,
+  "rail-timeline": railTimelineLayout,
+  "initial-block": initialBlockLayout,
+  "footer-band": footerBandLayout,
 };
