@@ -2,6 +2,7 @@ import "server-only";
 import { TOOLS } from "@/lib/app/agent-tools";
 import { toolsForOpenAI } from "@/lib/app/llm";
 import { discoverModel, pinned, preferredModel, rememberModel } from "@/lib/app/gemini-models";
+import { configFor } from "@/lib/app/flags";
 import {
   discoverOpenAIModel,
   pinnedOpenAI,
@@ -68,8 +69,27 @@ export type Ticket =
       model?: string;
     };
 
-/** Which provider will answer, or null when neither key is set. */
+/**
+ * Which provider will answer, or null when nothing can.
+ *
+ * Order matters, and the admin's choice is first. Picking a Gemini Live model
+ * on the settings screen on a deployment that also has an OpenAI key used to
+ * do nothing at all: the provider was decided here from the environment, the
+ * model was read further down, and the Gemini name was silently dropped for
+ * not matching the provider that had already been picked. A dropdown that
+ * needs you to also edit an environment variable to take effect is not a
+ * setting.
+ *
+ * Sarvam is deliberately not selectable here — it has no duplex conversation
+ * API at all (see the note in `mintTicket`) — so choosing it for voice means
+ * voice is off, which is a truthful answer rather than a quiet substitution.
+ */
 export function liveProvider(): LiveProvider | null {
+  const chosen = configFor("voice_conversation");
+  if (chosen.provider === "openai") return process.env.OPENAI_API_KEY ? "openai" : null;
+  if (chosen.provider === "gemini") return process.env.GEMINI_API_KEY ? "gemini" : null;
+  if (chosen.provider === "sarvam") return null;
+
   const forced = process.env.LIVE_PROVIDER?.trim().toLowerCase();
   if (forced === "openai") return process.env.OPENAI_API_KEY ? "openai" : null;
   if (forced === "gemini") return process.env.GEMINI_API_KEY ? "gemini" : null;
@@ -79,6 +99,12 @@ export function liveProvider(): LiveProvider | null {
 }
 
 export async function mintTicket(instruction: string): Promise<Ticket> {
+  // Off is off on both paths. This lived inside the OpenAI branch for one
+  // revision, which meant a Gemini deployment could not switch voice off.
+  if (!configFor("voice_conversation").enabled) {
+    return { ok: false, error: "Live voice is switched off in admin settings.", status: 503 };
+  }
+
   const provider = liveProvider();
   if (!provider) {
     /**
@@ -149,7 +175,25 @@ function session(model: string, instruction: string): Record<string, unknown> {
 async function openaiTicket(instruction: string): Promise<Ticket> {
   const key = process.env.OPENAI_API_KEY!;
 
-  let model = preferredOpenAIModel("realtime");
+  /**
+   * The admin's choice outranks everything, including discovery.
+   *
+   * Live voice does not go through `llm.ts` — it is a WebSocket protocol with
+   * its own ticket exchange — so the settings screen's model had to be read
+   * here as well, and for a while it was not: the Voice conversation row was a
+   * dropdown that changed nothing. This is that hole closed.
+   *
+   * `chosen` also switches the discovery below off. That is the point of
+   * picking a model by hand: it is used, or the call fails saying why. A
+   * "chosen" model that gets quietly replaced when the first request is
+   * refused is a preference, and the person setting it believes it is a
+   * decision — they will read the dashboard as if their choice held.
+   */
+  const chosen = configFor("voice_conversation");
+  const pinned =
+    chosen.provider === null || chosen.provider === "openai" ? chosen.model : null;
+
+  let model = pinned ?? preferredOpenAIModel("realtime");
   let body = session(model, instruction);
 
   const ask = () =>
@@ -202,6 +246,7 @@ async function openaiTicket(instruction: string): Promise<Ticket> {
 
       if (
         !discovered &&
+        !pinned &&
         !pinnedOpenAI("realtime") &&
         (response.status === 404 || response.status === 400) &&
         /\bmodel\b/i.test(lastBody)
@@ -393,12 +438,17 @@ async function geminiTicket(instruction: string): Promise<Ticket> {
       signal: AbortSignal.timeout(15_000),
     });
 
-  let model = preferredModel("live");
+  // The same rule as the OpenAI path: an admin's choice is used or the call
+  // fails, and it is only honoured when it names this provider.
+  const chosen = configFor("voice_conversation");
+  const chosenModel = chosen.provider === "gemini" ? chosen.model : null;
+
+  let model = chosenModel ?? preferredModel("live");
   let response: Response;
   try {
     response = await ask(model);
 
-    if (response.status === 404 && !pinned("live")) {
+    if (response.status === 404 && !chosenModel && !pinned("live")) {
       const found = await discoverModel(key, "live");
       if (found && found !== model) {
         model = found;

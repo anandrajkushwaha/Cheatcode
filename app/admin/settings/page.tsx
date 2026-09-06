@@ -1,5 +1,5 @@
 import { FlagsForm } from "@/components/admin/FlagsForm";
-import { FEATURES, FEATURE_LABELS, modelCatalogue } from "@/lib/app/ai-cost";
+import { FEATURES, FEATURE_LABELS } from "@/lib/app/ai-cost";
 import { flagsNow } from "@/lib/app/flags";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminSettings() {
   const flags = await flagsNow();
-  const catalogue = modelCatalogue();
 
   /**
    * Which providers this deployment can actually reach.
@@ -57,15 +56,15 @@ export default async function AdminSettings() {
         Agent models
       </h2>
       <p className="mb-3 mt-2 max-w-[70ch] text-[0.8rem] leading-relaxed text-ink-30">
-        The list is the price table in <code>lib/app/ai-cost.ts</code>: you can only pick a model
-        we know how to cost, so nothing you choose here can turn up as unpriced spend on the
-        dashboard. Rates shown are per million tokens.
+        The list is whatever each key can actually reach, asked of the provider rather than
+        written here — so it is this deployment&apos;s list, not last quarter&apos;s. Rates shown
+        are per million tokens; a model we have no rate for is still offered, marked, and its
+        spend lands on the dashboard as unpriced.
       </p>
 
       <FlagsForm
         initial={flags}
         features={FEATURES.map((key) => ({ key, label: FEATURE_LABELS[key] }))}
-        catalogue={catalogue}
         configured={configured}
       />
 
