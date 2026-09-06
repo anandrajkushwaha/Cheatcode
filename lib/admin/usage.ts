@@ -101,6 +101,7 @@ type UsageRow = {
   session_id: string | null;
   feature: string;
   model: string;
+  provider?: string;
   input_tokens: number | null;
   output_tokens: number | null;
   audio_input_tokens: number | null;
@@ -137,7 +138,7 @@ export async function usageSince(days: number): Promise<Result<{ rows: UsageRow[
   const { data, error } = await supabase
     .from("ai_usage")
     .select(
-      "user_id,session_id,feature,model,input_tokens,output_tokens,audio_input_tokens,audio_output_tokens,cost_usd,created_at",
+      "user_id,session_id,feature,provider,model,input_tokens,output_tokens,audio_input_tokens,audio_output_tokens,cost_usd,created_at",
     )
     .gte("created_at", from)
     .order("created_at", { ascending: false })
@@ -315,6 +316,40 @@ export async function sessions(days: number, rows: UsageRow[]): Promise<SessionR
         : null,
     };
   });
+}
+
+/**
+ * Which models actually ran, and how much of their spend we could not price.
+ *
+ * Grouped from the same rows the rest of the screen uses, so it cannot
+ * disagree with the totals. Its job is to turn "some spend is unpriced" from a
+ * footnote into a list of names somebody can fix, which is the difference
+ * between a warning and a task.
+ */
+export type ModelRow = {
+  model: string;
+  provider: string;
+  calls: number;
+  /** Calls with no cost recorded — the ones a rate would rescue. */
+  unpriced: number;
+  costUsd: number;
+};
+
+export function byModel(rows: UsageRow[]): ModelRow[] {
+  const acc = new Map<string, ModelRow>();
+  for (const r of rows) {
+    const key = r.model || "unknown";
+    let row = acc.get(key);
+    if (!row) {
+      row = { model: key, provider: (r as { provider?: string }).provider ?? "", calls: 0, unpriced: 0, costUsd: 0 };
+      acc.set(key, row);
+    }
+    row.calls += 1;
+    if (r.cost_usd == null) row.unpriced += 1;
+    else row.costUsd += n(r.cost_usd);
+  }
+  // Unpriced first — those are the rows that need a person.
+  return [...acc.values()].sort((a, b) => b.unpriced - a.unpriced || b.calls - a.calls);
 }
 
 /** Downloads and shares across the whole product, not only inside sessions. */

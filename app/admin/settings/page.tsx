@@ -1,6 +1,7 @@
 import { FlagsForm } from "@/components/admin/FlagsForm";
 import { FEATURES, FEATURE_LABELS } from "@/lib/app/ai-cost";
 import { flagsNow } from "@/lib/app/flags";
+import { byModel, usageSince } from "@/lib/admin/usage";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,22 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminSettings() {
   const flags = await flagsNow();
+
+  /**
+   * What has actually been billed lately, so the price table below is a list
+   * of real models rather than a catalogue. Best-effort: on a deployment that
+   * has not run the usage migration this is empty and the rest of the page is
+   * unaffected.
+   */
+  const usage = await usageSince(28).catch(() => ({ ok: false as const, missing: "" }));
+  const seen = usage.ok
+    ? byModel(usage.data.rows).map(({ model, provider, calls, unpriced }) => ({
+        model,
+        provider,
+        calls,
+        unpriced,
+      }))
+    : [];
 
   /**
    * Which providers this deployment can actually reach.
@@ -66,6 +83,7 @@ export default async function AdminSettings() {
         initial={flags}
         features={FEATURES.map((key) => ({ key, label: FEATURE_LABELS[key] }))}
         configured={configured}
+        seen={seen}
       />
 
       <p className="mt-4 max-w-[70ch] text-[0.78rem] leading-relaxed text-ink-30">

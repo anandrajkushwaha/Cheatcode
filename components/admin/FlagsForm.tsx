@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Feature } from "@/lib/app/ai-cost";
+import { rateFor, type Feature, type Rate } from "@/lib/app/ai-cost";
 import type { Flags } from "@/lib/app/flags";
 import type { ListedModel, ModelList } from "@/lib/app/model-list";
 
@@ -31,6 +31,8 @@ type Props = {
   features: { key: Feature; label: string }[];
   /** Which providers have a key on this deployment. */
   configured: Record<string, boolean>;
+  /** Models that actually ran recently, and how much of that went unpriced. */
+  seen: { model: string; provider: string; calls: number; unpriced: number }[];
 };
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -56,7 +58,7 @@ const KIND: Record<Feature, "chat" | "realtime"> = {
   resume_rewrite: "chat",
 };
 
-export function FlagsForm({ initial, features, configured }: Props) {
+export function FlagsForm({ initial, features, configured, seen }: Props) {
   const [flags, setFlags] = useState<Flags>(initial);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -86,6 +88,54 @@ export function FlagsForm({ initial, features, configured }: Props) {
     setSaved(false);
     setFlags((f) => ({ ...f, agent: { ...f.agent, [feature]: { ...f.agent[feature], ...patch } } }));
   }
+
+  /**
+   * One field of one model's price. Empty clears it back to the built-in.
+   *
+   * `currency` comes from the model's built-in rate rather than defaulting to
+   * USD. Sarvam publishes in rupees, and stamping USD on a corrected Sarvam
+   * price would have recorded it at 88 times its real value — the exact shape
+   * of the mistake this whole screen exists to let somebody fix.
+   */
+  function setRate(model: string, field: keyof Rate, value: string, currency: "USD" | "INR") {
+    setSaved(false);
+    setFlags((f) => {
+      const rates = { ...f.rates };
+      const row: Rate = { ...(rates[model] ?? {}), currency };
+      const n = Number.parseFloat(value);
+      if (value.trim() === "" || !Number.isFinite(n) || n < 0) delete row[field];
+      else (row as Record<string, unknown>)[field] = n;
+
+      const priced = (["input", "output", "audioInput", "audioOutput", "perMinute"] as const).some(
+        (k) => row[k] !== undefined,
+      );
+      if (priced) rates[model] = row;
+      else delete rates[model];
+      return { ...f, rates };
+    });
+  }
+
+  /**
+   * Every model worth showing a price for: the ones selected above, and the
+   * ones that have actually been billed recently. Not the whole provider
+   * catalogue — a hundred rows of models nobody runs is a form nobody reads.
+   */
+  const priceable = useMemo(() => {
+    const names = new Map<string, { calls: number; unpriced: number }>();
+    for (const s of seen) names.set(s.model, { calls: s.calls, unpriced: s.unpriced });
+    for (const f of features) {
+      const m = flags.agent[f.key].model;
+      if (m && !names.has(m)) names.set(m, { calls: 0, unpriced: 0 });
+    }
+    return [...names.entries()]
+      .map(([model, stat]) => ({ model, ...stat, built: rateFor(model) }))
+      .sort(
+        (a, b) =>
+          Number(Boolean(b.built === null)) - Number(Boolean(a.built === null)) ||
+          b.unpriced - a.unpriced ||
+          b.calls - a.calls,
+      );
+  }, [seen, features, flags]);
 
   async function save() {
     setSaving(true);
@@ -185,9 +235,7 @@ export function FlagsForm({ initial, features, configured }: Props) {
                             disabled={!configured[provider]}
                           >
                             {m.model}
-                            {m.price
-                              ? ` · ${m.price.currency === "INR" ? "₹" : "$"}${m.price.input}/${m.price.output} per M${m.price.audio ? " · audio" : ""}`
-                              : " · no rate"}
+                            {priceLabel(m.price)}
                           </option>
                         ))}
                       </optgroup>
@@ -219,33 +267,119 @@ export function FlagsForm({ initial, features, configured }: Props) {
           })}
         </ul>
 
-        <div className="flex flex-col gap-3 border-t border-ink-08 p-4 sm:flex-row sm:items-center sm:p-5">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Why (optional) — shows up next to the change"
-            className="min-w-0 flex-1 rounded-lg border border-ink-15 px-3 py-2 text-[0.82rem] outline-none focus:border-ink-30"
-          />
-          <span className="text-[0.78rem] text-ink-30">
-            {error ? (
-              <span className="text-ink">{error}</span>
-            ) : saved ? (
-              "Saved — live within about 30 seconds"
-            ) : dirty ? (
-              "Not saved"
-            ) : (
-              ""
-            )}
-          </span>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving || !dirty}
-            className="shrink-0 rounded-full bg-ink px-5 py-2 text-[0.84rem] font-semibold text-paper transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
+      </div>
+
+      {priceable.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            Model prices
+          </h2>
+          <p className="mb-3 mt-2 max-w-[70ch] text-[0.8rem] leading-relaxed text-ink-30">
+            Per million tokens, each in <b>its own model&apos;s currency</b> — the symbol on each
+            field says which, and Sarvam bills in rupees. Blank means the built-in rate is used;
+            type a number to override it. This exists because a price you cannot correct without a
+            deploy is a price that stays wrong — and the cost column is only worth reading if it
+            is right.
+            Changing a rate here affects <b>calls made from now on</b>: rows already written keep
+            the number they were costed with, so history stays reconcilable against an invoice.
+          </p>
+
+          <div className="overflow-x-auto rounded-2xl border border-ink-08">
+            <table className="w-full min-w-[38rem] table-fixed border-collapse text-[0.8rem]">
+              <thead>
+                <tr className="border-b border-ink-08 text-left text-[0.7rem] uppercase tracking-[0.08em] text-ink-30">
+                  <th className="w-[26%] px-3 py-3 font-medium">Model</th>
+                  <th className="w-[14.8%] px-2 py-3 font-medium">In</th>
+                  <th className="w-[14.8%] px-2 py-3 font-medium">Out</th>
+                  <th className="w-[14.8%] px-2 py-3 font-medium">Audio in</th>
+                  <th className="w-[14.8%] px-2 py-3 font-medium">Audio out</th>
+                  <th className="w-[14.8%] px-2 py-3 font-medium">Per min</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceable.map(({ model, built, calls, unpriced }) => {
+                  const over = flags.rates[model];
+                  // The model's own currency, not the form's. Sarvam is in
+                  // rupees and always was; the column header cannot say "USD"
+                  // for every row without lying about a quarter of them.
+                  const currency = (over?.currency ?? built?.currency ?? "USD") as "USD" | "INR";
+                  const sym = currency === "INR" ? "₹" : "$";
+                  return (
+                    <tr key={model} className="border-b border-ink-08 last:border-b-0">
+                      <td className="px-3 py-3 align-middle">
+                        <code className="block break-all text-[0.76rem]">{model}</code>
+                        <span className="text-[0.7rem] text-ink-30">
+                          {currency === "INR" && "priced in ₹ · "}
+                          {calls > 0 ? `${calls} call${calls === 1 ? "" : "s"}` : "not used yet"}
+                          {unpriced > 0 && ` · ${unpriced} unpriced`}
+                          {!built && !over && " · no built-in rate"}
+                        </span>
+                      </td>
+                      {(["input", "output", "audioInput", "audioOutput", "perMinute"] as const).map(
+                        (field) => (
+                          <td key={field} className="px-1.5 py-3 align-middle">
+                            <label className="flex items-center gap-1">
+                              <span className="text-[0.72rem] text-ink-30">{sym}</span>
+                              <input
+                                inputMode="decimal"
+                                aria-label={`${field} rate for ${model}`}
+                                value={over?.[field] ?? ""}
+                                onChange={(e) => setRate(model, field, e.target.value, currency)}
+                                placeholder={
+                                  built?.[field] !== undefined ? String(built[field]) : "—"
+                                }
+                                className="w-full min-w-0 rounded-lg border border-ink-15 bg-paper px-1.5 py-1.5 text-[0.78rem] tabular-nums outline-none transition-colors focus:border-ink-30"
+                              />
+                            </label>
+                          </td>
+                        ),
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-2 text-[0.76rem] leading-relaxed text-ink-30">
+            A greyed number is the built-in rate; typing replaces it. A model billed by the minute
+            — translation and transcription are — should have{" "}
+            <b>only</b> its per-minute rate set: those calls are costed from the recorded duration,
+            not from tokens. If a model uses a kind of token you have left blank, the call is
+            recorded as unpriced rather than counted at a rate that would be too low.
+          </p>
+        </section>
+      )}
+
+      {/* One Save for models and prices together. Two buttons would let
+          somebody pin a model and leave its price unsaved, which is exactly
+          the half-applied configuration this form exists to avoid. */}
+      <div className="sticky bottom-0 mt-4 flex flex-col gap-3 rounded-2xl border border-ink-15 bg-paper p-4 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] sm:flex-row sm:items-center sm:p-5">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Why (optional) — shows up next to the change"
+          className="min-w-0 flex-1 rounded-lg border border-ink-15 px-3 py-2 text-[0.82rem] outline-none focus:border-ink-30"
+        />
+        <span className="text-[0.78rem] text-ink-30">
+          {error ? (
+            <span className="text-ink">{error}</span>
+          ) : saved ? (
+            "Saved — live within about five seconds"
+          ) : dirty ? (
+            "Not saved"
+          ) : (
+            ""
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+          className="shrink-0 rounded-full bg-ink px-5 py-2 text-[0.84rem] font-semibold text-paper transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
       </div>
 
       {list?.static.length ? (
@@ -257,6 +391,34 @@ export function FlagsForm({ initial, features, configured }: Props) {
       ) : null}
     </>
   );
+}
+
+/**
+ * What one model costs, said in the terms that decide the bill.
+ *
+ * For a realtime model the audio rate is the number that matters — a spoken
+ * session spends almost nothing on text — so audio leads and text follows.
+ * Showing `$4/24` for a voice model, as this did, quietly reports a twentieth
+ * of what the session will actually cost.
+ */
+function priceLabel(price: ListedModel["price"]): string {
+  if (!price) return " · no rate";
+  const sym = price.currency === "INR" ? "₹" : "$";
+
+  // Per-token figures share one "per M"; a per-minute rate is its own unit and
+  // must not inherit it.
+  const perMillion: string[] = [];
+  if (price.audioInput !== undefined || price.audioOutput !== undefined) {
+    perMillion.push(`audio ${sym}${price.audioInput ?? "—"}/${price.audioOutput ?? "—"}`);
+  }
+  if (price.input !== undefined || price.output !== undefined) {
+    perMillion.push(`text ${sym}${price.input ?? "—"}/${price.output ?? "—"}`);
+  }
+
+  const parts: string[] = [];
+  if (price.perMinute !== undefined) parts.push(`${sym}${price.perMinute} per minute`);
+  if (perMillion.length) parts.push(`${perMillion.join(" · ")} per M`);
+  return parts.length ? ` · ${parts.join(" · ")}` : " · no rate";
 }
 
 function groupBy(models: ListedModel[]): [string, ListedModel[]][] {

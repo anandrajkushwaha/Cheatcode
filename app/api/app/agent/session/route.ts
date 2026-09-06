@@ -2,6 +2,9 @@ import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { spend } from "@/lib/app/allowance";
 import { recordVoiceCall } from "@/lib/app/ai-usage";
 import { preferredOpenAIModel } from "@/lib/app/openai-models";
+import { preferredModel as preferredGeminiModel } from "@/lib/app/gemini-models";
+import { configFor } from "@/lib/app/flags";
+import { liveProvider } from "@/lib/app/live-ticket";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -72,6 +75,20 @@ export async function POST(request: Request) {
      * already bill the allowance against, so costing it changes no trust
      * assumption: it is bounded above by MAX_SECONDS_PER_REPORT either way.
      */
+    /**
+     * Which model to write down when the client did not say.
+     *
+     * The admin's choice first, because that is what the ticket was minted
+     * with — falling straight through to `preferredOpenAIModel` named a model
+     * nobody had selected, and since the name is what the rate table is keyed
+     * on, a wrong name here is a wrong number in the cost column.
+     */
+    const chosen = configFor("voice_conversation");
+    const fallbackProvider = liveProvider() ?? "openai";
+    const fallbackModel =
+      (chosen.provider === null || chosen.provider === fallbackProvider ? chosen.model : null) ??
+      (fallbackProvider === "gemini" ? preferredGeminiModel("live") : preferredOpenAIModel("realtime"));
+
     recordVoiceCall({
       userId: user.id,
       sessionId: typeof body.conversationId === "string" ? body.conversationId : null,
@@ -80,7 +97,8 @@ export async function POST(request: Request) {
       model:
         typeof body.model === "string" && body.model.trim()
           ? body.model.trim().slice(0, 80)
-          : preferredOpenAIModel("realtime"),
+          : fallbackModel,
+      provider: fallbackProvider,
       seconds,
     });
   }

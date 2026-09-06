@@ -35,8 +35,22 @@ export type ListedModel = {
   model: string;
   provider: "openai" | "gemini" | "sarvam";
   kind: Kind;
-  /** Null when we have no rate — the screen marks these. */
-  price: { input: number; output: number; currency: "USD" | "INR"; audio: boolean } | null;
+  /**
+   * Null when we have no rate — the screen marks these.
+   *
+   * Every field is optional because a real rate card is not a matched pair of
+   * numbers: a realtime model prices text and audio separately, and a
+   * translation model is not priced per token at all. Flattening that to
+   * `{input, output}` is what let nine different models display one price.
+   */
+  price: {
+    input?: number;
+    output?: number;
+    audioInput?: number;
+    audioOutput?: number;
+    perMinute?: number;
+    currency: "USD" | "INR";
+  } | null;
 };
 
 export type ModelList = {
@@ -81,10 +95,12 @@ function priceOf(model: string): ListedModel["price"] {
   const rate = rateFor(model);
   if (!rate) return null;
   return {
-    input: rate.input,
-    output: rate.output,
+    ...(rate.input !== undefined ? { input: rate.input } : {}),
+    ...(rate.output !== undefined ? { output: rate.output } : {}),
+    ...(rate.audioInput !== undefined ? { audioInput: rate.audioInput } : {}),
+    ...(rate.audioOutput !== undefined ? { audioOutput: rate.audioOutput } : {}),
+    ...(rate.perMinute !== undefined ? { perMinute: rate.perMinute } : {}),
     currency: (rate.currency ?? "USD") as "USD" | "INR",
-    audio: rate.audioInput !== undefined,
   };
 }
 
@@ -165,7 +181,7 @@ function sarvamModels(): ListedModel[] {
       model: e.model,
       provider: "sarvam" as const,
       kind: "chat" as const,
-      price: { input: e.input, output: e.output, currency: e.currency, audio: e.audio },
+      price: { input: e.input, output: e.output, currency: e.currency },
     }));
 }
 

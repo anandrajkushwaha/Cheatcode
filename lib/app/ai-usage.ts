@@ -64,7 +64,7 @@ async function write(input: RecordInput): Promise<void> {
     audio_input_tokens: usage.audioInput ?? null,
     audio_output_tokens: usage.audioOutput ?? null,
     duration_seconds: input.durationSeconds ?? null,
-    cost_usd: costOf(input.model, usage),
+    cost_usd: costOf(input.model, usage, input.durationSeconds),
   });
 
   if (error) {
@@ -100,12 +100,19 @@ export function recordVoiceCall(input: {
   sessionId?: string | null;
   model: string;
   seconds: number;
+  /**
+   * Who actually served it. Was hardcoded to OpenAI, which stopped being true
+   * the moment the settings screen could route voice to Gemini — and a row
+   * that names the wrong provider is a row that gets priced against the wrong
+   * rate card.
+   */
+  provider?: "openai" | "gemini";
 }): void {
   recordUsage({
     feature: "voice_conversation",
     userId: input.userId,
     sessionId: input.sessionId ?? null,
-    provider: "openai",
+    provider: input.provider ?? "openai",
     model: input.model,
     usage: {},
     durationSeconds: input.seconds,
