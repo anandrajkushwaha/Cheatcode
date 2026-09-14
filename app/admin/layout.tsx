@@ -28,6 +28,11 @@ export const dynamic = "force-dynamic";
  */
 const NAV = [
   { href: "/admin", label: "Dashboard" },
+  // Résumés before People, because the question "is the product being used"
+  // comes before "by whom" — and the download count on the first tab is the
+  // one number that says the answer is yes.
+  { href: "/admin/resume", label: "Résumés" },
+  { href: "/admin/users", label: "People" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/posts", label: "Articles" },
 ];

@@ -457,21 +457,55 @@ export function attributeDraft(draftId: string, conversationId: string | null | 
  * client has no `increment` and the alternative is a stored procedure for a
  * number nobody is racing. Two downloads in the same millisecond would count
  * as one; that is a rounding error in a usage figure, not a lost fact.
+ *
+ * ------------------------------------------------------- the counter and the row
+ *
+ * Two records of the same download, deliberately, because they answer
+ * different questions and neither can answer the other's.
+ *
+ * `download_count` is a running total on the draft. It has been there since
+ * the beginning, so it knows about every download ever taken — but it is a
+ * number that only goes up, and a number that only goes up cannot say *when*.
+ * Ask it "how many downloads last week" and it has nothing.
+ *
+ * The `account_events` row is one line per download, with the template and
+ * the moment. That gives trend, recency and who — and it necessarily starts
+ * empty, because a row cannot be written retroactively for a download that
+ * happened before this code existed. The admin screen reads the counter for
+ * all-time totals and the events for anything with a date on it, and says
+ * which is which, so nobody reads a young event table as a collapse in usage.
  */
 export function countDownload(draftId: string): void {
   void (async () => {
     const supabase = createAppAdminClient();
     if (!supabase) return;
+
+    // One read, both jobs: the counter needs the old value, the event needs to
+    // know whose résumé this is and what it was built on.
     const { data } = await supabase
       .from("resume_drafts")
-      .select("download_count")
+      .select("download_count,user_id,template,title")
       .eq("id", draftId)
       .limit(1);
-    const current = Number((data ?? [])[0]?.download_count ?? 0);
+
+    const row = (data ?? [])[0] as
+      | { download_count: number | null; user_id: string; template: string | null; title: string | null }
+      | undefined;
+    if (!row) return;
+
     await supabase
       .from("resume_drafts")
-      .update({ download_count: current + 1, last_downloaded_at: new Date().toISOString() })
+      .update({
+        download_count: Number(row.download_count ?? 0) + 1,
+        last_downloaded_at: new Date().toISOString(),
+      })
       .eq("id", draftId);
+
+    await supabase.from("account_events").insert({
+      user_id: row.user_id,
+      kind: "resume_download",
+      detail: { draft_id: draftId, template: row.template ?? null, title: row.title ?? null },
+    });
   })().catch((e) => console.error("resume download count:", String(e).slice(0, 160)));
 }
 
