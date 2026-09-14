@@ -127,8 +127,7 @@ export default function AtsCheckerPage() {
           </p>
           <p>
             If you want the version that rewrites the lines for you rather than
-            listing them,{" "}
-            <Link href="/#waitlist">that is what we are building next</Link>.
+            listing them, <Link href="/signin">that is in the builder</Link>.
           </p>
         </div>
 

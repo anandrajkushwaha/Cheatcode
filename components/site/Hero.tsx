@@ -1,5 +1,5 @@
 import { Reveal } from "./Reveal";
-import { WaitlistForm } from "./WaitlistForm";
+import { AuthCta } from "./AuthLinks";
 import { PhoneCluster } from "./PhoneMock";
 
 export function Hero() {
@@ -34,11 +34,27 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={220}>
-          <div className="mx-auto mt-10 max-w-lg">
-            <WaitlistForm source="hero" />
-            <p className="mt-3 text-[0.8rem] text-ink-50">
-              Free while we&apos;re in early access. No spam, one email when we
-              open.
+          {/*
+            This was an email box on a waitlist. The waitlist was honest while
+            there was nothing to open; now there is, and asking for an address
+            in order to send somebody a link to a page they could already be
+            standing on is a step that only loses people.
+          */}
+          <div className="mx-auto mt-10 flex flex-col items-center gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <AuthCta location="hero" />
+              <a
+                href="/signin"
+                data-ev="cta_click"
+                data-ev-location="hero"
+                data-ev-label="Log in"
+                className="text-[0.9rem] text-ink-50 underline-offset-4 transition-colors hover:text-ink hover:underline"
+              >
+                I already have an account
+              </a>
+            </div>
+            <p className="text-[0.8rem] text-ink-50">
+              Free to start. Sign in with Google or your phone number.
             </p>
           </div>
         </Reveal>

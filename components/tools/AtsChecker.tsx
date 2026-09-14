@@ -233,10 +233,10 @@ export function AtsChecker() {
             Check another
           </button>
           <Link
-            href="/#waitlist"
+            href="/signin"
             data-ev="tool_result_cta"
             data-ev-location="ats-checker"
-            data-ev-label="Get early access"
+            data-ev-label="Sign up"
             className="rounded-full bg-ink px-6 py-3 text-[0.9rem] font-medium text-paper transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
           >
             Get the version that fixes it

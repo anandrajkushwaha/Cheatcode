@@ -263,7 +263,10 @@ export function SalaryCalculator() {
               this offer is fair for your experience, and what to say if it isn&apos;t.
             </p>
             <Link
-              href="/#waitlist"
+              href="/signin"
+              data-ev="cta_click"
+              data-ev-location="salary-calculator"
+              data-ev-label="Talk to a mentor"
               className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
             >
               Talk to a mentor

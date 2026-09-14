@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getCategoryBySlug, getCategories, getPosts } from "@/lib/queries/posts";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { SITE } from "@/lib/seo/constants";
+import { ResumeCtaBar } from "@/components/content/ResumeCta";
+import { isResumeCategory } from "@/lib/content/resume-cta";
 import { JsonLd } from "@/components/JsonLd";
 import { ArticleCard, Breadcrumbs } from "@/components/content/bits";
 
@@ -55,6 +57,14 @@ export default async function CategoryPage({ params }: Props) {
             {cat.description}
           </p>
         )}
+
+        {/*
+          The three resume categories get the builder offered before the list
+          of articles. These pages are where somebody who searched for a resume
+          format lands, and the list below is twenty-two more things to read —
+          worth having, but not what most of them came to do.
+        */}
+        {isResumeCategory(cat.slug) && <ResumeCtaBar />}
 
         {cat.intro_html && (
           <div

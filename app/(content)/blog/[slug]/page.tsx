@@ -11,6 +11,9 @@ import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
 import { FaqBlock } from "@/components/content/FaqBlock";
 import { ToolBlock } from "@/components/content/ToolBlock";
+import { ResumeCtaBar, ResumeCtaBlock } from "@/components/content/ResumeCta";
+import { ResumeBanner } from "@/components/content/ResumeBanner";
+import { isResumeCategory } from "@/lib/content/resume-cta";
 import {
   Breadcrumbs,
   Toc,
@@ -68,6 +71,7 @@ export default async function ArticlePage({ params }: Props) {
   ]);
   const body = withHeadingIds(post.content_html, post.toc);
   const url = `${SITE.url}/blog/${post.slug}`;
+  const resumeArticle = isResumeCategory(post.category?.slug);
 
   return (
     <>
@@ -129,6 +133,8 @@ export default async function ArticlePage({ params }: Props) {
           />
         )}
 
+        {resumeArticle && <ResumeCtaBar />}
+
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_260px] lg:gap-16">
           <div className="min-w-0">
             <div
@@ -146,6 +152,17 @@ export default async function ArticlePage({ params }: Props) {
               </div>
             )}
 
+            {/*
+              Two offers, one per article, chosen by what the article is about.
+              Not both: a page that ends with "build a resume" *and* "book a
+              mentor" is a page that has decided nothing, and the reader picks
+              neither. The resume guides get the builder because it is the
+              thing they were just reading how to do; everything else keeps the
+              mentor pitch it already had.
+            */}
+            {resumeArticle ? (
+              <ResumeCtaBlock />
+            ) : (
             <aside className="mt-14 rounded-3xl border border-ink-08 p-8">
               <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">
                 Still stuck?
@@ -155,18 +172,19 @@ export default async function ArticlePage({ params }: Props) {
               </p>
               <p className="mt-2.5 max-w-[52ch] text-[0.95rem] leading-relaxed text-ink-50">
                 Cheatcode gives you 30 minutes with someone 5–10 years ahead of you
-                who has sat on the other side of the hiring table. Early access is free.
+                who has sat on the other side of the hiring table. Free to start.
               </p>
               <Link
-                href="/#waitlist"
+                href="/signin"
                 data-ev="cta_click"
                 data-ev-location="article-mentor-block"
-                data-ev-label="Get early access"
+                data-ev-label="Sign up"
                 className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
               >
-                Get early access
+                Create a free account
               </Link>
             </aside>
+            )}
           </div>
 
           <aside className="min-w-0 lg:block">
@@ -174,6 +192,18 @@ export default async function ArticlePage({ params }: Props) {
               <div className="hidden lg:block">
                 <Toc items={post.toc} />
               </div>
+              {/*
+                On every article, not only the resume ones. A person reading
+                about interview answers or notice periods still has a résumé,
+                and this is the product — the offer that is always worth making.
+                It sits under the contents rather than above them, because the
+                contents are what somebody who just landed is looking for.
+
+                The scheduled `promo_banners` slot stays underneath it. That
+                one is for whatever is being pushed this month; this is the
+                house ad, and the house ad does not need a row in a table.
+              */}
+              <ResumeBanner location="sidebar" />
               {sidebarBanner && <PromoBanner banner={sidebarBanner} />}
             </div>
           </aside>

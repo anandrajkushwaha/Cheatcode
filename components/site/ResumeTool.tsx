@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Reveal } from "./Reveal";
+import { AuthCta } from "./AuthLinks";
 import { SinglePhone } from "./PhoneMock";
 
 const CAPABILITIES = [
@@ -81,15 +82,10 @@ export function ResumeTool() {
         <Reveal delay={220}>
           <div className="mt-12 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-[48ch] text-[0.95rem] leading-relaxed text-white/50">
-              Both are on the same waitlist. One email when we open — you pick what you
-              use first.
+              Both come with the same free account — you pick what you use
+              first.
             </p>
-            <Link
-              href="#waitlist"
-              className="shrink-0 rounded-full bg-paper px-6 py-3 text-[0.9rem] font-medium text-ink transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
-            >
-              Get early access
-            </Link>
+            <AuthCta location="resume-tool" invert className="shrink-0" />
           </div>
         </Reveal>
       </div>

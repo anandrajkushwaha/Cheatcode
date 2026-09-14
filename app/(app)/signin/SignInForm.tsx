@@ -97,7 +97,7 @@ export function SignInForm({ next }: { next: string }) {
       <p className="mt-2.5 text-[0.92rem] leading-relaxed text-ink-50">
         {mode === "otp"
           ? `We sent a six-digit code to ${e164}.`
-          : "Your resume, your matches, and your sessions — all in one place."}
+          : "New here or coming back, it is the same button — signing in with Google or your number is what creates the account."}
       </p>
 
       {error && (
@@ -193,9 +193,17 @@ export function SignInForm({ next }: { next: string }) {
         </div>
       )}
 
+      {/*
+        There is no separate sign-up page and there should not be one. Google
+        and phone OTP both create the account on first use, so a "Sign up"
+        screen would be this screen with a different heading — and two doors
+        into one room is how people end up certain they already have an
+        account when they do not, or the reverse. Every "Sign up" button on
+        the site points here; this line is what makes that make sense.
+      */}
       <p className="mt-8 text-[0.78rem] leading-relaxed text-ink-30">
-        Signing in creates an account. We store your resume so you can come back to it — you can
-        delete it at any time, and it is never shown to anyone else.
+        We store your resume so you can come back to it — you can delete it at any time, and it
+        is never shown to anyone else.
       </p>
     </div>
   );
