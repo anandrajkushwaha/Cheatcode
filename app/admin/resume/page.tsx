@@ -7,6 +7,7 @@ import {
   getResumeTotals,
   getTemplateRows,
   reachOf,
+  type ResumeMode,
 } from "@/lib/admin/resume";
 
 export const dynamic = "force-dynamic";
@@ -46,13 +47,26 @@ function when(iso: string) {
   });
 }
 
-export default async function AdminResume() {
+const MODES: { id: ResumeMode; label: string; note: string }[] = [
+  { id: "downloaded", label: "Downloaded", note: "Finished — somebody took the PDF away. Most recent download first." },
+  { id: "building", label: "Still building", note: "Started and never downloaded. The list worth acting on." },
+  { id: "all", label: "All", note: "Every résumé, newest first." },
+];
+
+export default async function AdminResume({
+  searchParams,
+}: {
+  searchParams: Promise<{ show?: string }>;
+}) {
+  const { show } = await searchParams;
+  const mode: ResumeMode = MODES.some((m) => m.id === show) ? (show as ResumeMode) : "downloaded";
+
   const [totals, templates, recent, signals, list] = await Promise.all([
     getResumeTotals(),
     getTemplateRows(),
     getRecentDownloads(40),
     getResumeSignals(),
-    getResumeList(300),
+    getResumeList(mode, 200),
   ]);
 
   if (!totals.ok) {
@@ -224,7 +238,7 @@ export default async function AdminResume() {
       <div className="mt-4 rounded-2xl border border-ink-08 p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Every résumé · who built it
+            Who built what
           </h2>
           {list.ok && list.data.length > 0 && (
             <p className="text-[0.75rem] text-ink-30">
@@ -238,13 +252,44 @@ export default async function AdminResume() {
           )}
         </div>
 
+        {/*
+          Two lists rather than one long one. "Every résumé ever" is a table
+          with no question attached; these are the two questions actually worth
+          asking, and the one that is not chosen is one click away rather than
+          a hundred rows down.
+        */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          {MODES.map((m) => (
+            <Link
+              key={m.id}
+              href={`/admin/resume?show=${m.id}`}
+              className={`rounded-lg px-3 py-1.5 text-[0.8rem] transition-colors ${
+                m.id === mode
+                  ? "bg-ink text-paper"
+                  : "text-ink-50 hover:bg-ink-04 hover:text-ink"
+              }`}
+            >
+              {m.label}
+            </Link>
+          ))}
+          <p className="ml-1 text-[0.76rem] text-ink-30">
+            {MODES.find((m) => m.id === mode)!.note}
+          </p>
+        </div>
+
         <div className="mt-5">
           {!list.ok ? (
             <Empty>
               Cannot read résumés — run <code>supabase/schemas/{list.missing}</code>.
             </Empty>
           ) : !list.data.length ? (
-            <Empty>Nobody has started one yet.</Empty>
+            <Empty>
+              {mode === "downloaded"
+                ? "Nobody has downloaded a résumé yet."
+                : mode === "building"
+                  ? "Nothing half-finished — every résumé started has been downloaded."
+                  : "Nobody has started one yet."}
+            </Empty>
           ) : (
             <div className="-mx-2 overflow-x-auto">
               <table className="w-full min-w-[52rem] text-left text-[0.82rem]">
@@ -256,7 +301,9 @@ export default async function AdminResume() {
                     <th className="px-2 pb-2 font-medium">Template</th>
                     <th className="px-2 pb-2 text-right font-medium">Downloads</th>
                     <th className="px-2 pb-2 font-medium">Started</th>
-                    <th className="px-2 pb-2 font-medium">Last download</th>
+                    {mode !== "building" && (
+                      <th className="px-2 pb-2 font-medium">Last download</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="tabular-nums">
@@ -298,9 +345,11 @@ export default async function AdminResume() {
                         {r.downloads ? num(r.downloads) : <span className="text-ink-30">0</span>}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">{when(r.createdAt)}</td>
-                      <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">
-                        {r.lastDownloadedAt ? when(r.lastDownloadedAt) : <span className="text-ink-30">never</span>}
-                      </td>
+                      {mode !== "building" && (
+                        <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">
+                          {r.lastDownloadedAt ? when(r.lastDownloadedAt) : <span className="text-ink-30">never</span>}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -309,9 +358,9 @@ export default async function AdminResume() {
           )}
         </div>
 
-        {list.ok && list.data.length >= 300 && (
+        {list.ok && list.data.length >= 200 && (
           <p className="mt-4 text-[0.78rem] text-ink-30">
-            Showing the 300 most recent. There are more.
+            Showing 200. There are more.
           </p>
         )}
       </div>

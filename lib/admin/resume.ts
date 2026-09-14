@@ -286,8 +286,28 @@ export type ResumeRow = {
  * Every résumé, with the address of whoever made it.
  *
  * The aggregate table above answers "which templates win"; this answers the
- * flatter question underneath it — *who is building what.* One row per draft,
- * newest first, so a single screen can be read as a log.
+ * flatter question underneath it — *who is building what.*
+ *
+ * ------------------------------------------------------------------ the modes
+ *
+ * Never all of them at once by default, because "every résumé ever" is a list
+ * with no question attached to it. Two segments, and they are different jobs:
+ *
+ *   `downloaded` — somebody finished. Ordered by when they last downloaded,
+ *                  so the top of the list is what is happening now.
+ *   `building`   — started and never downloaded. This is the useful one: it is
+ *                  the list of people the product half-worked for, and it is
+ *                  the only list here anybody can act on.
+ *
+ * The split is done in the query rather than by filtering the results,
+ * because those are not the same thing. Fetching the newest 300 and then
+ * keeping the downloaded ones gives you "the downloaded résumés among the 300
+ * newest" — which on a busy week is a handful of rows and looks like nobody
+ * is downloading anything. The limit has to apply *after* the predicate.
+ *
+ * `download_count` is null on rows written before the column existed, and null
+ * means never downloaded — so `building` has to ask for null *or* zero, and
+ * `downloaded` uses `gt 0`, which excludes null for free.
  *
  * ------------------------------------------------------- the email may be null
  *
@@ -304,15 +324,30 @@ export type ResumeRow = {
  * ever exports from it, and it hides the thing actually worth knowing, which
  * is how much of the audience never gives an address at all.
  */
-export async function getResumeList(limit = 300): Promise<Result<ResumeRow[]>> {
+export type ResumeMode = "downloaded" | "building" | "all";
+
+export async function getResumeList(
+  mode: ResumeMode = "downloaded",
+  limit = 200,
+): Promise<Result<ResumeRow[]>> {
   const db = createAppAdminClient();
   if (!db) return { ok: false, missing: "20_app_accounts.sql" };
 
-  const drafts = await db
-    .from("resume_drafts")
-    .select("id,user_id,title,template,download_count,created_at,last_downloaded_at,is_public")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const cols = "id,user_id,title,template,download_count,created_at,last_downloaded_at,is_public";
+  let q = db.from("resume_drafts").select(cols);
+
+  if (mode === "downloaded") {
+    // Ordered by the download, not by when the draft was started: this list is
+    // about activity, and a résumé begun in March and downloaded today belongs
+    // at the top of it.
+    q = q.gt("download_count", 0).order("last_downloaded_at", { ascending: false });
+  } else if (mode === "building") {
+    q = q.or("download_count.is.null,download_count.eq.0").order("created_at", { ascending: false });
+  } else {
+    q = q.order("created_at", { ascending: false });
+  }
+
+  const drafts = await q.limit(limit);
   const gone = absent(drafts.error?.message, "50_resume_drafts.sql");
   if (gone) return gone;
 

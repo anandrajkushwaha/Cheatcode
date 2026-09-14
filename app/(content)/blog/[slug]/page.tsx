@@ -146,6 +146,18 @@ export default async function ArticlePage({ params }: Props) {
 
             <ToolBlock slugs={post.related_tool_slugs} />
 
+            {/*
+              Below `lg` the sidebar is not beside the article, it is stacked
+              underneath the whole of it — past the FAQ, past the related
+              posts. On a two-thousand-word guide read on a phone, which is
+              most of this traffic, that is an ad nobody reaches. This is the
+              same banner in the flow of the page instead; exactly one of the
+              two ever renders.
+            */}
+            <div className="mt-14 lg:hidden">
+              <ResumeBanner location="in-article" />
+            </div>
+
             {inArticleBanner && (
               <div className="mt-14">
                 <PromoBanner banner={inArticleBanner} />
@@ -187,24 +199,47 @@ export default async function ArticlePage({ params }: Props) {
             )}
           </div>
 
+          {/*
+            The sticky column is capped at the viewport, and the contents list
+            is the part that gives way.
+
+            Without the cap this column was as tall as whatever was in it —
+            about 1300px on an article with fourteen headings — and a sticky
+            box taller than the window cannot be scrolled: its top is pinned,
+            so everything past the fold is simply unreachable. The banner sat
+            at y=1005 in a 900px window and never appeared, on any desktop
+            size, on the seventy articles whose contents list runs to nine
+            items or more. It was not subtly cut off; it was invisible.
+
+            So: `max-h` on the column, `min-h-0 overflow-y-auto` on the list
+            so it shrinks and scrolls inside itself, `shrink-0` on the banner
+            so it never does. The list stays completely usable — it just
+            scrolls — and the thing that was losing 100% of its impressions
+            is now always on screen.
+
+            The scheduled `promo_banners` slot rides with the list rather than
+            with the banner, because it is optional and this is not: two
+            stacked ads could push the column over the cap again, and the one
+            that should survive that is the house ad.
+          */}
           <aside className="min-w-0 lg:block">
-            <div className="sticky top-24 space-y-6">
-              <div className="hidden lg:block">
+            <div className="sticky top-24 flex max-h-[calc(100vh-7rem)] flex-col gap-6">
+              <div className="hidden min-h-0 flex-1 overflow-y-auto lg:block">
                 <Toc items={post.toc} />
+                {sidebarBanner && (
+                  <div className="mt-6">
+                    <PromoBanner banner={sidebarBanner} />
+                  </div>
+                )}
               </div>
               {/*
                 On every article, not only the resume ones. A person reading
                 about interview answers or notice periods still has a résumé,
                 and this is the product — the offer that is always worth making.
-                It sits under the contents rather than above them, because the
-                contents are what somebody who just landed is looking for.
-
-                The scheduled `promo_banners` slot stays underneath it. That
-                one is for whatever is being pushed this month; this is the
-                house ad, and the house ad does not need a row in a table.
               */}
-              <ResumeBanner location="sidebar" />
-              {sidebarBanner && <PromoBanner banner={sidebarBanner} />}
+              <div className="hidden shrink-0 lg:block">
+                <ResumeBanner location="sidebar" />
+              </div>
             </div>
           </aside>
         </div>
