@@ -56,9 +56,9 @@ const MODES: { id: ResumeMode; label: string; note: string }[] = [
 export default async function AdminResume({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string }>;
+  searchParams: Promise<{ show?: string; tpl?: string }>;
 }) {
-  const { show } = await searchParams;
+  const { show, tpl } = await searchParams;
   const mode: ResumeMode = MODES.some((m) => m.id === show) ? (show as ResumeMode) : "downloaded";
 
   const [totals, templates, recent, signals, list] = await Promise.all([
@@ -78,9 +78,41 @@ export default async function AdminResume({
   }
 
   const t = totals.data;
-  const rows = templates.ok ? templates.data : [];
-  const used = rows.filter((r) => r.downloads > 0);
-  const never = rows.filter((r) => r.drafts === 0 && r.downloads === 0);
+  const all = templates.ok ? templates.data : [];
+  const downloaded = all.filter((r) => r.downloads > 0);
+  const never = all.filter((r) => r.drafts === 0 && r.downloads === 0);
+
+  /**
+   * Sixty templates, and on most days fifty-eight of them are a row of zeroes.
+   *
+   * The count of untouched designs is worth knowing — it is the argument
+   * against adding a sixty-first — but it is one sentence, not fifty-eight
+   * rows. Printing them all buries the two that are actually being used and
+   * makes the panel something you scroll past rather than read.
+   *
+   * So the table shows what has been touched, the sentence carries the rest,
+   * and the sentence is a link for the day somebody wants the full list.
+   */
+  const showAllTemplates = tpl === "all";
+
+  /**
+   * Both controls on this page write to the query string, and neither may
+   * erase the other. A plain `?tpl=all` link sends "Still building" back to
+   * "Downloaded" on the way past — the list silently changes underneath
+   * somebody who was only asking about templates, and nothing on screen says
+   * it happened. So every link here is built from the whole state.
+   */
+  const href = (next: { show?: ResumeMode; tpl?: "all" | null }) => {
+    const q = new URLSearchParams();
+    const m = next.show ?? mode;
+    const a = next.tpl === null ? false : (next.tpl ?? tpl) === "all";
+    if (m !== "downloaded") q.set("show", m);
+    if (a) q.set("tpl", "all");
+    const s = q.toString();
+    return s ? `/admin/resume?${s}` : "/admin/resume";
+  };
+  const touched = all.filter((r) => r.drafts > 0 || r.downloads > 0);
+  const rows = showAllTemplates ? all : touched;
 
   return (
     <>
@@ -123,14 +155,20 @@ export default async function AdminResume({
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Panel
           title="Templates"
-          note={`Sorted by all-time downloads. ${num(used.length)} of ${num(rows.length)} templates have ever been downloaded.`}
+          note={`Sorted by all-time downloads. ${num(downloaded.length)} of ${num(all.length)} templates have ever been downloaded.`}
         >
           {!templates.ok ? (
             <Empty>
               Cannot read templates — run <code>supabase/schemas/{templates.missing}</code>.
             </Empty>
           ) : !rows.length ? (
-            <Empty>No résumés yet.</Empty>
+            <Empty>
+              No template has been used yet.{" "}
+              <Link href={href({ tpl: "all" })} className="underline underline-offset-4">
+                Show all {num(all.length)}
+              </Link>
+              .
+            </Empty>
           ) : (
             <div className="-mx-2 overflow-x-auto">
               <table className="w-full min-w-[34rem] text-left text-[0.82rem]">
@@ -167,7 +205,14 @@ export default async function AdminResume({
           {never.length > 0 && (
             <p className="mt-4 text-[0.78rem] leading-relaxed text-ink-30">
               {num(never.length)} templates have never been chosen at all. Worth knowing
-              before adding more.
+              before adding more.{" "}
+              <Link
+                href={href({ tpl: showAllTemplates ? null : "all" })}
+                className="text-ink-50 underline underline-offset-4 hover:text-ink"
+              >
+                {showAllTemplates ? "Hide the unused ones" : "Show them"}
+              </Link>
+              .
             </p>
           )}
         </Panel>
@@ -262,7 +307,7 @@ export default async function AdminResume({
           {MODES.map((m) => (
             <Link
               key={m.id}
-              href={`/admin/resume?show=${m.id}`}
+              href={href({ show: m.id })}
               className={`rounded-lg px-3 py-1.5 text-[0.8rem] transition-colors ${
                 m.id === mode
                   ? "bg-ink text-paper"
