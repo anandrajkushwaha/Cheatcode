@@ -37,6 +37,17 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   },
 ];
 
+/**
+ * Legal sits next to the copyright rather than in a fourth column.
+ * Nobody navigates to a refund policy from a menu — they go looking for it at
+ * the very bottom of the page, which is exactly where this is.
+ */
+const LEGAL: { href: string; label: string }[] = [
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/refunds", label: "Refunds" },
+];
+
 export function Footer() {
   return (
     <footer className="border-t border-ink-08 py-14">
@@ -84,9 +95,23 @@ export function Footer() {
           </nav>
         </div>
 
-        <p className="mt-12 text-[0.8rem] text-ink-30">
-          © {new Date().getFullYear()} {SITE.name}. All rights reserved.
-        </p>
+        <div className="mt-12 flex flex-col gap-4 border-t border-ink-08 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[0.8rem] text-ink-30">
+            © {new Date().getFullYear()} {SITE.name}. All rights reserved.
+          </p>
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {LEGAL.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="text-[0.8rem] text-ink-30 transition-colors hover:text-ink"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </footer>
   );

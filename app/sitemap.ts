@@ -50,6 +50,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
     },
 
+    // Low priority on purpose: these need to be findable and indexable — a
+    // payment gateway checks that they resolve — without competing with the
+    // guides for crawl budget.
+    { url: `${SITE.url}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE.url}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE.url}/refunds`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+
     ...categories.map((c) => ({
       url: `${SITE.url}/blog/category/${c.slug}`,
       lastModified: now,
