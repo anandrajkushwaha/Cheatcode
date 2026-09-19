@@ -23,8 +23,29 @@ import { BlogStrip, FeaturedGuide } from "@/components/studio/BlogStrip";
 
 const PER_BUCKET = 6;
 
-export default async function StudioHomePage() {
-  const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+export default async function StudioHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pro?: string }>;
+}) {
+  const [profile, resume, params] = await Promise.all([
+    getProfile(),
+    getPrimaryResume(),
+    searchParams,
+  ]);
+
+  /*
+   * The promo hides from anybody already paying, which is correct and also
+   * means the person building it cannot see it: the test account is granted
+   * Pro by 41_grant_pro.sql precisely so the paid surfaces can be checked.
+   *
+   * ?pro=preview forces it back on. It only changes which of two cards is
+   * drawn — no data, no plan, nothing a URL should not be able to decide —
+   * and it is the difference between designing this card and signing out to
+   * look at it.
+   */
+  const previewingPromo = params.pro === "preview";
+  const paid = isPaid(profile) && !previewingPromo;
 
   const cities = profile?.preferred_cities ?? [];
   const years = profile?.years_experience;
@@ -70,7 +91,7 @@ export default async function StudioHomePage() {
       </aside>
 
       <div className="min-w-0 space-y-5">
-        <ProBlock paid={isPaid(profile)} />
+        <ProBlock paid={paid} />
         <JobBuckets buckets={buckets} />
         <BlogStrip posts={strip} />
       </div>
