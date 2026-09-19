@@ -1,8 +1,7 @@
 import { getProfile, getPrimaryResume, isPaid, profileGaps, profileStrength } from "@/lib/app/account";
-import { getSessionUser } from "@/lib/supabase/app";
 import { searchJobs } from "@/lib/jobs/query";
 import { getPosts } from "@/lib/queries/posts";
-import { ProfileRail } from "@/components/studio/ProfileRail";
+import { ProfileCard } from "@/components/app/ProfileCard";
 import { ProBlock } from "@/components/studio/ProBlock";
 import { JobBuckets, type Bucket } from "@/components/studio/JobBuckets";
 import { BlogStrip, FeaturedGuide } from "@/components/studio/BlogStrip";
@@ -25,7 +24,6 @@ import { BlogStrip, FeaturedGuide } from "@/components/studio/BlogStrip";
 const PER_BUCKET = 6;
 
 export default async function StudioHomePage() {
-  const user = await getSessionUser();
   const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
 
   const cities = profile?.preferred_cities ?? [];
@@ -57,21 +55,17 @@ export default async function StudioHomePage() {
   const gaps = profileGaps(profile, resume);
   const strength = profileStrength(profile, resume);
 
-  const headline =
-    profile?.headline ??
-    [profile?.current_title, profile?.current_company].filter(Boolean).join(" @ ") ??
-    null;
-
   return (
     <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+      {/* /app's own identity card, pointed at /studio. Not a studio copy of
+          it: the copy is how two versions of the same card drift apart. */}
       <aside className="min-w-0 lg:sticky lg:top-[88px] lg:self-start">
-        <ProfileRail
-          name={profile?.full_name ?? user?.email?.split("@")[0] ?? "You"}
-          headline={headline || null}
+        <ProfileCard
+          profile={profile}
+          resume={resume}
           strength={strength}
-          nextGap={gaps[0] ? { label: "Complete profile", href: gaps[0].href } : null}
-          avatarUrl={profile?.avatar_url ?? null}
-          pathname="/studio"
+          nextStep={gaps[0]?.label.toLowerCase() ?? null}
+          basePath="/studio"
         />
       </aside>
 

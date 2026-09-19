@@ -15,11 +15,22 @@ export function ProfileCard({
   resume,
   strength,
   nextStep,
+  basePath = "/app",
 }: {
   profile: Profile | null;
   resume: Resume | null;
   strength: number;
   nextStep: string | null;
+  /**
+   * Which signed-in area this card is sitting in.
+   *
+   * The card is identical in both; only where its links land differs. A prop
+   * rather than a second copy of the component, because the copy is how the
+   * two drift — one of them gets the new stat, the other does not, and nobody
+   * notices until a screenshot goes out. Defaulted so /app keeps working
+   * without passing anything.
+   */
+  basePath?: string;
 }) {
   // Null, not a placeholder: a nameless account must not end up with the
   // initials of the words "Your profile" stamped on its avatar.
@@ -48,7 +59,7 @@ export function ProfileCard({
         )}
 
         <Link
-          href="/app/profile"
+          href={`${basePath}/profile`}
           className="mt-4 block rounded-full bg-ink py-2.5 text-[0.84rem] font-medium text-paper transition-transform hover:scale-[1.015] active:scale-[0.99]"
         >
           {strength >= 85 ? "Edit profile" : "Complete profile"}
@@ -62,13 +73,13 @@ export function ProfileCard({
       {/* ----------------------------------------------------------- stats */}
       <div className="grid grid-cols-2 divide-x divide-ink-08 border-y border-ink-08">
         <StatCell
-          href="/app/resume"
+          href={`${basePath}/resume`}
           label="ATS score"
           value={resume?.ats_score ?? null}
           empty="Add resume"
         />
         <StatCell
-          href="/app/resume"
+          href={`${basePath}/resume`}
           label="Skills read"
           value={resume?.skills?.length ? resume.skills.length : null}
           empty="—"
@@ -77,7 +88,7 @@ export function ProfileCard({
 
       {/* ------------------------------------------------------------- nav */}
       <nav className="p-2">
-        {NAV.map((item) => (
+        {nav(basePath).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -188,12 +199,14 @@ function StatCell({
 
 /* -------------------------------------------------------------------- bits */
 
-const NAV = [
-  { href: "/app/resume", label: "Resume", icon: <IconDoc /> },
-  { href: "/app/jobs", label: "Jobs", icon: <IconBriefcase /> },
-  { href: "/app/agent", label: "Agent", icon: <IconSpark /> },
-  { href: "/app/profile", label: "Preferences", icon: <IconSliders /> },
-];
+function nav(base: string) {
+  return [
+    { href: `${base}/resume`, label: "Resume", icon: <IconDoc /> },
+    { href: `${base}/jobs`, label: "Jobs", icon: <IconBriefcase /> },
+    { href: `${base}/agent`, label: "Agent", icon: <IconSpark /> },
+    { href: `${base}/profile`, label: "Preferences", icon: <IconSliders /> },
+  ];
+}
 
 function initials(name: string): string {
   const parts = name.split(/\s+/).filter(Boolean);
