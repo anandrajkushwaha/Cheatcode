@@ -7,14 +7,14 @@ export default function StudioSalaryPage() {
       <div>
         <Link
           href="/studio/tools"
-          className="text-[0.85rem] text-ink-50 transition-colors hover:text-ink"
+          className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
         >
           ← Free tools
         </Link>
-        <h1 className="mt-3 text-[1.5rem] font-semibold tracking-[-0.03em]">
+        <h1 className="mt-3 text-[1.38rem] font-semibold tracking-[-0.03em]">
           In-hand salary calculator
         </h1>
-        <p className="mt-2 max-w-[60ch] text-[0.92rem] leading-relaxed text-ink-50">
+        <p className="mt-2 max-w-[60ch] text-[0.87rem] leading-relaxed text-ink-50">
           What the CTC on your offer letter actually becomes each month, after
           PF, gratuity, professional tax and income tax.
         </p>

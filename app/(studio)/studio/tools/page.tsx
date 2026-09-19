@@ -32,8 +32,8 @@ export default function StudioToolsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[1.5rem] font-semibold tracking-[-0.03em]">Free tools</h1>
-        <p className="mt-2 max-w-[58ch] text-[0.92rem] leading-relaxed text-ink-50">
+        <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Free tools</h1>
+        <p className="mt-2 max-w-[58ch] text-[0.87rem] leading-relaxed text-ink-50">
           Both run entirely in your browser. Nothing you upload here is sent
           anywhere or stored.
         </p>
@@ -46,8 +46,8 @@ export default function StudioToolsPage() {
             href={t.href}
             className="group rounded-2xl border border-ink-08 bg-paper p-6 transition-colors hover:border-ink-30"
           >
-            <p className="text-[1.1rem] font-medium tracking-[-0.02em]">{t.name}</p>
-            <p className="mt-2.5 text-[0.9rem] leading-relaxed text-ink-50">{t.tagline}</p>
+            <p className="text-[1.02rem] font-medium tracking-[-0.02em]">{t.name}</p>
+            <p className="mt-2.5 text-[0.85rem] leading-relaxed text-ink-50">{t.tagline}</p>
             <p className="mt-5 text-[0.72rem] uppercase tracking-wider text-ink-30">{t.meta}</p>
           </Link>
         ))}

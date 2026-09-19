@@ -30,12 +30,12 @@ export function JobBuckets({ buckets }: { buckets: Bucket[] }) {
   return (
     <section className="rounded-2xl border border-ink-08 bg-paper">
       <div className="flex items-baseline justify-between gap-4 px-5 pt-5 sm:px-6">
-        <h2 className="text-[1.05rem] font-semibold tracking-[-0.02em]">
+        <h2 className="text-[0.97rem] font-semibold tracking-[-0.02em]">
           Recommended jobs for you
         </h2>
         <Link
           href="/studio/jobs"
-          className="shrink-0 text-[0.85rem] font-medium text-sky-1 hover:underline"
+          className="shrink-0 text-[0.8rem] font-medium text-sky-1 hover:underline"
         >
           View all
         </Link>
@@ -53,7 +53,7 @@ export function JobBuckets({ buckets }: { buckets: Bucket[] }) {
             role="tab"
             aria-selected={b.key === active}
             onClick={() => setActive(b.key)}
-            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 text-[0.9rem] transition-colors ${
+            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 text-[0.84rem] transition-colors ${
               b.key === active
                 ? "border-sky-1 font-medium text-ink"
                 : "border-transparent text-ink-50 hover:text-ink"
@@ -66,7 +66,7 @@ export function JobBuckets({ buckets }: { buckets: Bucket[] }) {
 
       <div className="px-5 py-5 sm:px-6">
         {shown.jobs.length === 0 ? (
-          <p className="py-6 text-[0.88rem] leading-relaxed text-ink-30">
+          <p className="py-6 text-[0.83rem] leading-relaxed text-ink-30">
             Nothing in this bucket yet. New roles land here as the boards we
             follow post them.
           </p>

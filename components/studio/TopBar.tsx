@@ -31,10 +31,13 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-08 bg-paper">
-      <div className="mx-auto flex h-[72px] max-w-[1120px] items-center gap-6 px-4 sm:px-6">
+      {/* Three tracks rather than a flex row: the outer two take the leftover
+          space equally, which is what puts the nav on the page's centre line
+          instead of merely between the wordmark and the avatar. */}
+      <div className="mx-auto grid h-[68px] max-w-[1120px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
         <Link
           href="/studio"
-          className="shrink-0 text-[1.35rem] font-semibold tracking-[-0.04em] text-ink sm:text-[1.6rem]"
+          className="justify-self-start text-[1.25rem] font-semibold tracking-[-0.04em] text-ink sm:text-[1.45rem]"
         >
           Cheatcode
         </Link>
@@ -43,7 +46,7 @@ export function TopBar({
             wordmark off a narrow screen. */}
         <nav
           aria-label="Studio"
-          className="flex min-w-0 flex-1 items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-w-0 items-center justify-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {STUDIO_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
@@ -52,7 +55,7 @@ export function TopBar({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`whitespace-nowrap text-[0.95rem] transition-colors ${
+                className={`whitespace-nowrap text-[0.88rem] transition-colors ${
                   active ? "font-medium text-ink" : "text-ink-50 hover:text-ink"
                 }`}
               >
@@ -62,7 +65,7 @@ export function TopBar({
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex items-center justify-end gap-3 justify-self-end">
           <AgentOrb placement="inline" />
 
           <Link href="/studio/profile" aria-label="Your profile" className="shrink-0">

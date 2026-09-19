@@ -34,12 +34,12 @@ export function BlogStrip({ posts }: { posts: PostCard[] }) {
   return (
     <section className="rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-[1.05rem] font-semibold tracking-[-0.02em]">
+        <h2 className="text-[0.97rem] font-semibold tracking-[-0.02em]">
           Stay updated with our guides
         </h2>
         <Link
           href="/blog"
-          className="shrink-0 text-[0.85rem] font-medium text-sky-1 hover:underline"
+          className="shrink-0 text-[0.8rem] font-medium text-sky-1 hover:underline"
         >
           View all
         </Link>
@@ -52,13 +52,13 @@ export function BlogStrip({ posts }: { posts: PostCard[] }) {
               href={`/blog/${post.slug}`}
               className="flex h-full flex-col rounded-xl border border-ink-08 p-4 transition-colors hover:border-ink-30"
             >
-              <p className="line-clamp-3 text-[0.9rem] font-medium leading-snug text-ink">
+              <p className="line-clamp-3 text-[0.84rem] font-medium leading-snug text-ink">
                 {post.title}
               </p>
               {/* The date is the part that must not wrap, so it keeps its
                   width and the category gives way first — the other way round
                   truncated "Salary" to "Sal…" while the date sat untouched. */}
-              <p className="mt-auto flex items-center gap-1.5 pt-3 text-[0.75rem] text-ink-30">
+              <p className="mt-auto flex items-center gap-1.5 pt-3 text-[0.71rem] text-ink-30">
                 <span className="min-w-0 flex-1 truncate">
                   {post.category?.name ?? "Guide"}
                 </span>
@@ -87,20 +87,20 @@ export function FeaturedGuide({ post }: { post: PostCard | null }) {
 
   return (
     <section className="rounded-2xl border border-ink-08 bg-paper p-5">
-      <p className="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-ink-30">
+      <p className="text-[0.67rem] font-medium uppercase tracking-[0.14em] text-ink-30">
         Latest guide
       </p>
-      <p className="mt-3 text-[0.95rem] font-medium leading-snug text-ink">
+      <p className="mt-3 text-[0.89rem] font-medium leading-snug text-ink">
         {post.title}
       </p>
       {post.excerpt && (
-        <p className="mt-2 line-clamp-3 text-[0.82rem] leading-relaxed text-ink-50">
+        <p className="mt-2 line-clamp-3 text-[0.78rem] leading-relaxed text-ink-50">
           {post.excerpt}
         </p>
       )}
       <Link
         href={`/blog/${post.slug}`}
-        className="mt-4 inline-block text-[0.85rem] font-medium text-sky-1 hover:underline"
+        className="mt-4 inline-block text-[0.8rem] font-medium text-sky-1 hover:underline"
       >
         Know more
       </Link>

@@ -32,7 +32,7 @@ export default async function StudioResumePage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
-        <h1 className="text-[1.5rem] font-semibold tracking-[-0.03em]">Resume</h1>
+        <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Resume</h1>
         <div className="flex items-center gap-4">
           {draft && (
             <Link
@@ -59,7 +59,7 @@ export default async function StudioResumePage() {
           />
         ) : (
           <>
-            <p className="max-w-[58ch] text-[0.92rem] leading-relaxed text-ink-50">
+            <p className="max-w-[58ch] text-[0.87rem] leading-relaxed text-ink-50">
               {resume
                 ? "Build your document first, and every template will show your own resume in it — your name, your jobs, your bullets — rather than a stranger's."
                 : "Upload a resume to start. Every template shows your own document, so there has to be one."}

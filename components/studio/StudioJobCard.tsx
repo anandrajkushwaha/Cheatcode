@@ -26,13 +26,13 @@ export function StudioJobCard({ job }: { job: JobRow }) {
       rel="noopener noreferrer nofollow"
       className="group flex h-full flex-col rounded-xl border border-ink-08 bg-paper p-4 transition-colors hover:border-ink-30"
     >
-      <p className="line-clamp-2 text-[0.92rem] font-semibold leading-snug tracking-[-0.01em] group-hover:underline">
+      <p className="line-clamp-2 text-[0.86rem] font-semibold leading-snug tracking-[-0.01em] group-hover:underline">
         {job.title}
       </p>
-      <p className="mt-1 truncate text-[0.82rem] text-ink-50">{job.company}</p>
+      <p className="mt-1 truncate text-[0.78rem] text-ink-50">{job.company}</p>
 
       {facts.length > 0 && (
-        <p className="mt-2.5 truncate text-[0.78rem] text-ink-70">{facts.join(" · ")}</p>
+        <p className="mt-2.5 truncate text-[0.74rem] text-ink-70">{facts.join(" · ")}</p>
       )}
 
       {job.skills.length > 0 && (
@@ -40,7 +40,7 @@ export function StudioJobCard({ job }: { job: JobRow }) {
           {job.skills.slice(0, 3).map((s) => (
             <span
               key={s}
-              className="rounded-md bg-ink-04 px-1.5 py-0.5 text-[0.7rem] text-ink-50"
+              className="rounded-md bg-ink-04 px-1.5 py-0.5 text-[0.67rem] text-ink-50"
             >
               {s}
             </span>
@@ -50,7 +50,7 @@ export function StudioJobCard({ job }: { job: JobRow }) {
 
       {/* Pushes the age to the bottom so it lines up across cards of
           different content lengths. */}
-      <span className="mt-auto pt-3 text-[0.72rem] text-ink-30">
+      <span className="mt-auto pt-3 text-[0.68rem] text-ink-30">
         {job.posted_at ? ago(job.posted_at) : " "}
       </span>
     </a>

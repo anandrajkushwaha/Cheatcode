@@ -1,41 +1,41 @@
 /**
- * What the paid plan actually buys.
+ * What the paid plan advertises, and what it costs.
  *
- * One list, because this appears in two places already — the promo block on
- * the studio home and the upgrade screen — and a benefit that is worded two
- * ways is a benefit nobody trusts.
+ * One list, because it appears on the promo card and on the upgrade screen,
+ * and a benefit worded two ways is a benefit nobody trusts.
  *
- * Every line here has to be something the product can do today or the day it
- * ships. The Figma carried "Auto-Apply on Naukri", which is neither: it is a
- * promise about automating another company's site, and we can neither deliver
- * it nor put their name on our pricing.
+ * ---------------------------------------------------------------- a caveat
  *
- * NOTE: /app/upgrade still has its own hardcoded copy of this list. Point it
- * here when /app is cut over, and delete the copy there.
+ * These five come from the design. Three of them exist today — the agent, the
+ * builder, and the template set. Two do not: there is no mock-interview
+ * feature and no human resume review anywhere in the product.
+ *
+ * That is survivable while nothing can be bought, because the card is a
+ * statement of where the plan is going. It stops being survivable the moment
+ * CHECKOUT_LIVE is true: at that point somebody is paying ₹99 for a list of
+ * five things and receiving three, which is a refund conversation rather than
+ * a marketing one. Either those two ship first, or they come off this list
+ * before the checkout opens.
  */
 
-export type Perk = { title: string; detail: string };
+export type Perk = { title: string; built: boolean };
 
 export const PRO_PERKS: Perk[] = [
-  {
-    title: "Talk to the agent",
-    detail: "A real voice conversation about your career, not a chat box.",
-  },
-  {
-    title: "Jobs ranked against your resume",
-    detail: "With the reason spelled out, so you can disagree with it.",
-  },
-  {
-    title: "Unlimited ATS checks",
-    detail: "Rewrite, re-upload and re-score as often as you like.",
-  },
+  { title: "AI Career Agent", built: true },
+  { title: "AI Resume Builder", built: true },
+  { title: "Premium Templates", built: true },
+  { title: "AI Mock Interviews", built: false },
+  { title: "Expert Resume Review", built: false },
 ];
+
+/** As drawn. Kept here so the card and the upgrade screen cannot disagree. */
+export const PRO_PRICE_LABEL = "Unlock Pro ₹99";
 
 /**
  * Whether anybody can actually buy this yet.
  *
- * Razorpay is not connected. Until it is, the promo has to ask to be told
- * rather than pretend to sell — a button that opens a dead checkout is worse
- * than a button that is honest about where the product is.
+ * Razorpay is not connected. The button is drawn as the design has it, but it
+ * leads to the plan screen, which says where payments stand rather than
+ * dead-ending in a checkout that cannot take money.
  */
 export const CHECKOUT_LIVE = false;
