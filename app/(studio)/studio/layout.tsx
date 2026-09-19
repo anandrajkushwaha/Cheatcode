@@ -45,7 +45,7 @@ export default async function StudioLayout({
           avatarUrl: profile?.avatar_url ?? null,
         }}
       />
-      <main id="main" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
+      <main id="main" className="mx-auto max-w-[1160px] px-3 py-5 sm:px-5 sm:py-6">
         {children}
       </main>
     </div>

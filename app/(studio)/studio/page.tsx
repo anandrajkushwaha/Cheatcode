@@ -77,7 +77,7 @@ export default async function StudioHomePage({
   const strength = profileStrength(profile, resume);
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+    <div className="grid gap-4 lg:grid-cols-[236px_minmax(0,1fr)] xl:grid-cols-[236px_minmax(0,1fr)_252px]">
       {/* /app's own identity card, pointed at /studio. Not a studio copy of
           it: the copy is how two versions of the same card drift apart. */}
       <aside className="min-w-0 lg:sticky lg:top-[88px] lg:self-start">
