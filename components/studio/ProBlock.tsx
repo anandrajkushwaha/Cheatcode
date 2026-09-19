@@ -73,15 +73,20 @@ export function ProBlock({
         <div className="flex w-full shrink-0 flex-col justify-center sm:w-[176px]">
           <p className="text-[0.95rem] font-bold leading-5 text-white">With</p>
 
-          {/* The four lines were stacked almost touching. The design puts real
-              gaps between them — 15px, 16px, then 32px before the button —
-              and that spacing is most of why the block reads as confident. */}
-          <p className="mt-3 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-3px] text-white">
+          {/* Measured off the reference: 10px under "With", 11px under the
+              wordmark, 27px before the button. The three text lines are one
+              block and read as one — the air belongs before the button, not
+              between them.
+
+              The wordmark itself is the opposite: -3px tracking crushed P
+              into R and the orb into both. Opened to -1px, with the orb given
+              its own 6px of clearance, which is the gap the design has. */}
+          <p className="mt-2.5 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-1px] text-white">
             PR
-            <OrbMark className="ml-px size-[0.72em]" />
+            <OrbMark className="ml-1.5 size-[0.72em]" />
           </p>
 
-          <p className="mt-3.5 whitespace-nowrap text-[0.92rem] font-bold leading-5 text-white">
+          <p className="mt-3 whitespace-nowrap text-[0.92rem] font-bold leading-5 text-white">
             you get hired faster
           </p>
 
@@ -110,7 +115,13 @@ export function ProBlock({
 
         {/* ------------------------------------------------ the comparison */}
         <div className="flex min-w-0 flex-1 items-stretch gap-5 overflow-x-auto sm:gap-7">
-          <div className="min-w-0 flex-1">
+          {/* min-w-max, not min-w-0. The labels are nowrap, so a column that
+              is allowed to shrink below its content does not wrap or clip —
+              it lets the text run straight out of its box and over the dash
+              beside it, which is what put "Expert Resume Review" through the
+              You column. This floors the column at its widest label and lets
+              the row scroll on a narrow screen instead. */}
+          <div className="min-w-max flex-1">
             <p
               className={`flex items-center whitespace-nowrap text-[1rem] font-bold text-white ${HEADER}`}
             >
@@ -148,9 +159,9 @@ export function ProBlock({
               rather than a grey one, as drawn. */}
           <div className="flex shrink-0 flex-col self-stretch rounded-[18px] border border-[#c8822f] bg-black">
             <div className={`flex items-center justify-center px-3 ${HEADER}`}>
-              <span className="flex items-center text-[1rem] font-extrabold leading-none text-white">
+              <span className="flex items-center text-[1rem] font-extrabold leading-none tracking-[-0.01em] text-white">
                 PR
-                <SolidOrb className="ml-px size-[0.9em]" />
+                <SolidOrb className="ml-1 size-[0.9em]" />
               </span>
             </div>
 
