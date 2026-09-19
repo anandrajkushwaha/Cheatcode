@@ -68,31 +68,33 @@ export function ProBlock({
       />
 
       <ProReveal greeting={firstName ? `Hi ${firstName}` : "Hi there"}>
-      <div className="relative flex flex-col gap-7 px-7 py-7 sm:flex-row sm:items-stretch sm:gap-0 sm:px-9 sm:py-7">
+      <div className="relative flex flex-col gap-7 px-7 py-7 sm:flex-row sm:items-stretch sm:gap-0 sm:px-8 sm:py-7">
         {/* ------------------------------------------------------- the pitch */}
-        <div className="flex w-full shrink-0 flex-col justify-center sm:w-[176px]">
-          <p className="text-[0.95rem] font-bold leading-5 text-white">With</p>
+        <div className="flex w-full shrink-0 flex-col justify-center sm:w-[30%]">
+          <p className="text-[0.95rem] font-bold leading-none text-white">With</p>
 
-          {/* Measured off the reference: 10px under "With", 11px under the
-              wordmark, 27px before the button. The three text lines are one
-              block and read as one — the air belongs before the button, not
-              between them.
+          {/* The gaps that were left kept reading as too big because most of
+              the space was not margin at all — it was half-leading. A 3.4rem
+              line at 1.05 leading carries about 17px of air above the caps and
+              the same below, on top of whatever margin is set. Pulling the
+              line boxes down to the glyphs is what actually closes the block;
+              the margins here are small because they are now the whole gap.
 
-              The wordmark itself is the opposite: -3px tracking crushed P
-              into R and the orb into both. Opened to -1px, with the orb given
-              its own 6px of clearance, which is the gap the design has. */}
-          <p className="mt-2.5 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-1px] text-white">
+              The wordmark's tracking is the opposite problem: -3px crushed P
+              into R and the orb into both. -1px, with the orb given its own
+              6px of clearance, is the spacing the design has. */}
+          <p className="mt-2 flex items-center text-[3.4rem] font-black leading-[0.82] tracking-[-1px] text-white">
             PR
             <OrbMark className="ml-1.5 size-[0.72em]" />
           </p>
 
-          <p className="mt-3 whitespace-nowrap text-[0.92rem] font-bold leading-5 text-white">
+          <p className="mt-2.5 whitespace-nowrap text-[0.92rem] font-bold leading-none text-white">
             you get hired faster
           </p>
 
           <Link
             href="/studio/upgrade?from=studio-home"
-            className="mt-7 flex w-full max-w-[184px] items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-[0.88rem] font-bold leading-[18px] text-[#1a1a1a] transition-opacity hover:opacity-90"
+            className="mt-6 flex w-full max-w-[184px] items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-[0.88rem] font-bold leading-[18px] text-[#1a1a1a] transition-opacity hover:opacity-90"
             style={{
               backgroundImage:
                 "linear-gradient(135deg, rgb(180,173,173) 0%, rgb(245,245,245) 50%, rgb(163,163,163) 100%)",
@@ -106,7 +108,7 @@ export function ProBlock({
             which is what stops it reading as a table rule. */}
         <div
           aria-hidden
-          className="mx-7 hidden w-px shrink-0 self-stretch sm:mx-9 sm:block"
+          className="mx-7 hidden w-px shrink-0 self-stretch sm:mx-5 sm:block"
           style={{
             backgroundImage:
               "linear-gradient(180deg, rgba(196,164,132,0) 0%, rgba(214,186,156,0.85) 22%, rgba(214,186,156,0.85) 78%, rgba(196,164,132,0) 100%)",
@@ -114,14 +116,18 @@ export function ProBlock({
         />
 
         {/* ------------------------------------------------ the comparison */}
-        <div className="flex min-w-0 flex-1 items-stretch gap-5 overflow-x-auto sm:gap-7">
-          {/* min-w-max, not min-w-0. The labels are nowrap, so a column that
-              is allowed to shrink below its content does not wrap or clip —
-              it lets the text run straight out of its box and over the dash
-              beside it, which is what put "Expert Resume Review" through the
-              You column. This floors the column at its widest label and lets
-              the row scroll on a narrow screen instead. */}
-          <div className="min-w-max flex-1">
+        {/* No scroller. The three columns are sized so the whole comparison
+            lands at once at the narrowest the card ever gets — 30% to the
+            pitch, the rest here — because a sideways scrollbar inside a
+            promo means half the offer is hidden behind a gesture nobody
+            makes. */}
+        <div className="flex min-w-0 flex-1 items-stretch gap-5 sm:gap-6">
+          {/* truncate on every label, not nowrap alone. Nowrap without an
+              overflow rule is what put "Expert Resume Review" straight
+              through the column beside it; with truncate the worst case is an
+              ellipsis inside its own box. At the sizes below it never
+              actually truncates — it is the floor, not the plan. */}
+          <div className="min-w-0 flex-1">
             <p
               className={`flex items-center whitespace-nowrap text-[1rem] font-bold text-white ${HEADER}`}
             >
@@ -131,7 +137,7 @@ export function ProBlock({
               {PRO_PERKS.map((perk) => (
                 <li key={perk.title} className={`flex items-center gap-2.5 ${ROW}`}>
                   <Sparkle className="size-3.5 shrink-0 text-[#8f9dfb]" />
-                  <span className="whitespace-nowrap text-[0.9rem] font-medium text-white">
+                  <span className="truncate text-[0.86rem] font-medium text-white">
                     {perk.title}
                   </span>
                 </li>
@@ -141,9 +147,9 @@ export function ProBlock({
 
           <div className="shrink-0">
             <p
-              className={`flex items-center justify-center whitespace-nowrap text-[0.9rem] font-medium text-white/90 ${HEADER}`}
+              className={`flex items-center justify-center whitespace-nowrap text-[0.86rem] font-medium text-white/90 ${HEADER}`}
             >
-              You
+              FREE
             </p>
             {PRO_PERKS.map((perk) => (
               <div key={perk.title} className={`flex items-center justify-center ${ROW}`}>
