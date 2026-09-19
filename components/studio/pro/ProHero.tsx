@@ -37,6 +37,8 @@ export function ProHero({
         src="/pro-hero-bg.png"
         alt=""
         aria-hidden
+        width={3024}
+        height={756}
         className="absolute inset-0 size-full object-cover"
       />
 
@@ -69,12 +71,16 @@ export function ProHero({
           </div>
         </div>
 
+        {/* The supplied art is 2x the layout size (1268x756 into a 634x378 slot),
+            which is what keeps it sharp on a retina screen. The declared width
+            and height are the file's real ones, so the box is reserved at the
+            right ratio before the image arrives. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/pro-hero-people.png"
           alt="Two Cheatcode members"
-          width={634}
-          height={378}
+          width={1268}
+          height={756}
           className="mx-auto block w-full max-w-[520px] lg:absolute lg:bottom-0 lg:right-[12px] lg:mx-0 lg:h-[378px] lg:w-auto lg:max-w-none"
         />
       </div>

@@ -29,7 +29,7 @@ export function ReviewCard({ review }: { review: Review }) {
       <figcaption className="flex items-center gap-3">
         <span
           aria-hidden={review.avatarUrl ? undefined : true}
-          className="relative grid size-[60px] shrink-0 place-items-center overflow-hidden rounded-full bg-[#dbe6fb] text-[0.95rem] font-semibold text-[#474d6a] sm:size-[72px]"
+          className="relative grid size-[60px] shrink-0 place-items-center overflow-hidden rounded-full bg-ink-08 text-[0.95rem] font-semibold text-[#474d6a] sm:size-[72px]"
         >
           {/* Initials paint first; the photo covers them if it loads. A slow
               or dead image URL leaves a name badge, not a grey hole. */}
@@ -57,7 +57,7 @@ export function ReviewCard({ review }: { review: Review }) {
         </span>
       </figcaption>
 
-      <blockquote className="flex-1 rounded-[16px] bg-[#edf4ff] px-5 pb-6 pt-5 sm:min-h-[166px]">
+      <blockquote className="flex-1 rounded-[16px] bg-paper px-5 pb-6 pt-5 sm:min-h-[166px]">
         <p className="whitespace-pre-line text-[0.875rem] font-medium leading-[18px] text-[#121224]">
           {review.quote}
         </p>

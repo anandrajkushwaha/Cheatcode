@@ -18,6 +18,40 @@ import type { Review } from "@/lib/studio/reviews";
  * which is what keeps them honest when somebody swipes.
  */
 
+function Arrow({
+  side,
+  label,
+  onClick,
+}: {
+  side: "left" | "right";
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`absolute top-1/2 z-10 grid size-[35px] -translate-y-1/2 place-items-center rounded-full bg-[#121224] text-white shadow-md transition-opacity hover:opacity-85 ${
+        side === "left" ? "left-1 lg:-left-11" : "right-1 lg:-right-11"
+      }`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden
+        className={`size-[14px] ${side === "left" ? "rotate-180" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="m9 5 7 7-7 7" />
+      </svg>
+    </button>
+  );
+}
+
 export function ProReviews({ reviews }: { reviews: Review[] }) {
   const track = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
@@ -87,19 +121,23 @@ export function ProReviews({ reviews }: { reviews: Review[] }) {
           ))}
         </div>
 
-        {pages > 1 && (
-          <div className="pointer-events-none absolute -right-2 top-1/2 hidden -translate-y-1/2 lg:-right-11 lg:block">
-            <button
-              type="button"
-              onClick={() => go(page + 1 >= pages ? 0 : page + 1)}
-              aria-label="Next testimonials"
-              className="pointer-events-auto grid size-[35px] place-items-center rounded-full bg-[#121224] text-white transition-opacity hover:opacity-85"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden className="size-[14px]" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-                <path d="m9 5 7 7-7 7" />
-              </svg>
-            </button>
-          </div>
+        {/* Both arrows, each present only while it has somewhere to go. The
+            design drew the forward one alone, which is right for the first
+            screen and wrong the moment you use it — there was no way back to
+            a review you had just scrolled past. */}
+        {pages > 1 && page > 0 && (
+          <Arrow
+            side="left"
+            label="Previous testimonials"
+            onClick={() => go(page - 1)}
+          />
+        )}
+        {pages > 1 && page < pages - 1 && (
+          <Arrow
+            side="right"
+            label="Next testimonials"
+            onClick={() => go(page + 1)}
+          />
         )}
       </div>
 

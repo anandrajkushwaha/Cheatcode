@@ -224,7 +224,7 @@ export function ReviewsManager({ reviews }: { reviews: Review[] }) {
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             How it will look
           </h2>
-          <div className="mt-5 rounded-2xl border border-ink-08 bg-paper p-5">
+          <div className="mt-5 rounded-2xl border border-ink-08 bg-ink-04 p-5">
             <ReviewCard review={preview} />
           </div>
           <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-30">
