@@ -5,6 +5,11 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
 
+  /* Used once, for the Insights heading. Kept as a token rather than a class
+     so that if the studio ever grows a second display moment, the two cannot
+     drift onto different faces. */
+  --font-display: var(--font-playfair), Georgia, "Times New Roman", serif;
+
   /* Monochrome scale — the entire brand palette lives here. */
   --color-ink: #000000;
   --color-ink-70: #3d3d42;

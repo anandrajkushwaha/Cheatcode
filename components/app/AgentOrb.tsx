@@ -25,7 +25,21 @@ import { primeAudio } from "@/lib/app/agent-sound";
  * out of this exact spot — which is why the button's centre is measured and
  * handed to the overlay.
  */
-export function AgentOrb() {
+/**
+ * Two placements, one orb.
+ *
+ * The old app parks it in the bottom-right corner; the studio sets it beside
+ * the composer, where the design puts it. That is a difference of position
+ * and size and nothing else — the Lottie, the reduced-motion handling, the
+ * visibility pausing and the full-screen overlay are identical, which is why
+ * this is a prop rather than a second component. A forked orb would have been
+ * two things to keep in step for the rest of the product's life.
+ */
+export function AgentOrb({
+  placement = "fixed",
+}: {
+  placement?: "fixed" | "inline";
+} = {}) {
   const pathname = usePathname();
   const host = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -114,18 +128,34 @@ export function AgentOrb() {
         }}
         aria-label="Talk to the agent"
         aria-expanded={open}
-        className={`no-print group fixed bottom-5 right-5 z-50 flex items-center gap-3 transition-opacity duration-200 sm:bottom-7 sm:right-7 ${
-          open ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        className={`no-print group flex items-center gap-3 transition-opacity duration-200 ${
+          placement === "fixed"
+            ? "fixed bottom-5 right-5 z-50 sm:bottom-7 sm:right-7"
+            : "relative shrink-0"
+        } ${open ? "pointer-events-none opacity-0" : "opacity-100"}`}
+        style={
+          placement === "fixed"
+            ? { paddingBottom: "env(safe-area-inset-bottom, 0px)" }
+            : undefined
+        }
       >
         {/* The label only exists on pointer devices; on a phone the corner is
-            tight and the orb has to speak for itself. */}
-        <span className="pointer-events-none hidden translate-x-2 rounded-full bg-ink px-3.5 py-1.5 text-[0.8rem] font-medium text-paper opacity-0 shadow-lg transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 sm:block">
-          Talk to the agent
-        </span>
+            tight and the orb has to speak for itself. Inline it is dropped
+            entirely — there it sits against the composer, and a tooltip
+            sliding out of it would cover the send button. */}
+        {placement === "fixed" && (
+          <span className="pointer-events-none hidden translate-x-2 rounded-full bg-ink px-3.5 py-1.5 text-[0.8rem] font-medium text-paper opacity-0 shadow-lg transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 sm:block">
+            Talk to the agent
+          </span>
+        )}
 
-        <span className="relative grid h-[72px] w-[72px] place-items-center sm:h-20 sm:w-20">
+        <span
+          className={`relative grid place-items-center ${
+            placement === "fixed"
+              ? "h-[72px] w-[72px] sm:h-20 sm:w-20"
+              : "h-12 w-12 sm:h-14 sm:w-14"
+          }`}
+        >
           {/* Ground glow: the orb reads as lit rather than pasted on. */}
           <span
             aria-hidden="true"

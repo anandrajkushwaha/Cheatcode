@@ -15,8 +15,8 @@ export function StudioPlaceholder({
   detail: string;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center">
-      <h1 className="text-[1.9rem] font-semibold tracking-[-0.035em] text-ink">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-10 text-center sm:px-8">
+      <h1 className="text-[clamp(1.4rem,3.4vw,1.9rem)] font-semibold tracking-[-0.035em] text-ink">
         {title}
       </h1>
       <p className="mt-4 max-w-[46ch] text-[1rem] leading-relaxed text-ink-50">

@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import localFont from "next/font/local";
+import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { JsonLd } from "@/components/JsonLd";
@@ -25,6 +26,31 @@ const inter = localFont({
     "Segoe UI",
     "sans-serif",
   ],
+});
+
+/**
+ * The one display face, used for exactly one word: the Insights heading in
+ * the studio.
+ *
+ * Fetched through next/font/google rather than vendored beside Inter, and the
+ * distinction matters less than it looks: next/font downloads the file at
+ * build time and serves it from our own origin, so the rule Inter is here to
+ * satisfy — no request to fonts.googleapis.com from a visitor's browser —
+ * still holds. The build machine makes the request once; nobody's browser
+ * ever does.
+ *
+ * preload is off deliberately. Every marketing page inherits this layout and
+ * none of them use this face, so preloading it would mean the blog fetching a
+ * font for a heading it does not have.
+ */
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["700"],
+  style: ["italic"],
+  display: "swap",
+  variable: "--font-playfair",
+  preload: false,
+  fallback: ["Georgia", "Times New Roman", "serif"],
 });
 
 export const metadata: Metadata = {
@@ -53,7 +79,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-IN" className={inter.variable} data-scroll-behavior="smooth">
+    <html
+      lang="en-IN"
+      className={`${inter.variable} ${playfair.variable}`}
+      data-scroll-behavior="smooth"
+    >
       <body className="antialiased">
         <a
           href="#main"

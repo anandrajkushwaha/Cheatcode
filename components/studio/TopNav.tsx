@@ -36,9 +36,13 @@ export function TopNav() {
   const pathname = usePathname();
 
   return (
+    /* Scrolls sideways under its own width rather than pushing the wordmark
+       off the header. On a phone all four destinations do not fit at any
+       readable size, and a nav that wraps to two rows costs more height than
+       the screen has to give. */
     <nav
       aria-label="Studio"
-      className="flex items-center gap-1 rounded-full border-2 border-paper bg-paper p-2 shadow-studio-soft"
+      className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border-2 border-paper bg-paper p-1.5 shadow-studio-soft [scrollbar-width:none] lg:p-2 [&::-webkit-scrollbar]:hidden"
     >
       {STUDIO_NAV.map((item) => {
         const active = item.exact
@@ -50,7 +54,7 @@ export function TopNav() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`whitespace-nowrap rounded-full px-6 py-2.5 text-studio-nav transition-colors ${
+            className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[0.95rem] transition-colors sm:px-5 lg:px-6 lg:py-2.5 lg:text-studio-nav ${
               active
                 ? "bg-studio-rail font-semibold text-ink-70"
                 : "font-normal text-studio-muted hover:text-ink-70"

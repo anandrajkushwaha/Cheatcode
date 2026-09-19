@@ -34,11 +34,10 @@ const MATCHES: Record<TabKey, (i: Insight) => boolean> = {
  * small and already in the page — a round trip to hide three cards would be
  * slower than the animation it replaced.
  *
- * The heading is set in the body font rather than the Playfair Display the
- * design calls for. That is a deliberate hold, not an oversight: the site
- * self-hosts exactly one family so that no page makes a third-party font
- * request, and a second display face is a real decision about page weight,
- * not something to smuggle in through a panel header.
+ * The heading is Playfair Display bold italic, as drawn. It is the only
+ * display type in the product, loaded through next/font so the file is served
+ * from our own origin and no visitor's browser ever calls fonts.googleapis —
+ * which is the rule Inter is self-hosted to satisfy, kept intact.
  */
 export function InsightsPanel({
   items,
@@ -51,9 +50,9 @@ export function InsightsPanel({
   const shown = items.filter(MATCHES[tab]);
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-studio-panel bg-studio-panel">
+    <aside className="flex h-full w-[320px] shrink-0 flex-col overflow-hidden rounded-studio-panel bg-studio-panel 2xl:w-[340px]">
       <div className="flex items-center justify-between px-5 pt-5">
-        <h2 className="text-[1.6rem] font-semibold italic tracking-[-0.02em] text-studio-accent">
+        <h2 className="font-display text-[1.75rem] font-bold italic leading-none text-studio-accent">
           Insights
         </h2>
         <button
