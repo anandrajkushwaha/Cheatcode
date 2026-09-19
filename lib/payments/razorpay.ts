@@ -101,6 +101,16 @@ export async function createSubscription(
     | null;
 
   if (!res.ok || !body?.id) {
+    // Logged so a failure is diagnosable from the function logs. The key id is
+    // public (checkout receives it); the secret is never logged.
+    console.error("[razorpay] create subscription failed", {
+      status: res.status,
+      keyId: cfg.keyId,
+      keyIdMode: cfg.keyId.startsWith("rzp_test_") ? "test" : cfg.keyId.startsWith("rzp_live_") ? "live" : "unknown",
+      secretLength: cfg.keySecret.length,
+      planId: cfg.planId,
+      body,
+    });
     return {
       ok: false,
       error: body?.error?.description ?? `Razorpay returned ${res.status}`,

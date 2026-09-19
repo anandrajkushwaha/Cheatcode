@@ -58,16 +58,44 @@ function loadCheckout(): Promise<boolean> {
   });
 }
 
+/**
+ * Two looks, one behaviour.
+ *
+ * "silver" is the hero's brushed-metal pill from the design; "dark" is the
+ * solid one in the bar that follows you down the page. They are variants of a
+ * single component rather than two buttons, because a page with two ways to
+ * start a payment must not have two implementations of starting one.
+ */
+type Variant = "silver" | "dark";
+
+const LOOK: Record<Variant, { className: string; style?: React.CSSProperties }> = {
+  silver: {
+    className: "w-full max-w-[260px] px-5 py-3 text-[0.9rem] text-[#1a1a1a]",
+    style: {
+      backgroundImage:
+        "linear-gradient(135deg, rgb(180,173,173) 0%, rgb(245,245,245) 50%, rgb(163,163,163) 100%)",
+    },
+  },
+  dark: {
+    className: "w-full max-w-[242px] bg-[#121224] px-6 py-3 text-[0.95rem] text-white",
+  },
+};
+
 export function PayButton({
   label,
   name,
   email,
   contact,
+  variant = "silver",
+  waitingTone = "ink",
 }: {
   label: string;
   name: string | null;
   email: string | null;
   contact: string | null;
+  variant?: Variant;
+  /** The waiting and error text sits on a dark hero in one place and on paper in another. */
+  waitingTone?: "ink" | "light";
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -135,12 +163,18 @@ export function PayButton({
 
   if (phase === "waiting") {
     return (
-      <p className="text-[0.88rem] leading-relaxed text-ink-50">
+      <p
+        className={`text-[0.88rem] leading-relaxed ${
+          waitingTone === "light" ? "text-white/80" : "text-ink-50"
+        }`}
+      >
         Payment received. Activating your plan — this page will update in a few
         seconds.
       </p>
     );
   }
+
+  const look = LOOK[variant];
 
   return (
     <div>
@@ -148,17 +182,18 @@ export function PayButton({
         type="button"
         onClick={start}
         disabled={phase === "opening"}
-        className="flex w-full max-w-[260px] items-center justify-center whitespace-nowrap rounded-full px-5 py-3 text-[0.9rem] font-bold text-[#1a1a1a] transition-opacity hover:opacity-90 disabled:opacity-60"
-        style={{
-          backgroundImage:
-            "linear-gradient(135deg, rgb(180,173,173) 0%, rgb(245,245,245) 50%, rgb(163,163,163) 100%)",
-        }}
+        className={`flex items-center justify-center whitespace-nowrap rounded-full font-bold transition-opacity hover:opacity-90 disabled:opacity-60 ${look.className}`}
+        style={look.style}
       >
         {phase === "opening" ? "Opening…" : label}
       </button>
 
       {error && (
-        <p className="mt-3 max-w-[46ch] text-[0.82rem] leading-relaxed text-red-600">
+        <p
+          className={`mt-3 max-w-[46ch] text-[0.82rem] leading-relaxed ${
+            waitingTone === "light" ? "text-[#ffb4a8]" : "text-red-600"
+          }`}
+        >
           {error}
         </p>
       )}

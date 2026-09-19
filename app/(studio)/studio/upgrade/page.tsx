@@ -1,18 +1,34 @@
+import Link from "next/link";
 import { getProfile, isPaid } from "@/lib/app/account";
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { recordProIntent } from "@/lib/app/pro-intent";
 import { billingConfigured } from "@/lib/payments/razorpay";
-import { PRO_PERKS, PRO_PRICE_PER_MONTH } from "@/lib/studio/plan";
-import { PayButton } from "@/components/studio/PayButton";
+import { getReviews } from "@/lib/studio/reviews";
+import { getProof } from "@/lib/studio/proof";
+import { ProHero } from "@/components/studio/pro/ProHero";
+import { ProCompare } from "@/components/studio/pro/ProCompare";
+import { ProDidYouKnow } from "@/components/studio/pro/ProDidYouKnow";
+import { ProReviews } from "@/components/studio/pro/ProReviews";
+import { ProFaq } from "@/components/studio/pro/ProFaq";
+import { ProStickyBar } from "@/components/studio/pro/ProStickyBar";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The plan screen.
+ * The Pro landing page.
  *
- * Whether it can take money is not a constant in this file — billingConfigured()
- * asks whether the keys actually exist. A screen that advertises a checkout the
- * server cannot run is worse than one that says it is not open yet.
+ * This replaced the plain plan screen that used to live here rather than
+ * sitting beside it, because every "upgrade" link in the product already
+ * points at this path and two pages selling the same thing is how copy starts
+ * disagreeing with itself.
+ *
+ * Whether it can take money is not a constant — billingConfigured() asks
+ * whether the keys exist. A page that advertises a checkout the server cannot
+ * run is worse than one that says it is not open yet.
+ *
+ * Someone already on Pro gets the hero and the questions, without the pricing
+ * or the bar. They still need the cancellation answer more than anybody else
+ * does, so the FAQ stays.
  */
 
 const WHEN = new Intl.DateTimeFormat("en-IN", {
@@ -30,7 +46,7 @@ function when(iso: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : WHEN.format(d);
 }
 
-export default async function StudioUpgradePage({
+export default async function StudioProPage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string }>;
@@ -44,10 +60,15 @@ export default async function StudioUpgradePage({
   const paid = isPaid(profile);
   if (!paid) await recordProIntent(params.from ?? "studio", "/studio/upgrade");
 
-  // The mandate, if there is one. Read with the admin client because the
-  // renewal date should show even in the seconds before the session catches up.
+  // The testimonials and the headline number are only wanted on the selling
+  // version of the page, so they are not fetched for somebody who has already
+  // bought — two queries saved on every visit by an existing subscriber.
+  const [reviews, proof] = paid
+    ? [[], null]
+    : await Promise.all([getReviews(), getProof()]);
+
   let mandate: Mandate | null = null;
-  if (user) {
+  if (user && paid) {
     const db = createAppAdminClient();
     if (db) {
       const { data } = await db
@@ -63,85 +84,97 @@ export default async function StudioUpgradePage({
 
   const live = billingConfigured();
   const renews = when(profile?.plan_expires_at);
+  const name = profile?.full_name ?? null;
+  const email = profile?.email ?? user?.email ?? null;
+  const contact = profile?.phone ?? null;
 
   return (
-    <div className="mx-auto max-w-[720px] space-y-6">
-      <div>
-        <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Pro</h1>
-        <p className="mt-2 max-w-[58ch] text-[0.87rem] leading-relaxed text-ink-50">
-          ₹{PRO_PRICE_PER_MONTH} a month by UPI Autopay. Cancel whenever you
-          like — the month you have paid for stays yours.
-        </p>
+    <>
+      {/* The shell constrains everything to 1160 with its own padding; the
+          hero is a full-width band, so it steps out of both. The studio
+          wrapper clips the x-axis so a scrollbar cannot turn 100vw into a
+          sideways scroll. */}
+      <div className="relative left-1/2 -mt-5 w-screen max-w-[100vw] -translate-x-1/2 sm:-mt-6">
+        <ProHero
+          live={live && !paid}
+          name={name}
+          email={email}
+          contact={contact}
+        />
       </div>
 
-      {paid ? (
-        <section className="rounded-2xl border border-ink-08 bg-paper p-6">
-          <p className="text-[1rem] font-semibold">You are on Pro.</p>
-          <p className="mt-2 text-[0.87rem] leading-relaxed text-ink-50">
-            {mandate?.status === "active" && renews
-              ? `Renews on ${renews}.`
-              : renews
-                ? `Your access runs until ${renews}.`
-                : "Your plan is active."}
-          </p>
-        </section>
-      ) : (
-        <section className="overflow-hidden rounded-2xl border border-ink-08 bg-paper">
-          <div className="border-b border-ink-08 px-6 py-5">
-            <p className="flex items-baseline gap-1.5">
-              <span className="text-[1.75rem] font-semibold tracking-[-0.03em]">
-                ₹{PRO_PRICE_PER_MONTH}
-              </span>
-              <span className="text-[0.87rem] text-ink-50">a month</span>
+      <div className="mx-auto max-w-[855px] pb-4 pt-12 sm:pt-14">
+        {paid ? (
+          <section className="rounded-2xl border border-ink-08 bg-paper p-6">
+            <p className="text-[1rem] font-semibold">You are on Pro.</p>
+            <p className="mt-2 text-[0.87rem] leading-relaxed text-ink-50">
+              {mandate?.status === "active" && renews
+                ? `Renews on ${renews}.`
+                : renews
+                  ? `Your access runs until ${renews}.`
+                  : "Your plan is active."}
             </p>
-          </div>
+            <p className="mt-3 text-[0.85rem] leading-relaxed text-ink-50">
+              To cancel, write to hello@cheatcodeapp.com. The month you have
+              already paid for stays yours.
+            </p>
+          </section>
+        ) : (
+          <>
+            <ProCompare />
 
-          <ul className="divide-y divide-ink-08">
-            {PRO_PERKS.map((perk) => (
-              <li
-                key={perk.title}
-                className="flex items-center justify-between gap-4 px-6 py-3.5"
-              >
-                <span className="text-[0.92rem]">{perk.title}</span>
-                {!perk.built && (
-                  <span className="shrink-0 rounded-full bg-ink-04 px-2.5 py-1 text-[0.72rem] font-medium text-ink-50">
-                    Coming soon
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-
-          <div className="px-6 py-6">
-            {live ? (
-              <PayButton
-                label={`Unlock Pro ₹${PRO_PRICE_PER_MONTH}`}
-                name={profile?.full_name ?? null}
-                email={profile?.email ?? user?.email ?? null}
-                contact={profile?.phone ?? null}
-              />
-            ) : (
-              <>
-                <p className="max-w-[52ch] text-[0.87rem] leading-relaxed text-ink-50">
-                  Payments are not switched on yet. The checkout is built and
-                  waiting on its keys — nothing here can take money until they
-                  are set.
-                </p>
-                <p className="mt-3 text-[0.8rem] text-ink-30">
-                  Set RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_PLAN_ID and
-                  RAZORPAY_WEBHOOK_SECRET, then redeploy.
-                </p>
-              </>
+            {!live && (
+              <p className="mt-5 max-w-[60ch] text-[0.85rem] leading-relaxed text-ink-50">
+                Payments are not switched on yet. The checkout is built and
+                waiting on its keys — nothing here can take money until they
+                are set.
+              </p>
             )}
-          </div>
-        </section>
-      )}
 
-      <p className="max-w-[60ch] text-[0.8rem] leading-relaxed text-ink-30">
-        Payment is handled by Razorpay. We never see or store your card or UPI
-        details. See our refund and cancellation policy for how to get your
-        money back.
-      </p>
-    </div>
+            {proof && (
+              <div className="mt-10">
+                <ProDidYouKnow value={proof.value} text={proof.text} />
+              </div>
+            )}
+
+            {reviews.length > 0 && (
+              <div className="mt-14 sm:mt-16">
+                <ProReviews reviews={reviews} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="mx-auto max-w-[1120px] pt-14 sm:pt-16">
+        <ProFaq />
+
+        <nav aria-label="Breadcrumb" className="mt-10 flex flex-wrap items-center gap-2 text-[0.8rem] text-ink-50">
+          <Link href="/studio" className="hover:text-ink hover:underline underline-offset-4">
+            Home
+          </Link>
+          <span aria-hidden className="text-ink-30">›</span>
+          <span>Cheatcode</span>
+          <span aria-hidden className="text-ink-30">›</span>
+          <span className="text-ink">Cheatcode Pro</span>
+        </nav>
+
+        <p className="mt-6 max-w-[62ch] text-[0.8rem] leading-relaxed text-ink-30">
+          Payment is handled by Razorpay. We never see or store your card or UPI
+          details. See our{" "}
+          <Link href="/refunds" className="underline underline-offset-4 hover:text-ink">
+            refund and cancellation policy
+          </Link>{" "}
+          for how to get your money back.
+        </p>
+
+        {/* Room for the bar, so the last line of the page is never under it. */}
+        {!paid && live && <div className="h-24" />}
+      </div>
+
+      {!paid && live && (
+        <ProStickyBar name={name} email={email} contact={contact} />
+      )}
+    </>
   );
 }

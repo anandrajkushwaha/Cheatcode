@@ -37,6 +37,9 @@ const NAV = [
   // tried to pay — which is the only demand signal there is until checkout
   // exists.
   { href: "/admin/pro", label: "Pro interest" },
+  // Next to Pro interest because it is the other half of the same page: one
+  // tab counts who reached for the plan, this one edits what they read first.
+  { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/posts", label: "Articles" },
 ];

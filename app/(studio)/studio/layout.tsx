@@ -37,8 +37,11 @@ export default async function StudioLayout({
 
   const profile = await getProfile();
 
+  // overflow-x-clip, not hidden: clip does not create a scroll container, so
+  // sticky headers inside still stick. It is here so a full-bleed band (the
+  // Pro hero) can step outside this container without a sideways scrollbar.
   return (
-    <div className="min-h-dvh bg-ink-04">
+    <div className="min-h-dvh overflow-x-clip bg-ink-04">
       <TopBar
         user={{
           name: profile?.full_name ?? user.email?.split("@")[0] ?? "You",

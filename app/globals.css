@@ -708,3 +708,14 @@
 @media (max-width: 560px) {
   .rd-panel { zoom: 0.42; }
 }
+
+/* A scroll container that still scrolls but shows no bar — used by the Pro
+   page's testimonial track, where the dots are the position indicator and a
+   native bar underneath them reads as a second, contradictory one. */
+.cc-noscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cc-noscroll::-webkit-scrollbar {
+  display: none;
+}
