@@ -1,19 +1,21 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { TopBar } from "@/components/studio/TopBar";
 import { getSessionUser } from "@/lib/supabase/app";
 import { appAuthConfigured } from "@/lib/supabase/app-env";
+import { getProfile } from "@/lib/app/account";
 
 /**
- * /studio, stripped back to the plumbing.
+ * The studio shell.
  *
- * The shell that used to live here — sidebar, insights panel, top nav — is
- * parked, not deleted; it is in git and in _to_delete/studio-v1 if any of it
- * is wanted back.
+ * /app is untouched and still serves everybody; this is where its replacement
+ * is built, screen by screen, behind the same sign-in. The swap at the end is
+ * a redirect rather than a rewrite — which is the whole reason for building it
+ * beside the live product instead of on top of it.
  *
- * What is kept on purpose is the guard. /studio is matched by proxy.ts and
- * re-checked here, and it would be a poor trade to make a protected area
- * public while clearing out a layout. When the next idea lands, it lands
- * inside a route that is already signed-in-only and already out of Google.
+ * The guard is the same one /app uses: proxy.ts matches this path and this
+ * layout re-checks. Two layers, because a guard that lives only in middleware
+ * is one config change away from being no guard at all.
  */
 
 export const metadata: Metadata = {
@@ -33,5 +35,19 @@ export default async function StudioLayout({
   const user = await getSessionUser();
   if (!user) redirect("/signin?next=/studio");
 
-  return <main id="main">{children}</main>;
+  const profile = await getProfile();
+
+  return (
+    <div className="min-h-dvh bg-ink-04">
+      <TopBar
+        user={{
+          name: profile?.full_name ?? user.email?.split("@")[0] ?? "You",
+          avatarUrl: profile?.avatar_url ?? null,
+        }}
+      />
+      <main id="main" className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
+        {children}
+      </main>
+    </div>
+  );
 }
