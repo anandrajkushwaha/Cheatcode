@@ -1332,7 +1332,7 @@ export function AgentOverlay({
                 <>
                   {" "}
                   <a
-                    href="/app/upgrade"
+                    href="/app/upgrade?from=agent-overlay"
                     className="font-medium text-ink underline underline-offset-4 hover:no-underline"
                   >
                     See Pro

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getProfile, isPaid } from "@/lib/app/account";
+import { recordProIntent } from "@/lib/app/pro-intent";
 
 /**
  * The one dark page in the product.
@@ -31,9 +32,28 @@ const INCLUDED = [
   },
 ];
 
-export default async function UpgradePage() {
-  const profile = await getProfile();
+export default async function UpgradePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const [profile, params] = await Promise.all([getProfile(), searchParams]);
   const paid = isPaid(profile);
+
+  /*
+   * Every route into the plan ends on this screen, so this is the one place
+   * that has to write the record — a handler on each button would miss the
+   * next button somebody adds. Awaited rather than fired and forgotten
+   * because a promise left hanging in a server component is not guaranteed to
+   * finish; the write is a single insert and costs a few milliseconds.
+   *
+   * People already paying are not reaching for the plan, so they are not
+   * recorded — otherwise every visit to "You are on Pro" would look like
+   * fresh demand.
+   */
+  if (!paid) {
+    await recordProIntent(params.from ?? "direct", "/app/upgrade");
+  }
 
   if (paid) {
     return (

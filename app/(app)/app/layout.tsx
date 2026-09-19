@@ -83,7 +83,7 @@ APP_SUPABASE_SECRET_KEY=`}
           <div className="flex items-center gap-4">
             {!paid && (
               <Link
-                href="/app/upgrade"
+                href="/app/upgrade?from=header"
                 className="btn-premium rounded-full px-3.5 py-1.5 text-[0.78rem] font-semibold"
               >
                 Upgrade

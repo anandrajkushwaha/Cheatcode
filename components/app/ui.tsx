@@ -79,7 +79,7 @@ export function PaidOnly({
       <p className="text-[0.72rem] uppercase tracking-[0.16em] text-paper/60">On the paid plan</p>
       <p className="mx-auto mt-3 max-w-[46ch] text-[0.95rem] leading-relaxed text-paper">{feature}</p>
       <Link
-        href="/app/upgrade"
+        href="/app/upgrade?from=paid-gate"
         className="mt-6 inline-block rounded-full bg-paper px-5 py-2.5 text-[0.85rem] font-semibold text-ink transition-transform hover:scale-[1.02]"
       >
         See the plan

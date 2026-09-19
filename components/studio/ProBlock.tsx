@@ -32,7 +32,7 @@ export function ProBlock({ paid }: { paid: boolean }) {
           <p className="mt-2 text-[0.85rem] text-paper/70">you get hired faster</p>
 
           <Link
-            href="/studio/upgrade"
+            href="/studio/upgrade?from=studio-home"
             className="mt-5 inline-block rounded-full bg-paper px-5 py-2.5 text-[0.85rem] font-medium text-ink transition-opacity hover:opacity-90"
           >
             {CHECKOUT_LIVE ? "Become a Pro" : "See what's in Pro"}

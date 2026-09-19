@@ -239,7 +239,7 @@ export default async function AppHome() {
             </p>
             {!paid && (
               <Link
-                href="/app/upgrade"
+                href="/app/upgrade?from=home"
                 className="btn-premium mt-4 block rounded-xl py-2 text-center text-[0.82rem] font-semibold"
               >
                 See the plan
