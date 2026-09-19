@@ -32,7 +32,11 @@ export async function proxy(request: NextRequest) {
   }
 
   // ---------------------------------------------------------------- app
-  if (pathname.startsWith("/app")) {
+  // /studio is the new shell being built alongside /app. It is listed here
+  // rather than given a guard of its own so there is exactly one place where
+  // "a signed-in area" is defined — two copies of this block is how one of
+  // them ends up a refresh behind the other.
+  if (pathname.startsWith("/app") || pathname.startsWith("/studio")) {
     const url =
       process.env.NEXT_PUBLIC_APP_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key =
@@ -79,5 +83,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/app/:path*"],
+  matcher: ["/admin/:path*", "/app/:path*", "/studio/:path*"],
 };

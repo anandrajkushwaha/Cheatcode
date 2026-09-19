@@ -39,6 +39,66 @@
   /* Only ever seen inside the agent's border sweep, never as a fill. */
   --color-agent: #7c8cf0;
 
+  /* ------------------------------------------------------------- studio
+     The signed-in app's chrome.
+
+     The marketing site is white paper with black ink. The app is the
+     opposite instinct: a tinted ground with white panels floating on it,
+     so the eye reads "workspace" before it reads a single word. That is
+     why these are their own family rather than more ink-* steps — they
+     are surfaces, not text, and they only ever appear behind /studio.
+
+     Two deliberate departures from the Figma file:
+
+     1. The design carries eight greys for text — #4d4d4d, #6b6b6b,
+        #717171, #7d7d7d, #878787, #888, #a6a6a7 and #3d3d42 — which is
+        three greys plus noise from things being pasted between frames.
+        Only #3d3d42 is kept (it already exists here as ink-70, exactly),
+        the rest collapse onto ink-50 and ink-30, and --color-studio-muted
+        holds the one genuinely distinct value, the inactive nav label.
+     2. Radii and type sizes in the file land on decimals (17.066px,
+        20.052px) because the frames were scaled. They are rounded here.
+        Nothing in the design depends on the sixteenth of a pixel. */
+
+  /* Surfaces, from the ground up. */
+  --color-studio-bg-1: #ebeff9;
+  --color-studio-bg-2: #e1eaff;
+  --color-studio-panel: #f4f7fc;
+  --color-studio-canvas: #f9fafe;
+  --color-studio-rail: #f3f3f3;
+
+  /* Lines and edges. */
+  --color-studio-line: #eaeaea;
+  --color-studio-edge: #c0d7ff;
+
+  /* The app's accent. Lighter than sky-1, and not interchangeable with it:
+     sky is the marketing site's one colour, this one belongs to Insights. */
+  --color-studio-accent: #719bfc;
+
+  --color-studio-muted: #878787;
+  --color-studio-faint: #c1c1c1;
+
+  /* Panels do not use a border. They sit on the tint and are lifted by a
+     wide, very soft blue shadow — which is what makes the ground read as
+     depth rather than as a coloured rectangle. */
+  --shadow-studio: 0 0 14px 0 rgb(192 208 238 / 0.5);
+  --shadow-studio-soft: 0 0 14px 0 rgb(192 208 238 / 0.37);
+
+  --radius-studio-panel: 24px;
+  --radius-studio-card: 17px;
+  --radius-studio-link: 16px;
+
+  /* The app's type is a step larger than the site's — it is read at desk
+     distance on a wide screen, not skimmed on a phone. */
+  --text-studio-nav: 1.25rem;
+  --text-studio-chip: 1.1875rem;
+  --text-studio-recent: 1.125rem;
+  --text-studio-card: 0.975rem;
+  --text-studio-tab: 0.9rem;
+  /* The file sets the Insights card body at 10px. Raised to 12px: below
+     that it stops being text people read and becomes texture. */
+  --text-studio-note: 0.75rem;
+
   --text-hero: clamp(2.75rem, 7.5vw, 6.5rem);
   --text-display: clamp(2rem, 5vw, 4rem);
   --text-title: clamp(1.5rem, 3vw, 2.25rem);
