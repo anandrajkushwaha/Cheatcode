@@ -13,6 +13,12 @@ import type { Insight } from "@/components/studio/InsightsPanel";
  * Failures return an empty list rather than throwing. The panel is context
  * beside the conversation, and a feed problem should never be the reason
  * somebody cannot reach the thing they came to use.
+ *
+ * But they are logged, and that part was missing at first. Swallowing the
+ * error silently made three different problems — the table not existing, the
+ * ingest never having run, and every feed failing — look identical from the
+ * outside: an empty panel and no clue. One console.error is the difference
+ * between a five-minute fix and an afternoon.
  */
 
 type Row = {
@@ -76,7 +82,11 @@ export async function getInsights(limit = 24): Promise<Insight[]> {
     .order("first_seen_at", { ascending: false })
     .limit(limit);
 
-  if (error || !data) return [];
+  if (error) {
+    console.error("[insights] could not read the table:", error.message);
+    return [];
+  }
+  if (!data) return [];
   return (data as Row[]).map(toInsight);
 }
 
@@ -92,6 +102,10 @@ export async function getInsight(id: string): Promise<Insight | null> {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    console.error("[insights] could not read item", id, error.message);
+    return null;
+  }
+  if (!data) return null;
   return toInsight(data as Row);
 }

@@ -24,7 +24,7 @@ export default async function InsightsIndexPage() {
 
         {items.length === 0 ? (
           <p className="mt-12 text-[0.95rem] text-ink-30">
-            Nothing here yet. The feed fills itself a few times a day.
+            Nothing here yet. The feed refreshes once a day.
           </p>
         ) : (
           <ul className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

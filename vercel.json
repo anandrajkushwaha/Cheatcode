@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/insights/ingest",
-      "schedule": "41 */6 * * *"
+      "schedule": "41 5 * * *"
     }
   ]
 }

@@ -109,7 +109,7 @@ export function InsightsPanel({
         {shown.length === 0 ? (
           <p className="px-1 py-6 text-studio-note leading-relaxed text-ink-30">
             {items.length === 0
-              ? "Nothing here yet. The feed fills itself a few times a day."
+              ? "Nothing here yet. The feed refreshes once a day."
               : "Nothing under this filter."}
           </p>
         ) : (
