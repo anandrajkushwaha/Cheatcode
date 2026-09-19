@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { OrbMark } from "@/components/studio/OrbMark";
+import { ProReveal } from "@/components/studio/ProReveal";
 import { PRO_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
 
 /**
@@ -31,14 +32,24 @@ import { PRO_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
  * The small one in the panel badge stays a flat gradient — at fifteen pixels
  * the animation is invisible and a second player is not worth its frame.
  *
- * Interaction is deliberately absent; the animation comes later.
+ * ------------------------------------------------------------- the opening
+ *
+ * The card greets the person by name before it shows any of this, on every
+ * load. That lives in ProReveal; everything below is what it reveals.
  */
 
 /** One row, one header. Every column obeys both. */
-const ROW = "h-9";
-const HEADER = "h-11";
+const ROW = "h-10";
+const HEADER = "h-12";
 
-export function ProBlock({ paid }: { paid: boolean }) {
+export function ProBlock({
+  paid,
+  firstName,
+}: {
+  paid: boolean;
+  /** Just the first name. Null when we have not been told one. */
+  firstName: string | null;
+}) {
   if (paid) return null;
 
   return (
@@ -48,9 +59,10 @@ export function ProBlock({ paid }: { paid: boolean }) {
         className="pointer-events-none absolute inset-0 bg-[url('/pro-bg.png')] bg-[length:100%_100%] bg-no-repeat"
       />
 
-      <div className="relative flex flex-col gap-6 px-6 py-6 sm:flex-row sm:items-stretch sm:gap-0">
+      <ProReveal greeting={firstName ? `Hi ${firstName}` : "Hi there"}>
+      <div className="relative flex flex-col gap-7 px-7 py-8 sm:flex-row sm:items-stretch sm:gap-0 sm:px-9 sm:py-9">
         {/* ------------------------------------------------------- the pitch */}
-        <div className="flex w-full shrink-0 flex-col justify-center sm:w-[168px]">
+        <div className="flex w-full shrink-0 flex-col justify-center sm:w-[176px]">
           <p className="text-[0.95rem] font-bold leading-5 text-white">With</p>
 
           <p className="mt-0.5 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-3px] text-white">
@@ -78,7 +90,7 @@ export function ProBlock({ paid }: { paid: boolean }) {
             which is what stops it reading as a table rule. */}
         <div
           aria-hidden
-          className="mx-6 hidden w-px shrink-0 self-stretch sm:block"
+          className="mx-7 hidden w-px shrink-0 self-stretch sm:mx-9 sm:block"
           style={{
             backgroundImage:
               "linear-gradient(180deg, rgba(196,164,132,0) 0%, rgba(214,186,156,0.85) 22%, rgba(214,186,156,0.85) 78%, rgba(196,164,132,0) 100%)",
@@ -86,7 +98,7 @@ export function ProBlock({ paid }: { paid: boolean }) {
         />
 
         {/* ------------------------------------------------ the comparison */}
-        <div className="flex min-w-0 flex-1 items-stretch gap-4 overflow-x-auto sm:gap-6">
+        <div className="flex min-w-0 flex-1 items-stretch gap-5 overflow-x-auto sm:gap-7">
           <div className="min-w-0 flex-1">
             <p
               className={`flex items-center whitespace-nowrap text-[1rem] font-bold text-white ${HEADER}`}
@@ -95,7 +107,7 @@ export function ProBlock({ paid }: { paid: boolean }) {
             </p>
             <ul>
               {PRO_PERKS.map((perk) => (
-                <li key={perk.title} className={`flex items-center gap-2 ${ROW}`}>
+                <li key={perk.title} className={`flex items-center gap-2.5 ${ROW}`}>
                   <Sparkle className="size-3.5 shrink-0 text-[#8f9dfb]" />
                   <span className="whitespace-nowrap text-[0.9rem] font-medium text-white">
                     {perk.title}
@@ -141,6 +153,7 @@ export function ProBlock({ paid }: { paid: boolean }) {
           </div>
         </div>
       </div>
+      </ProReveal>
     </section>
   );
 }

@@ -91,7 +91,10 @@ export default async function StudioHomePage({
       </aside>
 
       <div className="min-w-0 space-y-5">
-        <ProBlock paid={paid} />
+        <ProBlock
+          paid={paid}
+          firstName={profile?.full_name?.trim().split(/\s+/)[0] ?? null}
+        />
         <JobBuckets buckets={buckets} />
         <BlogStrip posts={strip} />
       </div>
