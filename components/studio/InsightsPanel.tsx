@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { PanelRightIcon } from "@/components/studio/icons";
 
@@ -8,7 +9,19 @@ export type Insight = {
   kind: "trend" | "guide" | "tip";
   title: string;
   summary: string;
-  href?: string;
+  url: string;
+  imageUrl: string | null;
+  source: string;
+  publishedAt: string | null;
+  /**
+   * The date, already formatted.
+   *
+   * Formatted on the server rather than here because this component renders
+   * in both places: a date turned into text on the client can land on a
+   * different day than the one the server rendered, and React reports that as
+   * a hydration mismatch. One formatter, one timezone, one answer.
+   */
+  publishedLabel: string | null;
 };
 
 const TABS = [
@@ -34,6 +47,12 @@ const MATCHES: Record<TabKey, (i: Insight) => boolean> = {
  * small and already in the page — a round trip to hide three cards would be
  * slower than the animation it replaced.
  *
+ * Cards open our own page rather than jumping straight to the publisher. That
+ * is the deliberate choice: a card in a sidebar cannot carry enough of a story
+ * to decide whether it is worth your time, and throwing someone onto another
+ * site mid-conversation loses them. The page in between gives the excerpt room
+ * and puts the way out where they can see it.
+ *
  * The heading is Playfair Display bold italic, as drawn. It is the only
  * display type in the product, loaded through next/font so the file is served
  * from our own origin and no visitor's browser ever calls fonts.googleapis —
@@ -51,7 +70,7 @@ export function InsightsPanel({
 
   return (
     <aside className="flex h-full w-[320px] shrink-0 flex-col overflow-hidden rounded-studio-panel bg-studio-panel 2xl:w-[340px]">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex shrink-0 items-center justify-between px-5 pt-5">
         <h2 className="font-display text-[1.75rem] font-bold italic leading-none text-studio-accent">
           Insights
         </h2>
@@ -68,7 +87,7 @@ export function InsightsPanel({
       <div
         role="tablist"
         aria-label="Filter insights"
-        className="mx-5 mt-4 flex items-center gap-1 rounded-studio-card bg-paper p-2 shadow-studio-soft"
+        className="mx-5 mt-4 flex shrink-0 items-center gap-1 rounded-studio-card bg-paper p-2 shadow-studio-soft"
       >
         {TABS.map((t) => (
           <button
@@ -78,9 +97,7 @@ export function InsightsPanel({
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 rounded-lg px-3 py-2 text-studio-tab font-medium transition-colors ${
-              tab === t.key
-                ? "bg-studio-accent text-paper"
-                : "text-ink-50 hover:text-ink-70"
+              tab === t.key ? "bg-studio-accent text-paper" : "text-ink-50 hover:text-ink-70"
             }`}
           >
             {t.label}
@@ -88,41 +105,48 @@ export function InsightsPanel({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
         {shown.length === 0 ? (
           <p className="px-1 py-6 text-studio-note leading-relaxed text-ink-30">
-            Nothing here yet.
+            {items.length === 0
+              ? "Nothing here yet. The feed fills itself a few times a day."
+              : "Nothing under this filter."}
           </p>
         ) : (
-          shown.map((item) => {
-            const body = (
-              <>
-                <p className="text-studio-card font-medium leading-snug text-ink-70">
-                  {item.title}
-                </p>
-                <p className="mt-1 text-studio-note leading-relaxed text-ink-50">
+          shown.map((item) => (
+            <Link
+              key={item.id}
+              href={`/studio/insights/${item.id}`}
+              className="block rounded-studio-card bg-paper px-4 py-3 transition-shadow hover:shadow-studio"
+            >
+              <p className="text-studio-card font-medium leading-snug text-ink-70">
+                {item.title}
+              </p>
+              {item.summary && (
+                <p className="mt-1 line-clamp-2 text-studio-note leading-relaxed text-ink-50">
                   {item.summary}
                 </p>
-              </>
-            );
+              )}
+              <p className="mt-2 flex items-center gap-1.5 text-[0.7rem] text-ink-30">
+                <span className="truncate">{item.source}</span>
+                {item.publishedLabel && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="shrink-0">{item.publishedLabel}</span>
+                  </>
+                )}
+              </p>
+            </Link>
+          ))
+        )}
 
-            return item.href ? (
-              <a
-                key={item.id}
-                href={item.href}
-                className="block rounded-studio-card bg-paper px-4 py-3 transition-shadow hover:shadow-studio-soft"
-              >
-                {body}
-              </a>
-            ) : (
-              <div
-                key={item.id}
-                className="rounded-studio-card bg-paper px-4 py-3"
-              >
-                {body}
-              </div>
-            );
-          })
+        {items.length > 0 && (
+          <Link
+            href="/studio/insights"
+            className="block px-1 pt-1 text-[0.8rem] font-medium text-studio-accent hover:underline"
+          >
+            View all
+          </Link>
         )}
       </div>
     </aside>
