@@ -32,10 +32,14 @@ export const PRO_PERKS: Perk[] = [
 export const PRO_PRICE_LABEL = "Unlock Pro ₹99";
 
 /**
- * Whether anybody can actually buy this yet.
+ * Whether anybody can actually buy this is not decided here.
  *
- * Razorpay is not connected. The button is drawn as the design has it, but it
- * leads to the plan screen, which says where payments stand rather than
- * dead-ending in a checkout that cannot take money.
+ * It used to be a constant in this file, which meant the button could say one
+ * thing while the server was configured to do another. It now comes from
+ * billingConfigured() in lib/payments/razorpay.ts — the keys either exist or
+ * they do not, and that is the only honest answer.
+ *
+ * This module stays free of anything secret so it can be imported from either
+ * side of the wire.
  */
-export const CHECKOUT_LIVE = false;
+export const PRO_PRICE_PER_MONTH = 99;
