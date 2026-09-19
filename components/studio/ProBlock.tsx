@@ -38,9 +38,17 @@ import { PRO_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
  * load. That lives in ProReveal; everything below is what it reveals.
  */
 
-/** One row, one header. Every column obeys both. */
-const ROW = "h-10";
-const HEADER = "h-12";
+/**
+ * One row, one header. Every column obeys both.
+ *
+ * 34px pitch, which is what the design measures: header centre at y39, rows
+ * at 84, 118, 152, 186, 220 on a 263px card. Growing these to 40 gave the
+ * card breathing room and fifty extra pixels of height, and the height was
+ * not the problem — the crowding was horizontal. Air goes sideways from here:
+ * padding, column gaps, the space either side of the divider.
+ */
+const ROW = "h-[34px]";
+const HEADER = "h-[38px]";
 
 export function ProBlock({
   paid,
@@ -60,23 +68,26 @@ export function ProBlock({
       />
 
       <ProReveal greeting={firstName ? `Hi ${firstName}` : "Hi there"}>
-      <div className="relative flex flex-col gap-7 px-7 py-8 sm:flex-row sm:items-stretch sm:gap-0 sm:px-9 sm:py-9">
+      <div className="relative flex flex-col gap-7 px-7 py-7 sm:flex-row sm:items-stretch sm:gap-0 sm:px-9 sm:py-7">
         {/* ------------------------------------------------------- the pitch */}
         <div className="flex w-full shrink-0 flex-col justify-center sm:w-[176px]">
           <p className="text-[0.95rem] font-bold leading-5 text-white">With</p>
 
-          <p className="mt-0.5 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-3px] text-white">
+          {/* The four lines were stacked almost touching. The design puts real
+              gaps between them — 15px, 16px, then 32px before the button —
+              and that spacing is most of why the block reads as confident. */}
+          <p className="mt-3 flex items-center text-[3.4rem] font-black leading-[1.05] tracking-[-3px] text-white">
             PR
             <OrbMark className="ml-px size-[0.72em]" />
           </p>
 
-          <p className="mt-1 whitespace-nowrap text-[0.92rem] font-bold leading-5 text-white">
+          <p className="mt-3.5 whitespace-nowrap text-[0.92rem] font-bold leading-5 text-white">
             you get hired faster
           </p>
 
           <Link
             href="/studio/upgrade?from=studio-home"
-            className="mt-5 flex w-full max-w-[184px] items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-[0.88rem] font-bold leading-[18px] text-[#1a1a1a] transition-opacity hover:opacity-90"
+            className="mt-7 flex w-full max-w-[184px] items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-[0.88rem] font-bold leading-[18px] text-[#1a1a1a] transition-opacity hover:opacity-90"
             style={{
               backgroundImage:
                 "linear-gradient(135deg, rgb(180,173,173) 0%, rgb(245,245,245) 50%, rgb(163,163,163) 100%)",

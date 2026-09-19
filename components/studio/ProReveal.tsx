@@ -28,8 +28,16 @@ import { useEffect, useState } from "react";
  * animating and then apologising.
  */
 
-/** Long enough to read two words, short enough to sit through on a refresh. */
-const SHOW_MS = 1250;
+/**
+ * How long the greeting holds before it leaves.
+ *
+ * 2.6s, not the 1.25s this started at: the shine takes most of a second to
+ * cross the letters, and cutting a beat after it lands means the name is gone
+ * before it has finished being read. This gives it a moment of stillness at
+ * full brightness, which is the part that reads as deliberate rather than as
+ * a loading state.
+ */
+const SHOW_MS = 2600;
 const LEAVE_MS = 400;
 
 type Phase = "greeting" | "leaving" | "done";
