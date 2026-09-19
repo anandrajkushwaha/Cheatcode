@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { JobCard } from "@/components/app/JobCard";
+import { StudioJobCard } from "@/components/studio/StudioJobCard";
 import type { JobRow } from "@/lib/jobs/query";
 
 export type Bucket = { key: string; label: string; total: number; jobs: JobRow[] };
@@ -72,9 +72,9 @@ export function JobBuckets({ buckets }: { buckets: Bucket[] }) {
           </p>
         ) : (
           <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {shown.jobs.map((job, i) => (
-              <div key={job.id} className="w-[240px] shrink-0">
-                <JobCard job={job} delay={i * 60} />
+            {shown.jobs.map((job) => (
+              <div key={job.id} className="w-[236px] shrink-0">
+                <StudioJobCard job={job} />
               </div>
             ))}
           </div>

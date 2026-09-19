@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { AvatarWithRing } from "@/components/studio/Avatar";
 import { BookIcon, BriefcaseIcon, HomeIcon } from "@/components/studio/icons";
 
 const LINKS = [
@@ -11,15 +11,14 @@ const LINKS = [
 /**
  * The left rail: who you are, and how complete that is.
  *
- * The ring is the honest version of the design's "95%". It is drawn from
- * profileStrength(), which weights what matching actually needs — the resume
- * and the target role are most of the score, a notice period is five points —
- * rather than counting filled boxes. A number that moves when you fill in
- * something useless teaches people the number is decoration.
+ * The ring is drawn from profileStrength(), which weights what matching
+ * actually needs — the resume and the target role are most of the score, a
+ * notice period is five points — rather than counting filled boxes. A number
+ * that moves when you fill in something useless teaches people to ignore it.
  *
- * `nextGap` is the one thing worth doing next, taken from profileGaps(), so
- * "Complete profile" leads somewhere specific instead of dropping someone on
- * a form to hunt for what is missing.
+ * `nextGap` is the one thing worth doing next, from profileGaps(), so the
+ * button lands on the specific screen that closes it rather than dropping
+ * somebody on a form to hunt for what is missing.
  */
 export function ProfileRail({
   name,
@@ -36,64 +35,36 @@ export function ProfileRail({
   avatarUrl: string | null;
   pathname: string;
 }) {
-  const complete = strength >= 100;
-  // 44px radius circle: circumference to drive the dash offset.
-  const C = 2 * Math.PI * 34;
-
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-ink-08 bg-paper p-5 text-center">
-        <div className="relative mx-auto size-[76px]">
-          <svg viewBox="0 0 76 76" className="absolute inset-0 -rotate-90" aria-hidden>
-            <circle cx="38" cy="38" r="34" fill="none" stroke="var(--color-ink-08)" strokeWidth="3" />
-            <circle
-              cx="38"
-              cy="38"
-              r="34"
-              fill="none"
-              stroke={complete ? "#16a34a" : "var(--color-sky-1)"}
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - Math.min(100, Math.max(0, strength)) / 100)}
-            />
-          </svg>
+      <section className="rounded-2xl border border-ink-08 bg-paper px-5 py-6 text-center">
+        <AvatarWithRing name={name} url={avatarUrl} percent={strength} />
 
-          <span className="absolute inset-[7px] overflow-hidden rounded-full bg-ink-04">
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt="" fill sizes="62px" className="object-cover" />
-            ) : (
-              <span className="flex size-full items-center justify-center text-[1.2rem] font-medium text-ink-50">
-                {name.slice(0, 1).toUpperCase()}
-              </span>
-            )}
-          </span>
+        <p className="mt-3 text-[0.72rem] font-medium tabular-nums text-ink-30">
+          {Math.round(strength)}% complete
+        </p>
 
-          <span
-            className={`absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold tabular-nums ${
-              complete ? "bg-green-600 text-paper" : "bg-sky-1 text-paper"
-            }`}
-          >
-            {strength}%
-          </span>
-        </div>
-
-        <p className="mt-4 text-[0.95rem] font-semibold uppercase tracking-[0.02em] text-ink">
+        <p className="mt-2 text-[0.95rem] font-semibold leading-snug tracking-[-0.01em] text-ink">
           {name}
         </p>
+
         {headline && (
-          <p className="mt-1 text-[0.8rem] leading-snug text-ink-50">{headline}</p>
+          // Two lines is the ceiling. A long title used to run to four and
+          // push the button out of the card's optical centre.
+          <p className="mt-1.5 line-clamp-2 text-[0.8rem] leading-snug text-ink-50">
+            {headline}
+          </p>
         )}
 
         {nextGap ? (
           <Link
             href={nextGap.href}
-            className="mt-4 inline-block rounded-full bg-sky-1 px-5 py-2 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90"
+            className="mt-5 inline-block rounded-full bg-sky-1 px-5 py-2 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90"
           >
             {nextGap.label}
           </Link>
         ) : (
-          <p className="mt-4 text-[0.8rem] text-ink-30">Profile complete.</p>
+          <p className="mt-5 text-[0.8rem] text-ink-30">Profile complete.</p>
         )}
       </section>
 

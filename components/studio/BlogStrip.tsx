@@ -55,13 +55,15 @@ export function BlogStrip({ posts }: { posts: PostCard[] }) {
               <p className="line-clamp-3 text-[0.9rem] font-medium leading-snug text-ink">
                 {post.title}
               </p>
-              <p className="mt-3 flex items-center gap-1.5 pt-1 text-[0.75rem] text-ink-30">
-                <span className="truncate">{post.category?.name ?? "Guide"}</span>
+              {/* The date is the part that must not wrap, so it keeps its
+                  width and the category gives way first — the other way round
+                  truncated "Salary" to "Sal…" while the date sat untouched. */}
+              <p className="mt-auto flex items-center gap-1.5 pt-3 text-[0.75rem] text-ink-30">
+                <span className="min-w-0 flex-1 truncate">
+                  {post.category?.name ?? "Guide"}
+                </span>
                 {when(post.published_at) && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="shrink-0">{when(post.published_at)}</span>
-                  </>
+                  <span className="shrink-0">{when(post.published_at)}</span>
                 )}
               </p>
             </Link>

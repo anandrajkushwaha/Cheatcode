@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AgentOrb } from "@/components/app/AgentOrb";
+import { Avatar } from "@/components/studio/Avatar";
 
 /**
  * The top bar.
@@ -65,18 +65,8 @@ export function TopBar({
         <div className="flex shrink-0 items-center gap-3">
           <AgentOrb placement="inline" />
 
-          <Link
-            href="/studio/profile"
-            aria-label="Your profile"
-            className="relative size-9 overflow-hidden rounded-full bg-ink-04 ring-1 ring-ink-08"
-          >
-            {user.avatarUrl ? (
-              <Image src={user.avatarUrl} alt="" fill sizes="36px" className="object-cover" />
-            ) : (
-              <span className="flex size-full items-center justify-center text-[0.85rem] font-medium text-ink-50">
-                {user.name.slice(0, 1).toUpperCase()}
-              </span>
-            )}
+          <Link href="/studio/profile" aria-label="Your profile" className="shrink-0">
+            <Avatar name={user.name} url={user.avatarUrl} size={36} className="ring-1 ring-ink-08" />
           </Link>
         </div>
       </div>
