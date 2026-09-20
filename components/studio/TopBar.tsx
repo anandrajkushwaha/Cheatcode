@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AgentOrb } from "@/components/app/AgentOrb";
 import { Avatar } from "@/components/studio/Avatar";
 
 /**
@@ -65,9 +64,11 @@ export function TopBar({
           })}
         </nav>
 
+        {/* The orb used to sit here. It now lives in the bottom-right corner,
+            where a thing you summon belongs — beside the avatar it read as
+            one more piece of chrome, and pressing it made the whole screen
+            grow out of the top of the page. */}
         <div className="flex items-center justify-end gap-3 justify-self-end">
-          <AgentOrb placement="inline" />
-
           <Link href="/studio/profile" aria-label="Your profile" className="shrink-0">
             <Avatar name={user.name} url={user.avatarUrl} size={36} className="ring-1 ring-ink-08" />
           </Link>

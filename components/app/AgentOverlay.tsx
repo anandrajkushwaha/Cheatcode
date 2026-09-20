@@ -5,6 +5,7 @@ import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { PixelField } from "@/components/app/PixelField";
 import { ResumePanel } from "@/components/app/ResumePanel";
 import { ManualInput } from "@/components/app/ManualInput";
+import { AgentPaywall } from "@/components/app/AgentPaywall";
 import { soundOn, startupChime } from "@/lib/app/agent-sound";
 import { LiveSession, type LiveState } from "@/lib/app/live-session";
 import type { LiveUsage } from "@/lib/app/live-types";
@@ -88,19 +89,40 @@ const OPENERS = [
 export function AgentOverlay({
   origin,
   onClose,
+  requirePro = false,
 }: {
   origin: { x: number; y: number };
   onClose: () => void;
+  /**
+   * Gate the agent behind Pro.
+   *
+   * Opening it is always free — the screen, the greeting, the look of the
+   * thing. This only blocks the two actions that cost something to serve:
+   * sending a message and starting a call. Off by default so the older /app
+   * surface, which meters instead, is untouched.
+   */
+  requirePro?: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  /**
+   * Whether the opening circle has finished travelling.
+   *
+   * clip-path is not composited — every frame of the reveal is main-thread
+   * paint. Mounting a canvas field and a Lottie player on the same frames
+   * starves it, which is the other half of why opening felt rough. The
+   * expensive children wait until the circle has passed them.
+   */
+  const [revealed, setRevealed] = useState(false);
   /** What is left, as the server last reported it. Null until it says. */
   const [messagesLeft, setMessagesLeft] = useState<number | null>(null);
   const [voiceLeft, setVoiceLeft] = useState<number | null>(null);
   const [upgrade, setUpgrade] = useState(false);
+  /** Which action hit the Pro wall, or null while nothing has. */
+  const [wall, setWall] = useState<"type" | "talk" | null>(null);
   /**
    * Whether this server has a meter at all.
    *
@@ -296,11 +318,32 @@ export function AgentOverlay({
 
   /* -------------------------------------------------------------- arrival */
 
+  useEffect(() => {
+    // cc-reveal is `animation: none` under prefers-reduced-motion, so there is
+    // no animationend to wait for — there is also nothing to protect.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setRevealed(true);
+      return;
+    }
+    // A shade past the 0.56s the reveal runs for.
+    const t = window.setTimeout(() => setRevealed(true), 600);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const arrived = useRef(false);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
+    const previousPad = document.body.style.paddingRight;
+
+    // Locking the body takes the scrollbar away, and the page underneath
+    // reflows into the ~15px it used to occupy. That shift is the jolt you see
+    // the instant the agent opens: the whole app jumps sideways behind a
+    // circle that is still growing over it. Replacing the bar's width with
+    // padding keeps the layout exactly where it was.
+    const gutter = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
+    if (gutter > 0) document.body.style.paddingRight = `${gutter}px`;
 
     const t = window.setTimeout(() => inputRef.current?.focus(), 420);
 
@@ -330,6 +373,7 @@ export function AgentOverlay({
 
     return () => {
       document.body.style.overflow = previous;
+      document.body.style.paddingRight = previousPad;
       window.clearTimeout(t);
       session.current?.stop();
     };
@@ -484,6 +528,12 @@ export function AgentOverlay({
       session.current.stop();
       return;
     }
+    // Checked before the microphone is asked for, not after: a permission
+    // prompt followed by a price is a worse sequence than a price alone.
+    if (requirePro) {
+      setWall("talk");
+      return;
+    }
     setError(null);
     setCallError(null);
 
@@ -561,13 +611,20 @@ export function AgentOverlay({
     // instant the model names a role rather than after a round trip.
     const cards = live.jobs;
     if (cards) for (const j of cards) catalogue.current.set(j.id, j);
-  }, [keep, runTool]);
+  }, [keep, runTool, requirePro]);
 
   /* --------------------------------------------------------------- typing */
 
   async function send(text: string) {
     const message = text.trim();
     if (!message || busy) return;
+
+    // The message is kept in the box rather than cleared, so pressing Unlock
+    // and coming back does not cost them what they had already typed.
+    if (requirePro) {
+      setWall("type");
+      return;
+    }
 
     // Typing while on a call is still the call — the answer comes back spoken.
     if (session.current?.live) {
@@ -992,6 +1049,11 @@ export function AgentOverlay({
           } as React.CSSProperties
         }
       >
+        {/* The Pro wall. Inside the surface rather than over it, so the agent
+            stays visible behind the blur — they can see the thing they are
+            being asked to pay for while they decide. */}
+        {wall && <AgentPaywall reason={wall} onClose={() => setWall(null)} />}
+
         {/* While a file is over the window. Covers everything, including the
             call screen, because dropping a resume mid-call is a reasonable
             thing to do and refusing it would be a rule with no reason. */}
@@ -1013,13 +1075,15 @@ export function AgentOverlay({
             atmosphere, the same texture behind a paragraph is noise.
             While the call is live it answers the voice — the level comes off
             the microphone, so the grid moves when the room does. */}
-        <PixelField
-          className={`cc-lift transition-opacity duration-700 ${
-            empty ? "opacity-100" : "opacity-35"
-          }`}
-          energy={listening ? Math.max(0.45, level) : busy || connecting ? 0.62 : 0.12}
-          pulse={pulse}
-        />
+        {revealed && (
+          <PixelField
+            className={`cc-lift transition-opacity duration-700 ${
+              empty ? "opacity-100" : "opacity-35"
+            }`}
+            energy={listening ? Math.max(0.45, level) : busy || connecting ? 0.62 : 0.12}
+            pulse={pulse}
+          />
+        )}
 
         {/* Not during a call: the call screen already says what it is, in
             larger type, four lines below. Two labels saying the same thing is
@@ -1589,22 +1653,32 @@ function BigOrb({
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    import("lottie-web/build/player/lottie_light")
-      .then((mod) => {
-        if (cancelled || !host.current) return;
-        const lottie = ((mod as { default?: LottiePlayer }).default ?? mod) as LottiePlayer;
-        anim = lottie.loadAnimation({
-          container: host.current,
-          renderer: "svg",
-          loop: true,
-          autoplay: !still,
-          path: "/ai-orb.json",
-        });
-      })
-      .catch(() => {});
+    // Held back until the opening circle has finished. Parsing and mounting
+    // 1080x1080 of SVG on the frames the reveal is painting is what made the
+    // animation stutter; the gradient underneath is the designed stand-in for
+    // exactly this gap, so nothing is missing while we wait.
+    const start = window.setTimeout(
+      () => {
+        import("lottie-web/build/player/lottie_light")
+          .then((mod) => {
+            if (cancelled || !host.current) return;
+            const lottie = ((mod as { default?: LottiePlayer }).default ?? mod) as LottiePlayer;
+            anim = lottie.loadAnimation({
+              container: host.current,
+              renderer: "svg",
+              loop: true,
+              autoplay: !still,
+              path: "/ai-orb.json",
+            });
+          })
+          .catch(() => {});
+      },
+      still ? 0 : 620,
+    );
 
     return () => {
       cancelled = true;
+      window.clearTimeout(start);
       anim?.destroy();
     };
   }, []);

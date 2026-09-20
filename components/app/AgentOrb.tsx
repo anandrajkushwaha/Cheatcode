@@ -37,8 +37,11 @@ import { primeAudio } from "@/lib/app/agent-sound";
  */
 export function AgentOrb({
   placement = "fixed",
+  requirePro = false,
 }: {
   placement?: "fixed" | "inline";
+  /** Passed straight through: the orb opens for everybody, the agent gates. */
+  requirePro?: boolean;
 } = {}) {
   const pathname = usePathname();
   const host = useRef<HTMLSpanElement>(null);
@@ -152,7 +155,7 @@ export function AgentOrb({
         <span
           className={`relative grid place-items-center ${
             placement === "fixed"
-              ? "h-[72px] w-[72px] sm:h-20 sm:w-20"
+              ? "h-[78px] w-[78px] sm:h-[86px] sm:w-[86px]"
               : "h-12 w-12 sm:h-14 sm:w-14"
           }`}
         >
@@ -190,7 +193,9 @@ export function AgentOrb({
         </span>
       </button>
 
-      {origin && <AgentOverlay origin={origin} onClose={() => setOrigin(null)} />}
+      {origin && (
+        <AgentOverlay origin={origin} onClose={() => setOrigin(null)} requirePro={requirePro} />
+      )}
     </>
   );
 }
