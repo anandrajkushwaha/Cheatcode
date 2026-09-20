@@ -5,7 +5,14 @@ import { useState } from "react";
 import { StudioJobCard } from "@/components/studio/StudioJobCard";
 import type { JobRow } from "@/lib/jobs/query";
 
-export type Bucket = { key: string; label: string; total: number; jobs: JobRow[] };
+export type Bucket = {
+  key: string;
+  label: string;
+  total: number;
+  jobs: JobRow[];
+  /** Where "View all" goes for this bucket — the same filter, on the full page. */
+  href: string;
+};
 
 /**
  * Recommended jobs, in buckets that are actually true.
@@ -33,11 +40,14 @@ export function JobBuckets({ buckets }: { buckets: Bucket[] }) {
         <h2 className="text-[0.97rem] font-semibold tracking-[-0.02em]">
           Recommended jobs for you
         </h2>
+        {/* Follows the tab. Sending every bucket to an unfiltered list was the
+            small lie here: you pick "Remote", press View all, and get
+            everything — so the link carries the bucket's own filter. */}
         <Link
-          href="/studio/jobs"
+          href={shown.href}
           className="shrink-0 text-[0.8rem] font-medium text-sky-1 hover:underline"
         >
-          View all
+          View all{shown.total > shown.jobs.length ? ` (${shown.total})` : ""}
         </Link>
       </div>
 

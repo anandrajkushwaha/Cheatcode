@@ -23,6 +23,9 @@ export type JobRow = {
   total_count: number;
 };
 
+/** What the list can be ordered by. Unknown values fall back to "recent". */
+export type JobSort = "recent" | "salary" | "relevance";
+
 export type JobSearch = {
   q?: string;
   cities?: string[];
@@ -31,6 +34,9 @@ export type JobSearch = {
   page?: number;
   /** Home shows a handful; the browse page shows a page. */
   limit?: number;
+  /** Null means any age; otherwise a cut-off in days against posted_at. */
+  maxAgeDays?: number | null;
+  sort?: JobSort;
 };
 
 export const PER_PAGE = 20;
@@ -51,24 +57,48 @@ export async function searchJobs(
 
   const page = Math.max(1, Math.floor(search.page ?? 1));
 
-  const { data, error } = await supabase.rpc("search_jobs", {
+  /**
+   * The two newer arguments are only sent when they are actually being used.
+   *
+   * This is a deployment-order safeguard, not tidiness. `search_jobs` grew
+   * from six parameters to eight in 33_jobs_browse.sql, and PostgREST matches
+   * a function by the argument names it is given — so an eight-argument call
+   * against a database that still has the six-argument version fails with
+   * "could not find the function".
+   *
+   * Sending six when six will do means /app's jobs page, and the home
+   * screen's buckets, keep working on either version of the database. Only
+   * the studio's browse page — the one that offers sorting and a freshness
+   * filter — needs the migration to have been run, and it is the only caller
+   * that asks for them.
+   */
+  const args: Record<string, unknown> = {
     p_query: search.q?.trim() || null,
     p_cities: search.cities?.length ? search.cities : null,
     p_remote: search.remote ?? null,
     p_max_years: search.maxYears ?? null,
     p_limit: search.limit ?? PER_PAGE,
     p_offset: (page - 1) * (search.limit ?? PER_PAGE),
-  });
+  };
+  if (search.maxAgeDays != null) args.p_max_age_days = search.maxAgeDays;
+  if (search.sort && search.sort !== "recent") args.p_sort = search.sort;
+
+  const { data, error } = await supabase.rpc("search_jobs", args);
 
   if (error) {
     // The function only exists after 30_jobs.sql has been run. Saying so
     // beats an empty page that looks like "there are no jobs".
-    const missing = /function .*search_jobs.* does not exist/i.test(error.message);
+    // Either the function was never created, or it is still the six-argument
+    // version from before 33_jobs_browse.sql — PostgREST reports both as the
+    // function not existing, and the fix is the same either way: run the SQL.
+    const missing =
+      /function .*search_jobs.* does not exist/i.test(error.message) ||
+      /could not find the function/i.test(error.message);
     return {
       jobs: [],
       total: 0,
       error: missing
-        ? "Jobs aren't set up in this database yet — run supabase/schemas/30_jobs.sql."
+        ? "Jobs aren't set up in this database yet — run supabase/schemas/30_jobs.sql, then 33_jobs_browse.sql."
         : error.message,
     };
   }

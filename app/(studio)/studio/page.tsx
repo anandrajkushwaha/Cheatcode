@@ -58,14 +58,38 @@ export default async function StudioHomePage({
     getPosts({ perPage: 4 }),
   ]);
 
+  // t=1 tells the jobs page these filters were chosen, not inherited — without
+  // it the page would re-apply the profile's defaults over them on arrival.
   const buckets: Bucket[] = [
-    { key: "all", label: "All roles", total: all.total, jobs: all.jobs },
+    { key: "all", label: "All roles", total: all.total, jobs: all.jobs, href: "/studio/jobs" },
     ...(inCities
-      ? [{ key: "cities", label: "Your cities", total: inCities.total, jobs: inCities.jobs }]
+      ? [
+          {
+            key: "cities",
+            label: "Your cities",
+            total: inCities.total,
+            jobs: inCities.jobs,
+            href: `/studio/jobs?t=1&cities=${encodeURIComponent(cities.join(","))}`,
+          },
+        ]
       : []),
-    { key: "remote", label: "Remote", total: remote.total, jobs: remote.jobs },
+    {
+      key: "remote",
+      label: "Remote",
+      total: remote.total,
+      jobs: remote.jobs,
+      href: "/studio/jobs?t=1&remote=1",
+    },
     ...(byYears
-      ? [{ key: "years", label: "Your experience", total: byYears.total, jobs: byYears.jobs }]
+      ? [
+          {
+            key: "years",
+            label: "Your experience",
+            total: byYears.total,
+            jobs: byYears.jobs,
+            href: `/studio/jobs?t=1&exp=${years}`,
+          },
+        ]
       : []),
   ];
 
