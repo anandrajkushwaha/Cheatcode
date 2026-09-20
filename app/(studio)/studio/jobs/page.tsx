@@ -97,14 +97,8 @@ export default async function StudioJobsPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Jobs</h1>
-          <p className="mt-1.5 max-w-[62ch] text-[0.86rem] leading-relaxed text-ink-50">
-            Pulled every morning from company job boards. India only, and every
-            link goes straight to the company — no middleman, no re-posting.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Jobs</h1>
         {totalInDb > 0 && (
           <p className="text-[0.8rem] text-ink-30">
             {totalInDb.toLocaleString("en-IN")} open roles
