@@ -1,33 +1,36 @@
 import Link from "next/link";
 import { getProfile, getPrimaryResume, isPaid } from "@/lib/app/account";
 import { getSessionUser } from "@/lib/supabase/app";
-import { searchJobs } from "@/lib/jobs/query";
 import { getHistory, countToday } from "@/lib/interview/store";
+import { getTopicsForRole } from "@/lib/interview/topics";
 import {
   MOCK_REQUIRES_PRO,
   FREE_INTERVIEWS_PER_DAY,
-  FALLBACK_TOPICS,
   QUESTIONS_PER_INTERVIEW,
 } from "@/lib/interview/plan";
-import { StartButton } from "@/components/studio/interview/StartButton";
+import { RolePicker } from "@/components/studio/interview/RolePicker";
+import { RoleHeader } from "@/components/studio/interview/RoleHeader";
+import { TopicGrid } from "@/components/studio/interview/TopicGrid";
 import { LockedPanel } from "@/components/studio/interview/LockedPanel";
+import { OrbMark } from "@/components/studio/OrbMark";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Mock interviews.
  *
- * Three ways in, in the order they are worth: a role you are actually
- * applying for, a topic from your own profile, and — only if we know nothing
- * about you — a generic list.
+ * ------------------------------------------------------------ what changed
  *
- * The job-based route is the one that makes this better than a question
- * website. The questions come from a real posting's title and required
- * skills, so it is preparation for a specific interview rather than revision.
+ * This screen used to open with six job cards from the jobs feed, offered as
+ * things to practise. The jobs query has never known anything about role — it
+ * filters on city and years — so a graphic designer was shown six software
+ * engineering postings under the heading "a role you could apply to". That is
+ * a worse failure than asking, so the job section is gone and the screen asks
+ * instead. Practising against a real posting is still the right idea and will
+ * come back the day job matching can actually pick the right six.
  *
- * MOCK_REQUIRES_PRO is currently false: everything below is open, with a
- * daily cap, while the feature is being tested against real answers. Flipping
- * that one constant turns this into the paid screen.
+ * Now: the role is asked once, the topics under it are generated for that
+ * role, and everything on the page is about that role until they change it.
  */
 
 const WHEN = new Intl.DateTimeFormat("en-IN", {
@@ -46,27 +49,25 @@ export default async function StudioInterviewsPage() {
   const paid = isPaid(profile);
   const locked = MOCK_REQUIRES_PRO && !paid;
 
-  // Topics: their target roles and their own strongest skills, because an
-  // interview about "Figma" is only useful to somebody who put Figma on their
-  // resume. The generic list is the fallback, not the default.
-  const fromProfile = [
-    ...(profile?.target_roles ?? []),
-    profile?.current_title ?? "",
-    ...(resume?.skills ?? []).slice(0, 6),
-  ]
-    .map((t) => t.trim())
-    .filter(Boolean);
+  // What to offer as a one-press answer to "which role". Everything the
+  // profile and the resume already know, in order of how likely it is to be
+  // the one they mean.
+  const suggestions = Array.from(
+    new Set(
+      [
+        ...(profile?.target_roles ?? []),
+        resume?.latest_title ?? "",
+        profile?.current_title ?? "",
+      ]
+        .map((r) => r.trim())
+        .filter((r) => r.length > 1),
+    ),
+  ).slice(0, 6);
 
-  const topics = Array.from(new Set(fromProfile)).slice(0, 8);
-  const shown = topics.length >= 3 ? topics : FALLBACK_TOPICS;
+  const role = profile?.interview_role?.trim() || null;
 
-  const cities = (profile?.preferred_cities ?? []).filter(Boolean);
-  const [{ jobs }, history, usedToday] = await Promise.all([
-    searchJobs({
-      cities,
-      maxYears: profile?.years_experience ?? null,
-      limit: 6,
-    }),
+  const [topics, history, usedToday] = await Promise.all([
+    role && user && !locked ? getTopicsForRole(role, user.id) : Promise.resolve([]),
     user ? getHistory(user.id) : Promise.resolve([]),
     user && !paid ? countToday(user.id) : Promise.resolve(0),
   ]);
@@ -74,91 +75,66 @@ export default async function StudioInterviewsPage() {
   const left = Math.max(0, FREE_INTERVIEWS_PER_DAY - usedToday);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Mock interviews</h1>
-          <p className="mt-1.5 max-w-[60ch] text-[0.86rem] leading-relaxed text-ink-50">
-            {QUESTIONS_PER_INTERVIEW} questions, written for the role you pick.
-            Answer them, and you get a report on what to change — with the
-            sentence of yours each note is about.
-          </p>
+    <div className="space-y-7">
+      {/* ------------------------------------------------------------ header */}
+      <div className="overflow-hidden rounded-[20px] border border-ink-08 bg-paper">
+        <div className="flex flex-wrap items-start justify-between gap-5 px-6 py-6 sm:px-8 sm:py-7">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <OrbMark className="size-6" />
+              <h1 className="text-[1.45rem] font-semibold tracking-[-0.032em] sm:text-[1.6rem]">
+                Mock interviews
+              </h1>
+            </div>
+            {role ? (
+              <div className="mt-2">
+                <RoleHeader role={role} suggestions={suggestions} />
+              </div>
+            ) : (
+              <p className="mt-2 max-w-[54ch] text-[0.88rem] leading-relaxed text-ink-50">
+                {QUESTIONS_PER_INTERVIEW} questions, a real answer from you, and
+                a report on what to change.
+              </p>
+            )}
+          </div>
+
+          {!paid && !locked && role && (
+            <span className="shrink-0 rounded-full bg-ink-04 px-3 py-1.5 text-[0.76rem] text-ink-50">
+              {left > 0 ? `${left} left today` : "None left today"}
+            </span>
+          )}
         </div>
-        {!paid && !locked && (
-          <p className="text-[0.8rem] text-ink-30">
-            {left > 0
-              ? `${left} of ${FREE_INTERVIEWS_PER_DAY} left today`
-              : "None left today"}
-          </p>
+
+        {/* Three lines that set expectations before anybody presses anything.
+            Hidden once they have done one — by then they know. */}
+        {history.length === 0 && (
+          <div className="grid gap-px border-t border-ink-08 bg-ink-08 sm:grid-cols-3">
+            <Step n="1" title="Pick a topic" detail="Questions are written for it, on the spot." />
+            <Step n="2" title="Type or speak" detail={`${QUESTIONS_PER_INTERVIEW} questions, about five minutes.`} />
+            <Step n="3" title="Get the report" detail="What to change, quoting your own answers." />
+          </div>
         )}
       </div>
 
       {locked ? (
         <LockedPanel />
+      ) : !role ? (
+        <RolePicker current={null} suggestions={suggestions} />
       ) : (
         <>
-          {/* ------------------------------------------------- roles you want */}
-          {jobs.length > 0 && (
-            <section>
-              <h2 className="text-[0.97rem] font-semibold tracking-[-0.02em]">
-                Prepare for a role you could apply to
-              </h2>
-              <p className="mt-1.5 text-[0.82rem] leading-relaxed text-ink-50">
-                Questions written from the posting itself — its title and the
-                skills it asks for.
-              </p>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="flex flex-col rounded-2xl border border-ink-08 bg-paper p-5"
-                  >
-                    <p className="line-clamp-2 text-[0.9rem] font-semibold leading-snug tracking-[-0.01em]">
-                      {job.title}
-                    </p>
-                    <p className="mt-1 truncate text-[0.8rem] text-ink-50">{job.company}</p>
-                    <p className="mt-2 text-[0.75rem] text-ink-30">
-                      {QUESTIONS_PER_INTERVIEW} questions
-                    </p>
-                    <div className="mt-auto pt-4">
-                      <StartButton
-                        jobId={job.id}
-                        kind="job"
-                        className="text-[0.84rem] font-medium text-sky-1 hover:underline"
-                      >
-                        Start preparing →
-                      </StartButton>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* ------------------------------------------------------- topics */}
           <section>
             <h2 className="text-[0.97rem] font-semibold tracking-[-0.02em]">
-              {topics.length >= 3 ? "Based on your profile" : "Start with the basics"}
+              What do you want to practise?
             </h2>
-            <p className="mt-1.5 text-[0.82rem] leading-relaxed text-ink-50">
-              {topics.length >= 3
-                ? "Your target roles and the skills on your resume."
-                : "Fill in your profile and these become the roles and skills you actually list."}
+            <p className="mt-1.5 text-[0.83rem] leading-relaxed text-ink-50">
+              {topics.length > 0
+                ? `The areas an interviewer actually probes for a ${role.toLowerCase()}.`
+                : `Start a general interview for ${role.toLowerCase()} roles.`}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {shown.map((topic) => (
-                <StartButton
-                  key={topic}
-                  topic={topic}
-                  kind="topic"
-                  busyLabel="Writing…"
-                  className="rounded-full border border-ink-15 bg-paper px-4 py-2 text-[0.84rem] transition-colors hover:border-ink-30"
-                >
-                  {topic}
-                </StartButton>
-              ))}
+            <div className="mt-4">
+              <TopicGrid role={role} topics={topics} />
             </div>
           </section>
 
@@ -175,10 +151,10 @@ export default async function StudioInterviewsPage() {
                           ? `/studio/interviews/${h.id}/feedback`
                           : `/studio/interviews/${h.id}`
                       }
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-08 bg-paper px-4 py-3 transition-colors hover:border-ink-30"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-08 bg-paper px-5 py-3.5 transition-colors hover:border-ink-30"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-[0.88rem] font-medium">
+                        <span className="block truncate text-[0.89rem] font-medium">
                           {h.topic}
                           {h.company ? ` · ${h.company}` : ""}
                         </span>
@@ -198,6 +174,18 @@ export default async function StudioInterviewsPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function Step({ n, title, detail }: { n: string; title: string; detail: string }) {
+  return (
+    <div className="bg-paper px-6 py-5 sm:px-8">
+      <span className="grid size-6 place-items-center rounded-full bg-ink text-[0.72rem] font-medium text-paper">
+        {n}
+      </span>
+      <p className="mt-3 text-[0.88rem] font-medium">{title}</p>
+      <p className="mt-1 text-[0.79rem] leading-relaxed text-ink-50">{detail}</p>
     </div>
   );
 }

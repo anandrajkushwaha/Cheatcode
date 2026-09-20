@@ -48,12 +48,12 @@ export function Report({
       {/* ----------------------------------------------------- where you are */}
       <aside className="lg:sticky lg:top-[84px] lg:self-start">
         <div className="rounded-2xl border border-ink-08 bg-paper p-6">
-          <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">Verdict</p>
-          <p className="mt-2 text-[1.5rem] font-semibold leading-tight tracking-[-0.03em]">
-            {feedback.verdict}
-          </p>
+          <Gauge areas={feedback.areas} verdict={feedback.verdict} />
+
           {feedback.headline && (
-            <p className="mt-2 text-[0.87rem] leading-relaxed text-ink-50">{feedback.headline}</p>
+            <p className="mt-4 text-center text-[0.87rem] leading-relaxed text-ink-50">
+              {feedback.headline}
+            </p>
           )}
 
           <div className="mt-6 space-y-5">
@@ -155,6 +155,73 @@ export function Report({
           {session.company ? ` · ${session.company}` : ""}. This report stays in
           your history, so you can come back and see whether the same thing
           comes up twice.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The arc.
+ *
+ * It is drawn from the ratings that are already on the page rather than from
+ * a score, because there is no score — see 80_interviews.sql. Excellent
+ * counts one, Good two thirds, Needs work one third, and the arc is their
+ * average. That makes it an honest summary of the rows underneath it rather
+ * than a second, different judgement.
+ *
+ * The number itself is never shown. The arc gives the glance; the words give
+ * the meaning.
+ */
+function Gauge({ areas, verdict }: { areas: FeedbackArea[]; verdict: string }) {
+  const WEIGHT: Record<FeedbackArea["rating"], number> = {
+    Excellent: 1,
+    Good: 0.66,
+    "Needs work": 0.33,
+  };
+
+  const share = areas.length
+    ? areas.reduce((sum, a) => sum + WEIGHT[a.rating], 0) / areas.length
+    : 0.5;
+
+  // A 240-degree arc, drawn as a stroked circle with a dash offset.
+  const R = 52;
+  const CIRC = 2 * Math.PI * R;
+  const SWEEP = CIRC * (240 / 360);
+
+  const tone =
+    share > 0.82 ? "stroke-emerald-600" : share > 0.55 ? "stroke-amber-500" : "stroke-red-500";
+
+  return (
+    <div className="relative mx-auto w-[168px]">
+      <svg viewBox="0 0 140 140" className="w-full" aria-hidden>
+        <g transform="rotate(150 70 70)">
+          <circle
+            cx="70"
+            cy="70"
+            r={R}
+            fill="none"
+            strokeWidth="9"
+            strokeLinecap="round"
+            className="stroke-ink-08"
+            strokeDasharray={`${SWEEP} ${CIRC}`}
+          />
+          <circle
+            cx="70"
+            cy="70"
+            r={R}
+            fill="none"
+            strokeWidth="9"
+            strokeLinecap="round"
+            className={tone}
+            strokeDasharray={`${SWEEP * share} ${CIRC}`}
+          />
+        </g>
+      </svg>
+
+      <div className="absolute inset-0 grid place-items-center px-6">
+        <p className="text-center text-[1.15rem] font-semibold leading-tight tracking-[-0.03em]">
+          {verdict}
         </p>
       </div>
     </div>

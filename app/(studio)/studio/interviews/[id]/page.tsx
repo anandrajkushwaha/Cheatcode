@@ -30,13 +30,17 @@ export default async function InterviewRunPage({
     redirect(`/studio/interviews/${id}/feedback`);
   }
 
+  const topic = interview.session.company
+    ? `${interview.session.topic} · ${interview.session.company}`
+    : interview.session.topic;
+
   return (
     <div className="py-2">
-      <p className="mx-auto mb-6 max-w-[760px] text-[0.82rem] text-ink-50">
-        {interview.session.topic}
-        {interview.session.company ? ` · ${interview.session.company}` : ""}
-      </p>
-      <Runner sessionId={interview.session.id} questions={interview.questions} />
+      <Runner
+        sessionId={interview.session.id}
+        topic={topic}
+        questions={interview.questions}
+      />
     </div>
   );
 }

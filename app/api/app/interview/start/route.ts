@@ -93,6 +93,7 @@ export async function POST(request: Request) {
     kind,
     company,
     jobSkills,
+    role: profile?.interview_role ?? null,
     profile,
     resume: resume?.parsed ?? null,
     userId: user.id,

@@ -66,6 +66,14 @@ export async function generateQuestions(opts: {
   company: string | null;
   /** For a job-based interview: the skills on the posting. */
   jobSkills?: string[];
+  /**
+   * The role this whole screen is pitched at.
+   *
+   * Without it, "Typography" produces questions for a type designer when the
+   * person practising is a marketing designer who uses type. The topic says
+   * what to ask about; the role says who is being asked.
+   */
+  role?: string | null;
   profile: Profile | null;
   resume: Resume | null;
   userId: string;
@@ -75,7 +83,9 @@ export async function generateQuestions(opts: {
       ? `They are preparing for a specific opening: ${opts.topic}${
           opts.company ? ` at ${opts.company}` : ""
         }.${opts.jobSkills?.length ? ` The posting asks for: ${opts.jobSkills.slice(0, 12).join(", ")}.` : ""}`
-      : `They are practising the topic: ${opts.topic}.`;
+      : opts.role && opts.role.toLowerCase() !== opts.topic.toLowerCase()
+        ? `They are interviewing for ${opts.role} roles, and want to practise: ${opts.topic}. Ask ${opts.role} questions about that area — not questions for a specialist in it.`
+        : `They are interviewing for ${opts.topic} roles.`;
 
   const result = await llmJson({
     name: "interview_questions",

@@ -24,6 +24,13 @@ export type Profile = {
   preferred_cities: string[];
   open_to_remote: boolean;
   target_roles: string[];
+  /**
+   * The role mock interviews are pitched at.
+   *
+   * Separate from target_roles on purpose — see 82_interview_role.sql.
+   * Null until they have picked one, which is what the picker checks.
+   */
+  interview_role: string | null;
   plan: Plan;
   plan_status: PlanStatus;
   plan_expires_at: string | null;
