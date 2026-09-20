@@ -114,7 +114,7 @@ export function ProTeaser({
             </ul>
 
             <Link
-              href={`/studio/upgrade?from=${from}`}
+              href={`/app/upgrade?from=${from}`}
               className="mt-6 inline-flex items-center justify-center whitespace-nowrap rounded-full px-6 py-3 text-[0.92rem] font-bold text-[#1a1a1a] transition-opacity hover:opacity-90"
               style={{
                 backgroundImage:

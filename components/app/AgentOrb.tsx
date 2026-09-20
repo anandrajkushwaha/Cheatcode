@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import type { AnimationItem, LottiePlayer } from "lottie-web";
 import { AgentOverlay } from "@/components/app/AgentOverlay";
 import { primeAudio } from "@/lib/app/agent-sound";
@@ -43,7 +42,6 @@ export function AgentOrb({
   /** Passed straight through: the orb opens for everybody, the agent gates. */
   requirePro?: boolean;
 } = {}) {
-  const pathname = usePathname();
   const host = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const anim = useRef<AnimationItem | null>(null);
@@ -52,12 +50,11 @@ export function AgentOrb({
 
   const open = origin !== null;
 
-  // The agent's own page is the same conversation in a different frame; two
-  // ways into it on one screen is one too many.
-  const hidden = pathname?.startsWith("/app/agent") ?? false;
-
+  // The orb shows everywhere inside the shell. /app/agent used to hide it —
+  // that page was a second frame around the same live conversation. It is now
+  // a read-only record that resumes a past thread in its own overlay, so the
+  // orb is once again the only way to start a new one and belongs on it too.
   useEffect(() => {
-    if (hidden) return;
     const el = host.current;
     if (!el) return;
 
@@ -97,7 +94,7 @@ export function AgentOrb({
       anim.current?.destroy();
       anim.current = null;
     };
-  }, [hidden]);
+  }, []);
 
   // Nothing to animate behind a full-screen surface.
   useEffect(() => {
@@ -105,8 +102,6 @@ export function AgentOrb({
     if (open) anim.current.pause();
     else if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) anim.current.play();
   }, [open]);
-
-  if (hidden) return null;
 
   return (
     <>

@@ -48,7 +48,7 @@ export function StartButton({
         setBusy(false);
         return;
       }
-      router.push(`/studio/interviews/${data.id}`);
+      router.push(`/app/interviews/${data.id}`);
     } catch {
       setError("Could not reach the server.");
       setBusy(false);

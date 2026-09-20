@@ -15,10 +15,10 @@ import { Avatar } from "@/components/studio/Avatar";
  */
 
 export const STUDIO_NAV = [
-  { href: "/studio/jobs", label: "Jobs" },
-  { href: "/studio/interviews", label: "Mock Interviews" },
-  { href: "/studio/resume", label: "Resume" },
-  { href: "/studio/tools", label: "Free Tools" },
+  { href: "/app/jobs", label: "Jobs" },
+  { href: "/app/interviews", label: "Mock Interviews" },
+  { href: "/app/resume", label: "Resume" },
+  { href: "/app/tools", label: "Free Tools" },
 ];
 
 export function TopBar({
@@ -35,7 +35,7 @@ export function TopBar({
           instead of merely between the wordmark and the avatar. */}
       <div className="mx-auto grid h-[68px] max-w-[1120px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
         <Link
-          href="/studio"
+          href="/app"
           className="justify-self-start text-[1.25rem] font-semibold tracking-[-0.04em] text-ink sm:text-[1.45rem]"
         >
           Cheatcode
@@ -69,7 +69,7 @@ export function TopBar({
             one more piece of chrome, and pressing it made the whole screen
             grow out of the top of the page. */}
         <div className="flex items-center justify-end gap-3 justify-self-end">
-          <Link href="/studio/profile" aria-label="Your profile" className="shrink-0">
+          <Link href="/app/profile" aria-label="Your profile" className="shrink-0">
             <Avatar name={user.name} url={user.avatarUrl} size={36} className="ring-1 ring-ink-08" />
           </Link>
         </div>

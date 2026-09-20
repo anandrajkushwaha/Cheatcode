@@ -64,7 +64,7 @@ export function JobFilterRail({ filters }: { filters: Filters }) {
     // "touched" is how the page knows not to re-apply the profile's defaults
     // over a filter somebody has just cleared on purpose.
     next.set("t", "1");
-    router.push(`/studio/jobs?${next.toString()}`, { scroll: false });
+    router.push(`/app/jobs?${next.toString()}`, { scroll: false });
   }
 
   const toggleCity = (city: string) => {
@@ -274,7 +274,7 @@ export function JobSearchBar({ q, sort }: { q: string; sort: string }) {
     }
     next.delete("page");
     next.set("t", "1");
-    router.push(`/studio/jobs?${next.toString()}`, { scroll: false });
+    router.push(`/app/jobs?${next.toString()}`, { scroll: false });
   }
 
   return (

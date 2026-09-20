@@ -115,7 +115,7 @@ export default async function QuestionBankPage({
           own answers back to you.
         </p>
         <Link
-          href="/signin?next=/studio/interviews"
+          href="/signin?next=/app/interviews"
           className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.9rem] font-medium text-paper transition-opacity hover:opacity-90"
         >
           Try a free mock interview

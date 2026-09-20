@@ -73,7 +73,7 @@ export function AgentPaywall({
         </ul>
 
         <Link
-          href="/studio/upgrade?from=agent-overlay"
+          href="/app/upgrade?from=agent-overlay"
           className="mt-7 flex w-full items-center justify-center whitespace-nowrap rounded-full px-6 py-3 text-[0.95rem] font-bold text-[#1a1a1a] transition-opacity hover:opacity-90"
           style={{
             backgroundImage:

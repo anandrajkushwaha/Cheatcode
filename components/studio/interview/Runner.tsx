@@ -158,7 +158,7 @@ export function Runner({
         setBusy(false);
         return;
       }
-      router.push(`/studio/interviews/${sessionId}/feedback`);
+      router.push(`/app/interviews/${sessionId}/feedback`);
     } catch {
       setError("Could not reach the server. Your answers are saved — try again.");
       setBusy(false);
@@ -187,7 +187,7 @@ export function Runner({
           type="button"
           onClick={() => {
             stopMic();
-            router.push("/studio/interviews");
+            router.push("/app/interviews");
           }}
           className="shrink-0 text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
         >

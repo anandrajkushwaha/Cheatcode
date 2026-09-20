@@ -87,7 +87,7 @@ export function Report({ interview }: { interview: FullInterview }) {
         </div>
 
         <Link
-          href="/studio/interviews"
+          href="/app/interviews"
           className="mt-3 flex items-center justify-center rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] transition-colors hover:border-ink-30"
         >
           Practise another
@@ -112,7 +112,7 @@ export function Report({ interview }: { interview: FullInterview }) {
               ))}
             </ul>
             <Link
-              href="/studio/resume"
+              href="/app/resume"
               className="mt-5 inline-flex text-[0.82rem] font-medium text-ink underline underline-offset-4"
             >
               Open the resume builder →

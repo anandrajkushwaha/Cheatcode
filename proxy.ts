@@ -65,12 +65,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // --------------------------------------------------------------- studio
+  // /studio was the old address of the signed-in shell. Links to it are out
+  // in the world — bookmarks, emails, anything already shared — so they are
+  // forwarded rather than 404'd. Runs before the /app guard so a signed-out
+  // visitor lands on the new URL first and is asked to sign in there.
+  if (pathname === "/studio" || pathname.startsWith("/studio/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/app" + pathname.slice("/studio".length);
+    return NextResponse.redirect(url);
+  }
+
   // ---------------------------------------------------------------- app
-  // /studio is the new shell being built alongside /app. It is listed here
-  // rather than given a guard of its own so there is exactly one place where
-  // "a signed-in area" is defined — two copies of this block is how one of
-  // them ends up a refresh behind the other.
-  if (pathname.startsWith("/app") || pathname.startsWith("/studio")) {
+  // The signed-in shell. It is listed here rather than given a guard of its
+  // own so there is exactly one place where "a signed-in area" is defined —
+  // two copies of this block is how one of them ends up a refresh behind the
+  // other.
+  if (pathname.startsWith("/app")) {
     const url =
       process.env.NEXT_PUBLIC_APP_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key =

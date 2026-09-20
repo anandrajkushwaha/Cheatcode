@@ -93,7 +93,7 @@ export function ProBlock({
           </p>
 
           <Link
-            href="/studio/upgrade?from=studio-home"
+            href="/app/upgrade?from=studio-home"
             className="mt-6 flex w-full max-w-[184px] items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-[0.88rem] font-bold leading-[18px] text-[#1a1a1a] transition-opacity hover:opacity-90"
             style={{
               backgroundImage:

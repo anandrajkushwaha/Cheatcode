@@ -16,7 +16,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     title: "Product",
     links: [
       { href: "/app", label: "Open the app" },
-      { href: "/app/resume/templates", label: "Resume templates" },
+      { href: "/app/resume", label: "Resume templates" },
       { href: "/tools/resume-ats-checker", label: "ATS checker" },
       { href: "/tools/in-hand-salary-calculator", label: "Salary calculator" },
     ],
