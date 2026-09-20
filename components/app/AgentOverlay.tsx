@@ -90,9 +90,19 @@ export function AgentOverlay({
   origin,
   onClose,
   requirePro = false,
+  resume,
 }: {
   origin: { x: number; y: number };
   onClose: () => void;
+  /**
+   * Pick up a conversation that already happened.
+   *
+   * The turns are put on screen and the conversation id is adopted, so the
+   * next message is billed and stored against the same row rather than
+   * opening a second one — which is what made the history list grow a new
+   * entry every time somebody went back to an old thread.
+   */
+  resume?: { conversationId: string; turns: Turn[] } | null;
   /**
    * Gate the agent behind Pro.
    *
@@ -103,7 +113,7 @@ export function AgentOverlay({
    */
   requirePro?: boolean;
 }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>(resume?.turns ?? []);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -225,7 +235,7 @@ export function AgentOverlay({
   const threadRef = useRef<HTMLDivElement>(null);
 
   /** The conversation row, once the server has made one. */
-  const conversation = useRef<string | null>(null);
+  const conversation = useRef<string | null>(resume?.conversationId ?? null);
 
   /**
    * The thread, readable from a callback that must not be rebuilt.

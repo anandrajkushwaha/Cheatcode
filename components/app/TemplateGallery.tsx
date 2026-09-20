@@ -40,7 +40,16 @@ import type { Resume } from "@/lib/app/resume-schema";
 /** 210mm at 96dpi. The page's true width in CSS pixels. */
 const PAGE_PX = A4.w * (96 / 25.4);
 
-export function TemplateGallery({ content, current }: { content: Resume; current: string }) {
+export function TemplateGallery({
+  content,
+  current,
+  basePath = "/app",
+}: {
+  content: Resume;
+  current: string;
+  /** Which shell to open the editor in. /app by default; the studio passes its own. */
+  basePath?: string;
+}) {
   const router = useRouter();
   const [filters, setFilters] = useState<Filters>({});
   const [draft, setDraft] = useState<Filters>({});
@@ -97,7 +106,7 @@ export function TemplateGallery({ content, current }: { content: Resume; current
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) throw new Error(json.error ?? "That didn't work.");
-      router.push("/app/resume/builder");
+      router.push(`${basePath}/resume/builder`);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");

@@ -26,12 +26,21 @@ export function BuildDraftButton({
   restart = false,
   quiet = false,
   className = "",
+  basePath = "/app",
 }: {
   label: string;
   /** Throw away the edits and copy the uploaded resume again. */
   restart?: boolean;
   quiet?: boolean;
   className?: string;
+  /**
+   * Which shell to open the editor in.
+   *
+   * Defaults to /app so the older screens are untouched. The studio passes
+   * its own base — without it, pressing this inside the studio dropped
+   * somebody into /app mid-task, complete with a different top bar.
+   */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -53,7 +62,7 @@ export function BuildDraftButton({
       // push, then refresh: the page is a server component reading the row
       // that was just written, and a push alone can serve it from the cache.
       startTransition(() => {
-        router.push("/app/resume/builder");
+        router.push(`${basePath}/resume/builder`);
         router.refresh();
       });
     } catch (e) {

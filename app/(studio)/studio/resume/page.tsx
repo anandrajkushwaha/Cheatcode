@@ -36,7 +36,7 @@ export default async function StudioResumePage() {
         <div className="flex items-center gap-4">
           {draft && (
             <Link
-              href="/app/resume/builder"
+              href="/studio/resume/builder"
               className="text-[0.85rem] text-ink-50 underline-offset-4 hover:text-ink hover:underline"
             >
               Open the editor
@@ -56,6 +56,7 @@ export default async function StudioResumePage() {
           <TemplateGallery
             content={draft.content}
             current={draft.template ?? DEFAULT_TEMPLATE}
+            basePath="/studio"
           />
         ) : (
           <>
@@ -66,7 +67,7 @@ export default async function StudioResumePage() {
             </p>
             {resume && (
               <div className="mt-6">
-                <BuildDraftButton label="Build it from my resume" />
+                <BuildDraftButton label="Build it from my resume" basePath="/studio" />
               </div>
             )}
           </>
