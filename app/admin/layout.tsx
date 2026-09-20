@@ -32,6 +32,9 @@ const NAV = [
   // comes before "by whom" — and the download count on the first tab is the
   // one number that says the answer is yes.
   { href: "/admin/resume", label: "Résumés" },
+  // Beside Résumés because it is the same section's permission, and because
+  // an unanswered one is somebody who paid and heard nothing.
+  { href: "/admin/resume-requests", label: "Reviews queue" },
   { href: "/admin/users", label: "People" },
   // Next to People because it is the same list, filtered to the ones who
   // tried to pay — which is the only demand signal there is until checkout

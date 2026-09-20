@@ -12,6 +12,7 @@ import { RolePicker } from "@/components/studio/interview/RolePicker";
 import { RoleHeader } from "@/components/studio/interview/RoleHeader";
 import { TopicGrid } from "@/components/studio/interview/TopicGrid";
 import { LockedPanel } from "@/components/studio/interview/LockedPanel";
+import { ProTeaser } from "@/components/studio/ProTeaser";
 import { OrbMark } from "@/components/studio/OrbMark";
 
 export const dynamic = "force-dynamic";
@@ -142,6 +143,26 @@ export default async function StudioInterviewsPage() {
               <TopicGrid role={role} topics={topics} />
             </div>
           </section>
+
+          {/* The offer, for anybody not on Pro. Shown below the topics rather
+              than above them: they can still practise today, and a banner
+              between somebody and the thing they came to do is an
+              advertisement. Once MOCK_REQUIRES_PRO is switched on, the
+              LockedPanel above replaces the whole screen and this never
+              renders. */}
+          {!paid && (
+            <ProTeaser
+              from="interviews"
+              eyebrow="Pro"
+              title="Practise as often as you need"
+              detail={`Free accounts get ${FREE_INTERVIEWS_PER_DAY} interviews a day. Pro removes the limit and adds the part that makes it practice.`}
+              points={[
+                "Unlimited mock interviews, every day",
+                "Every answer rewritten using your own resume",
+                "Answer again and see whether it improved",
+              ]}
+            />
+          )}
 
           {/* ------------------------------------------------------ history */}
           {history.length > 0 && (

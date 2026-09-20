@@ -63,9 +63,10 @@ export const SECTIONS: readonly Section[] = [
   {
     key: "resumes",
     label: "Résumés",
-    detail: "What people have built and downloaded. Read only, but it is personal data.",
-    pages: ["/admin/resume"],
-    apis: [],
+    detail:
+      "What people have built and downloaded, and the queue of Pro members waiting for a review.",
+    pages: ["/admin/resume", "/admin/resume-requests"],
+    apis: ["/api/admin/resume-review"],
   },
 ] as const;
 

@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { getPrimaryDraft, getPrimaryResume } from "@/lib/app/account";
+import { getPrimaryDraft, getPrimaryResume, getProfile, isPaid } from "@/lib/app/account";
+import { getMyReview } from "@/lib/app/resume-review";
+import { ResumeReviewCard } from "@/components/studio/ResumeReviewCard";
+import { ProTeaser } from "@/components/studio/ProTeaser";
 import { getSessionUser } from "@/lib/supabase/app";
 import { listSharedWithMe } from "@/lib/app/resume-store";
 import { TemplateGallery } from "@/components/app/TemplateGallery";
@@ -23,11 +26,17 @@ import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
  */
 export default async function StudioResumePage() {
   const user = await getSessionUser();
-  const [draft, resume, shared] = await Promise.all([
+  const [draft, resume, shared, profile] = await Promise.all([
     getPrimaryDraft(),
     getPrimaryResume(),
     listSharedWithMe(user?.email ?? null),
+    getProfile(),
   ]);
+
+  const paid = isPaid(profile);
+  // Only fetched for somebody who can actually have one — a free account has
+  // no review to report on, and asking is a query for nothing.
+  const review = paid && user ? await getMyReview(user.id) : null;
 
   return (
     <div className="space-y-8">
@@ -73,6 +82,30 @@ export default async function StudioResumePage() {
           </>
         )}
       </section>
+
+      {/* A human review. Paid accounts get the request form; everyone else
+          gets the offer, which is the same artwork Pro is sold with
+          everywhere else. */}
+      {paid ? (
+        <ResumeReviewCard
+          existing={review}
+          defaultRole={profile?.interview_role ?? profile?.target_roles?.[0] ?? null}
+          email={profile?.email ?? user?.email ?? null}
+          hasDocument={Boolean(resume || draft)}
+        />
+      ) : (
+        <ProTeaser
+          from="resume-review"
+          eyebrow="Pro"
+          title="Have a person read your resume"
+          detail="Not a score and not a checklist — someone reads it against the job you are applying for and writes back."
+          points={[
+            "A real person reads it, not a parser",
+            "Written against the exact role you are applying for",
+            "Emailed back to you, usually within two working days",
+          ]}
+        />
+      )}
 
       {/* Documents somebody else shared. Kept below their own work rather than
           mixed into it — a list where "my resume" and "a resume I was shown"
