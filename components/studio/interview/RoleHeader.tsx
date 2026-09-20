@@ -12,9 +12,11 @@ import { RolePicker } from "@/components/studio/interview/RolePicker";
  */
 export function RoleHeader({
   role,
+  years,
   suggestions,
 }: {
   role: string;
+  years: number | null;
   suggestions: string[];
 }) {
   const [open, setOpen] = useState(false);
@@ -26,7 +28,12 @@ export function RoleHeader({
         onClick={() => setOpen(true)}
         className="group inline-flex items-center gap-1.5 text-[0.88rem] text-ink-50 transition-colors hover:text-ink"
       >
-        For <span className="font-medium text-ink">{role}</span> role
+        For <span className="font-medium text-ink">{role}</span>
+        {years !== null && (
+          <span className="text-ink-50">
+            · {years === 0 ? "fresher" : `${years} yr${years === 1 ? "" : "s"}`}
+          </span>
+        )}
         <svg
           viewBox="0 0 24 24"
           aria-hidden
@@ -45,6 +52,7 @@ export function RoleHeader({
       {open && (
         <RolePicker
           current={role}
+          currentYears={years}
           suggestions={suggestions}
           open
           onClose={() => setOpen(false)}

@@ -53,6 +53,7 @@ export function Runner({
   const [error, setError] = useState<string | null>(null);
 
   const [listening, setListening] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [interim, setInterim] = useState("");
   const [micNote, setMicNote] = useState<string | null>(null);
   const [canDictate, setCanDictate] = useState(false);
@@ -78,16 +79,20 @@ export function Runner({
     mic.current?.stop();
     mic.current = null;
     setListening(false);
+    setStarting(false);
     setInterim("");
   }
 
-  function toggleMic() {
-    if (listening) {
+  async function toggleMic() {
+    if (listening || starting) {
       stopMic();
       return;
     }
     setMicNote(null);
-    const handle = startDictation({
+    // Optimistic: the permission prompt can take a moment and a dead button
+    // in the meantime is what makes people press it twice.
+    setStarting(true);
+    const handle = await startDictation({
       onFinal: (text) => {
         setValue((v) => {
           const sep = v && !/\s$/.test(v) ? " " : "";
@@ -106,10 +111,10 @@ export function Runner({
       },
     });
 
-    if (!handle) {
-      setMicNote("Your browser would not start the microphone. Keep typing instead.");
-      return;
-    }
+    setStarting(false);
+    // startDictation reports its own reason through onError, so a null here
+    // needs no second message.
+    if (!handle) return;
     mic.current = handle;
     setListening(true);
   }
@@ -208,7 +213,7 @@ export function Runner({
         <div className="px-6 py-6 sm:px-8">
           <div
             className={`rounded-2xl border bg-paper transition-colors ${
-              listening ? "border-ink-30 ring-4 ring-ink-04" : "border-ink-15"
+              listening || starting ? "border-ink-30 ring-4 ring-ink-04" : "border-ink-15"
             }`}
           >
             <textarea
@@ -229,9 +234,9 @@ export function Runner({
 
             {/* The recogniser's current guess. Shown under the box rather than
                 written into it, because it rewrites itself constantly. */}
-            {listening && (
+            {(listening || starting) && (
               <p className="px-4 pb-3 text-[0.9rem] leading-relaxed text-ink-30">
-                {interim || "Listening…"}
+                {interim || (starting ? "Waiting for the microphone…" : "Listening — just talk.")}
               </p>
             )}
 
@@ -240,7 +245,7 @@ export function Runner({
                 {canDictate ? (
                   <button
                     type="button"
-                    onClick={toggleMic}
+                    onClick={() => void toggleMic()}
                     disabled={busy}
                     aria-pressed={listening}
                     className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[0.8rem] font-medium transition-colors disabled:opacity-40 ${
@@ -250,7 +255,7 @@ export function Runner({
                     }`}
                   >
                     <MicIcon active={listening} />
-                    {listening ? "Stop" : "Speak your answer"}
+                    {starting ? "Starting…" : listening ? "Stop" : "Speak your answer"}
                   </button>
                 ) : (
                   <span className="px-1 text-[0.74rem] text-ink-30">

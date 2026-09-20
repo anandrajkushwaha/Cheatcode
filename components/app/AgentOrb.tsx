@@ -38,10 +38,13 @@ import { primeAudio } from "@/lib/app/agent-sound";
 export function AgentOrb({
   placement = "fixed",
   requirePro = false,
+  seed,
 }: {
   placement?: "fixed" | "inline";
   /** Passed straight through: the orb opens for everybody, the agent gates. */
   requirePro?: boolean;
+  /** A question to put in the box, unsent. */
+  seed?: string;
 } = {}) {
   const pathname = usePathname();
   const host = useRef<HTMLSpanElement>(null);
@@ -194,7 +197,12 @@ export function AgentOrb({
       </button>
 
       {origin && (
-        <AgentOverlay origin={origin} onClose={() => setOrigin(null)} requirePro={requirePro} />
+        <AgentOverlay
+          origin={origin}
+          onClose={() => setOrigin(null)}
+          requirePro={requirePro}
+          seed={seed}
+        />
       )}
     </>
   );

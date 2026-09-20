@@ -14,10 +14,12 @@ export type InterviewQuestion = {
   question: string;
   /** The one thing this question tests. Becomes a row in the report. */
   skill: string;
-  /** Withheld from the client unless the plan allows it. */
+  /** Their own answer, rewritten. Written during marking, not before. */
   modelAnswer: string | null;
   /** What they said, if they have answered it yet. */
   answer: string | null;
+  /** 1 the first time. Higher once they have gone back and tried again. */
+  attempts: number;
 };
 
 export type InterviewSession = {
@@ -51,11 +53,22 @@ export type FeedbackTip = {
   quote: string;
 };
 
+/**
+ * What this interview says to change on the resume.
+ *
+ * Derived from the answers, not from reading the resume again — the value is
+ * that it noticed something while they were talking. "You described the
+ * migration in detail and it is one line on your resume" is a thing only an
+ * interview can tell you.
+ */
+export type ResumeAction = { title: string; detail: string };
+
 export type InterviewFeedback = {
   verdict: string;
   headline: string | null;
   areas: FeedbackArea[];
   tips: FeedbackTip[];
+  resumeActions: ResumeAction[];
 };
 
 export const RATING_ORDER: Record<FeedbackArea["rating"], number> = {

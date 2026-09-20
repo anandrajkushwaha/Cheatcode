@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { FullInterview } from "@/lib/interview/store";
 import type { FeedbackArea } from "@/lib/interview/types";
+import { RetryAnswer } from "@/components/studio/interview/RetryAnswer";
+import { AskAgent } from "@/components/studio/interview/AskAgent";
 
 /**
  * The report.
@@ -31,17 +33,19 @@ const BAR: Record<FeedbackArea["rating"], string> = {
   "Needs work": "w-1/3 bg-red-500",
 };
 
-export function Report({
-  interview,
-  canSeeModelAnswers,
-}: {
-  interview: FullInterview;
-  canSeeModelAnswers: boolean;
-}) {
+export function Report({ interview }: { interview: FullInterview }) {
   const { session, questions, feedback } = interview;
   if (!feedback) return null;
 
   const tipsFor = (position: number) => feedback.tips.filter((t) => t.position === position);
+
+  // The seed for the agent. The first "Needs work" if there is one, else the
+  // first "Good" — there is no point opening a conversation about the thing
+  // they already did well.
+  const weakest =
+    feedback.areas.find((a) => a.rating === "Needs work")?.skill ??
+    feedback.areas.find((a) => a.rating === "Good")?.skill ??
+    null;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -74,12 +78,42 @@ export function Report({
           </div>
         </div>
 
-        <Link
-          href="/studio/interviews"
-          className="mt-4 flex items-center justify-center rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] transition-colors hover:border-ink-30"
-        >
-          Practise another
-        </Link>
+        <div className="mt-4 space-y-2.5">
+          <AskAgent topic={session.topic} weakest={weakest} />
+          <Link
+            href="/studio/interviews"
+            className="flex items-center justify-center rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] transition-colors hover:border-ink-30"
+          >
+            Practise another
+          </Link>
+        </div>
+
+        {/* What the interview noticed about the resume. Not resume advice
+            from reading the resume — advice from hearing them talk, which is
+            the only place it could have come from. This is also the seam
+            between the two halves of the paid plan: the interview finds it,
+            the builder fixes it. */}
+        {feedback.resumeActions.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-ink-08 bg-paper p-6">
+            <p className="text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">
+              Change on your resume
+            </p>
+            <ul className="mt-4 space-y-4">
+              {feedback.resumeActions.map((a, i) => (
+                <li key={i}>
+                  <p className="text-[0.85rem] font-medium leading-snug">{a.title}</p>
+                  <p className="mt-1 text-[0.8rem] leading-relaxed text-ink-50">{a.detail}</p>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/studio/resume"
+              className="mt-5 inline-flex text-[0.82rem] font-medium text-ink underline underline-offset-4"
+            >
+              Open the resume builder →
+            </Link>
+          </div>
+        )}
       </aside>
 
       {/* -------------------------------------------------- what to change */}
@@ -88,7 +122,14 @@ export function Report({
           const tips = tipsFor(q.position);
           return (
             <section key={q.id} className="rounded-2xl border border-ink-08 bg-paper p-6">
-              <p className="text-[0.78rem] font-medium text-ink-30">Q{q.position}</p>
+              <p className="flex flex-wrap items-center gap-2 text-[0.78rem] font-medium text-ink-30">
+                Q{q.position}
+                {q.attempts > 1 && (
+                  <span className="rounded-full bg-ink-04 px-2 py-0.5 text-[0.7rem] text-ink-50">
+                    attempt {q.attempts}
+                  </span>
+                )}
+              </p>
               <h3 className="mt-1.5 text-[1rem] font-semibold leading-snug tracking-[-0.02em]">
                 {q.question}
               </h3>
@@ -126,31 +167,49 @@ export function Report({
                 </div>
               )}
 
-              <div className="mt-5 border-t border-ink-08 pt-4">
-                {canSeeModelAnswers && q.modelAnswer ? (
-                  <details>
-                    <summary className="cursor-pointer list-none text-[0.82rem] font-medium text-ink underline underline-offset-4">
-                      How a strong candidate would answer
-                    </summary>
-                    <p className="mt-3 whitespace-pre-line text-[0.85rem] leading-relaxed text-ink-70">
-                      {q.modelAnswer}
-                    </p>
-                  </details>
-                ) : (
-                  <Link
-                    href="/studio/upgrade?from=interview-report"
-                    className="inline-flex items-center gap-2 text-[0.82rem] font-medium text-ink-50 transition-colors hover:text-ink"
-                  >
-                    <LockIcon />
-                    See how a strong candidate would answer
-                  </Link>
-                )}
+              {/* Their own answer, rewritten — not a model answer by an
+                  invented candidate. It is built from their resume and what
+                  they actually said, which is the difference between "here is
+                  a good answer" and "here is your answer, working". Shown to
+                  everybody who can see this report: the interview itself is
+                  the paid thing, and a second lock inside something already
+                  paid for reads as nickel-and-diming. */}
+              <div className="mt-5">
+                <RetryAnswer
+                  sessionId={session.id}
+                  questionId={q.id}
+                  attempts={q.attempts}
+                />
               </div>
+
+              {q.modelAnswer && (
+                <div className="mt-5 rounded-xl border border-[#fdaa29]/40 bg-[#fffaf0] p-4">
+                  <p className="flex items-center gap-2 text-[0.8rem] font-semibold text-[#8a5a12]">
+                    <SparkIcon />
+                    Your answer, rewritten to land
+                  </p>
+                  <p className="mt-2.5 whitespace-pre-line text-[0.88rem] leading-relaxed text-ink-70">
+                    {q.modelAnswer}
+                  </p>
+                  <p className="mt-3 text-[0.74rem] leading-relaxed text-ink-30">
+                    Built from your resume and what you said. Any{" "}
+                    <span className="font-medium">___</span> is a number only you
+                    know — fill it in before you use this.
+                  </p>
+                </div>
+              )}
             </section>
           );
         })}
 
         <p className="px-1 pt-2 text-[0.78rem] leading-relaxed text-ink-30">
+          Answering again re-marks that question and rewrites it. The overall
+          verdict and the communication note stay as they were — those were a
+          judgement about the whole interview, and rebuilding them from one
+          answer would make them less true, not fresher.
+        </p>
+
+        <p className="px-1 text-[0.78rem] leading-relaxed text-ink-30">
           Practised {session.topic}
           {session.company ? ` · ${session.company}` : ""}. This report stays in
           your history, so you can come back and see whether the same thing
@@ -228,20 +287,15 @@ function Gauge({ areas, verdict }: { areas: FeedbackArea[]; verdict: string }) {
   );
 }
 
-function LockIcon() {
+function SparkIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
       aria-hidden
       className="size-[14px] shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
     >
-      <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
-      <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" />
+      <path d="M12 3.2 13.5 9 19 10.5 13.5 12 12 17.8 10.5 12 5 10.5 10.5 9Z" />
     </svg>
   );
 }

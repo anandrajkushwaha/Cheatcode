@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/supabase/app";
-import { isPaid, getProfile } from "@/lib/app/account";
+import { isPaid, getProfile, getPrimaryResume } from "@/lib/app/account";
 import { getInterview, saveFeedback } from "@/lib/interview/store";
 import { markInterview } from "@/lib/interview/generate";
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "Which interview?" }, { status: 400 });
   }
 
-  const profile = await getProfile();
+  const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
   const full = await getInterview(body.sessionId, user.id, isPaid(profile));
   if (!full) return Response.json({ ok: false, error: "Not found." }, { status: 404 });
 
@@ -45,6 +45,8 @@ export async function POST(request: Request) {
     topic: full.session.topic,
     sessionId: full.session.id,
     userId: user.id,
+    profile,
+    resume: resume?.parsed ?? null,
     answers: full.questions.map((q) => ({
       position: q.position,
       question: q.question,
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
 
   if (!marked.ok) return Response.json({ ok: false, error: marked.error }, { status: 502 });
 
-  const stored = await saveFeedback(full.session.id, marked.data);
+  const stored = await saveFeedback(full.session.id, marked.data, marked.data.rewrites);
   if (!stored) {
     return Response.json({ ok: false, error: "Could not save the report." }, { status: 502 });
   }

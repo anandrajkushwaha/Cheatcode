@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ ok: false, error: "Sign in first." }, { status: 401 });
 
-  let body: { role?: string };
+  let body: { role?: string; years?: number | null };
   try {
     body = await request.json();
   } catch {
@@ -28,7 +28,22 @@ export async function POST(request: Request) {
   const db = createAppAdminClient();
   if (!db) return Response.json({ ok: false, error: "Not configured." }, { status: 503 });
 
-  const { error } = await db.from("profiles").update({ interview_role: role }).eq("id", user.id);
+  /**
+   * Experience goes to `years_experience`, the column that already exists,
+   * rather than a second one beside it.
+   *
+   * That is the opposite of the decision made for the role, and for the same
+   * reason: how many years somebody has worked is a fact about them, true
+   * everywhere in the product, so two copies of it would be two copies to
+   * disagree. Which role they are *practising* is a preference local to this
+   * screen, which is why that one is separate from target_roles.
+   */
+  const patch: Record<string, unknown> = { interview_role: role };
+  if (typeof body.years === "number" && Number.isFinite(body.years)) {
+    patch.years_experience = Math.max(0, Math.min(40, Math.round(body.years)));
+  }
+
+  const { error } = await db.from("profiles").update(patch).eq("id", user.id);
 
   if (error) {
     const absent = /column .*interview_role.* does not exist/i.test(error.message);

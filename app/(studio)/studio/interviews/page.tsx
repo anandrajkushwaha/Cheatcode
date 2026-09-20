@@ -65,9 +65,14 @@ export default async function StudioInterviewsPage() {
   ).slice(0, 6);
 
   const role = profile?.interview_role?.trim() || null;
+  const years = profile?.years_experience ?? null;
+  // Both are needed before any question can be written, so a half-answered
+  // setup sends them back to the picker rather than producing questions
+  // pitched at nobody.
+  const ready = Boolean(role) && years !== null;
 
   const [topics, history, usedToday] = await Promise.all([
-    role && user && !locked ? getTopicsForRole(role, user.id) : Promise.resolve([]),
+    ready && role && user && !locked ? getTopicsForRole(role, user.id) : Promise.resolve([]),
     user ? getHistory(user.id) : Promise.resolve([]),
     user && !paid ? countToday(user.id) : Promise.resolve(0),
   ]);
@@ -86,9 +91,9 @@ export default async function StudioInterviewsPage() {
                 Mock interviews
               </h1>
             </div>
-            {role ? (
+            {ready && role ? (
               <div className="mt-2">
-                <RoleHeader role={role} suggestions={suggestions} />
+                <RoleHeader role={role} years={years} suggestions={suggestions} />
               </div>
             ) : (
               <p className="mt-2 max-w-[54ch] text-[0.88rem] leading-relaxed text-ink-50">
@@ -98,7 +103,7 @@ export default async function StudioInterviewsPage() {
             )}
           </div>
 
-          {!paid && !locked && role && (
+          {!paid && !locked && ready && (
             <span className="shrink-0 rounded-full bg-ink-04 px-3 py-1.5 text-[0.76rem] text-ink-50">
               {left > 0 ? `${left} left today` : "None left today"}
             </span>
@@ -118,8 +123,8 @@ export default async function StudioInterviewsPage() {
 
       {locked ? (
         <LockedPanel />
-      ) : !role ? (
-        <RolePicker current={null} suggestions={suggestions} />
+      ) : !ready || !role ? (
+        <RolePicker current={role} currentYears={years} suggestions={suggestions} />
       ) : (
         <>
           {/* ------------------------------------------------------- topics */}

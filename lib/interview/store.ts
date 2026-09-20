@@ -6,6 +6,7 @@ import type {
   InterviewSession,
   FeedbackArea,
   FeedbackTip,
+  ResumeAction,
 } from "@/lib/interview/types";
 
 /**
@@ -34,7 +35,7 @@ export async function createSession(opts: {
   kind: "topic" | "role" | "job";
   jobId?: string | null;
   company?: string | null;
-  questions: { question: string; skill: string; modelAnswer: string }[];
+  questions: { question: string; skill: string }[];
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const client = db();
   if (!client) return { ok: false, error: "Accounts aren't configured." };
@@ -68,7 +69,6 @@ export async function createSession(opts: {
     position: i + 1,
     question: q.question,
     skill: q.skill,
-    model_answer: q.modelAnswer || null,
   }));
 
   const inserted = await client.from("interview_questions").insert(rows);
@@ -140,16 +140,22 @@ export async function getInterview(
       .select("id, position, question, skill, model_answer")
       .eq("session_id", id)
       .order("position", { ascending: true }),
-    client.from("interview_answers").select("question_id, answer").eq("session_id", id),
+    client
+      .from("interview_answers")
+      .select("question_id, answer, attempts")
+      .eq("session_id", id),
     client
       .from("interview_feedback")
-      .select("verdict, headline, areas, tips")
+      .select("verdict, headline, areas, tips, resume_actions")
       .eq("session_id", id)
       .maybeSingle(),
   ]);
 
   const answers = new Map(
-    ((as ?? []) as { question_id: number; answer: string }[]).map((a) => [a.question_id, a.answer]),
+    ((as ?? []) as { question_id: number; answer: string; attempts?: number }[]).map((a) => [
+      a.question_id,
+      { answer: a.answer, attempts: a.attempts ?? 1 },
+    ]),
   );
 
   const questions: InterviewQuestion[] = ((qs ?? []) as QuestionRow[]).map((q) => ({
@@ -158,11 +164,18 @@ export async function getInterview(
     question: q.question,
     skill: q.skill,
     modelAnswer: withModelAnswers ? q.model_answer : null,
-    answer: answers.get(q.id) ?? null,
+    answer: answers.get(q.id)?.answer ?? null,
+    attempts: answers.get(q.id)?.attempts ?? 1,
   }));
 
   const feedbackRow = fb as
-    | { verdict: string; headline: string | null; areas: unknown; tips: unknown }
+    | {
+        verdict: string;
+        headline: string | null;
+        areas: unknown;
+        tips: unknown;
+        resume_actions?: unknown;
+      }
     | null;
 
   return {
@@ -182,6 +195,9 @@ export async function getInterview(
           headline: feedbackRow.headline,
           areas: Array.isArray(feedbackRow.areas) ? (feedbackRow.areas as FeedbackArea[]) : [],
           tips: Array.isArray(feedbackRow.tips) ? (feedbackRow.tips as FeedbackTip[]) : [],
+          resumeActions: Array.isArray(feedbackRow.resume_actions)
+            ? (feedbackRow.resume_actions as ResumeAction[])
+            : [],
         }
       : null,
   };
@@ -209,6 +225,16 @@ export async function saveAnswer(opts: {
     .maybeSingle();
   if (!data) return false;
 
+  // Read the attempt count first so a retake increments rather than resets.
+  // An upsert cannot do arithmetic on the row it is replacing.
+  const { data: existing } = await client
+    .from("interview_answers")
+    .select("attempts")
+    .eq("question_id", opts.questionId)
+    .maybeSingle();
+
+  const attempts = ((existing as { attempts?: number } | null)?.attempts ?? 0) + 1;
+
   const { error } = await client.from("interview_answers").upsert(
     {
       session_id: opts.sessionId,
@@ -216,6 +242,7 @@ export async function saveAnswer(opts: {
       answer: opts.answer.slice(0, 6000),
       channel: "text",
       seconds: opts.seconds,
+      attempts,
     },
     { onConflict: "question_id" },
   );
@@ -223,9 +250,77 @@ export async function saveAnswer(opts: {
   return !error;
 }
 
+/**
+ * Fold one re-marked answer back into a finished report.
+ *
+ * The area for that question's skill is replaced, its two tips are replaced,
+ * and the rewrite is written onto the question row. Everything else is left
+ * alone — including the cross-cutting communication area, which was a
+ * judgement about all four answers and would be wrong if rebuilt from one.
+ */
+export async function applyRemark(opts: {
+  sessionId: string;
+  questionId: number;
+  position: number;
+  skill: string;
+  rating: FeedbackArea["rating"];
+  note: string;
+  tips: { tip: string; quote: string }[];
+  rewrite: string;
+}): Promise<boolean> {
+  const client = db();
+  if (!client) return false;
+
+  const { data } = await client
+    .from("interview_feedback")
+    .select("areas, tips")
+    .eq("session_id", opts.sessionId)
+    .maybeSingle();
+
+  if (!data) return false;
+  const row = data as { areas: unknown; tips: unknown };
+
+  const areas = (Array.isArray(row.areas) ? (row.areas as FeedbackArea[]) : []).map((a) =>
+    a.skill.toLowerCase() === opts.skill.toLowerCase()
+      ? { skill: a.skill, rating: opts.rating, note: opts.note || a.note }
+      : a,
+  );
+
+  const tips = [
+    ...(Array.isArray(row.tips) ? (row.tips as FeedbackTip[]) : []).filter(
+      (t) => t.position !== opts.position,
+    ),
+    ...opts.tips.map((t) => ({ position: opts.position, tip: t.tip, quote: t.quote })),
+  ].sort((a, b) => a.position - b.position);
+
+  const { error } = await client
+    .from("interview_feedback")
+    .update({ areas, tips })
+    .eq("session_id", opts.sessionId);
+
+  if (error) return false;
+
+  if (opts.rewrite) {
+    await client
+      .from("interview_questions")
+      .update({ model_answer: opts.rewrite })
+      .eq("id", opts.questionId);
+  }
+
+  return true;
+}
+
 export async function saveFeedback(
   sessionId: string,
   feedback: InterviewFeedback,
+  /**
+   * Their answers, rewritten, keyed by question position.
+   *
+   * Stored on the question rows rather than inside the feedback blob because
+   * that is where the reader wants them — under the question they belong to,
+   * next to what they actually said.
+   */
+  rewrites: { position: number; answer: string }[] = [],
 ): Promise<boolean> {
   const client = db();
   if (!client) return false;
@@ -237,10 +332,33 @@ export async function saveFeedback(
       headline: feedback.headline,
       areas: feedback.areas,
       tips: feedback.tips,
+      resume_actions: feedback.resumeActions ?? [],
     },
     { onConflict: "session_id" },
   );
   if (error) return false;
+
+  if (rewrites.length > 0) {
+    const { data } = await client
+      .from("interview_questions")
+      .select("id, position")
+      .eq("session_id", sessionId);
+
+    const byPosition = new Map(
+      ((data ?? []) as { id: number; position: number }[]).map((q) => [q.position, q.id]),
+    );
+
+    // A rewrite that fails to save costs one panel on the report, not the
+    // report — so these are fired together and their errors ignored.
+    await Promise.all(
+      rewrites
+        .map((r) => ({ id: byPosition.get(r.position), answer: r.answer }))
+        .filter((r) => r.id !== undefined)
+        .map((r) =>
+          client.from("interview_questions").update({ model_answer: r.answer }).eq("id", r.id!),
+        ),
+    );
+  }
 
   await client
     .from("interview_sessions")

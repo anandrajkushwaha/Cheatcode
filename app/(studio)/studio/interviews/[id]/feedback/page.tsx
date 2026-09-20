@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/app";
-import { getProfile, isPaid } from "@/lib/app/account";
 import { getInterview } from "@/lib/interview/store";
 import { Report } from "@/components/studio/interview/Report";
 
@@ -24,9 +23,10 @@ export default async function InterviewFeedbackPage({
   const user = await getSessionUser();
   if (!user) redirect("/signin?next=/studio/interviews");
 
-  const profile = await getProfile();
-  const paid = isPaid(profile);
-  const interview = await getInterview(id, user.id, paid);
+  // The rewrite is always fetched. It is the thing the interview was for,
+  // and the interview itself is what Pro gates — putting a second lock inside
+  // something already paid for would be nickel-and-diming.
+  const interview = await getInterview(id, user.id, true);
   if (!interview) notFound();
 
   // Still running — there is nothing to report on yet.
@@ -52,7 +52,7 @@ export default async function InterviewFeedbackPage({
         </Link>
       </div>
 
-      <Report interview={interview} canSeeModelAnswers={paid} />
+      <Report interview={interview} />
     </div>
   );
 }
