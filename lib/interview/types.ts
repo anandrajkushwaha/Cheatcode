@@ -69,6 +69,8 @@ export type InterviewFeedback = {
   areas: FeedbackArea[];
   tips: FeedbackTip[];
   resumeActions: ResumeAction[];
+  /** What came out of talking it through. Null until they have. */
+  coachSummary: string | null;
 };
 
 export const RATING_ORDER: Record<FeedbackArea["rating"], number> = {

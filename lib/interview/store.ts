@@ -146,7 +146,7 @@ export async function getInterview(
       .eq("session_id", id),
     client
       .from("interview_feedback")
-      .select("verdict, headline, areas, tips, resume_actions")
+      .select("verdict, headline, areas, tips, resume_actions, coach_summary")
       .eq("session_id", id)
       .maybeSingle(),
   ]);
@@ -175,6 +175,7 @@ export async function getInterview(
         areas: unknown;
         tips: unknown;
         resume_actions?: unknown;
+        coach_summary?: string | null;
       }
     | null;
 
@@ -198,6 +199,7 @@ export async function getInterview(
           resumeActions: Array.isArray(feedbackRow.resume_actions)
             ? (feedbackRow.resume_actions as ResumeAction[])
             : [],
+          coachSummary: feedbackRow.coach_summary?.trim() || null,
         }
       : null,
   };
@@ -312,7 +314,12 @@ export async function applyRemark(opts: {
 
 export async function saveFeedback(
   sessionId: string,
-  feedback: InterviewFeedback,
+  /**
+   * Everything a fresh marking produces. Deliberately not InterviewFeedback:
+   * that shape carries `coachSummary`, which belongs to a conversation that
+   * has not happened yet and which this write must never touch.
+   */
+  feedback: Omit<InterviewFeedback, "coachSummary">,
   /**
    * Their answers, rewritten, keyed by question position.
    *

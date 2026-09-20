@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { FullInterview } from "@/lib/interview/store";
 import type { FeedbackArea } from "@/lib/interview/types";
 import { RetryAnswer } from "@/components/studio/interview/RetryAnswer";
-import { AskAgent } from "@/components/studio/interview/AskAgent";
+import { CoachPanel } from "@/components/studio/interview/CoachPanel";
 
 /**
  * The report.
@@ -78,15 +78,20 @@ export function Report({ interview }: { interview: FullInterview }) {
           </div>
         </div>
 
-        <div className="mt-4 space-y-2.5">
-          <AskAgent topic={session.topic} weakest={weakest} />
-          <Link
-            href="/studio/interviews"
-            className="flex items-center justify-center rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] transition-colors hover:border-ink-30"
-          >
-            Practise another
-          </Link>
+        <div className="mt-4">
+          <CoachPanel
+            sessionId={session.id}
+            summary={feedback.coachSummary}
+            weakest={weakest}
+          />
         </div>
+
+        <Link
+          href="/studio/interviews"
+          className="mt-3 flex items-center justify-center rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] transition-colors hover:border-ink-30"
+        >
+          Practise another
+        </Link>
 
         {/* What the interview noticed about the resume. Not resume advice
             from reading the resume — advice from hearing them talk, which is

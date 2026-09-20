@@ -90,20 +90,9 @@ export function AgentOverlay({
   origin,
   onClose,
   requirePro = false,
-  seed,
 }: {
   origin: { x: number; y: number };
   onClose: () => void;
-  /**
-   * A question put in the box, unsent.
-   *
-   * Used when the agent is opened from somewhere with context — the
-   * interview report, say — so the first thing on screen is the question
-   * they were about to ask. Deliberately not auto-sent: a model call nobody
-   * asked for is spend nobody agreed to, and a pre-filled box they can edit
-   * is friendlier than an answer to a question they did not quite have.
-   */
-  seed?: string;
   /**
    * Gate the agent behind Pro.
    *
@@ -115,7 +104,7 @@ export function AgentOverlay({
   requirePro?: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [value, setValue] = useState(seed ?? "");
+  const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
