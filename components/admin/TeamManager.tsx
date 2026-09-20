@@ -46,6 +46,14 @@ export function TeamManager({
   const [password, setPassword] = useState("");
   const [picked, setPicked] = useState<string[]>(["articles"]);
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
+  /**
+   * Collapsed by default.
+   *
+   * Adding somebody happens a handful of times; checking what they have
+   * written happens every week. The screen opens on the answer to the
+   * frequent question, and the form is one press away.
+   */
+  const [adding, setAdding] = useState(false);
 
   async function send(payload: Record<string, unknown>) {
     setBusy(true);
@@ -91,6 +99,7 @@ export function TeamManager({
     setName("");
     setPassword("");
     setPicked(["articles"]);
+    setAdding(false);
   }
 
   const toggle = (key: string) =>
@@ -128,10 +137,44 @@ export function TeamManager({
 
       {/* ------------------------------------------------------- new person */}
       <section className="rounded-2xl border border-ink-08 p-6">
-        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-          Add someone
-        </h2>
+        <button
+          type="button"
+          onClick={() => {
+            setAdding((v) => !v);
+            setError(null);
+          }}
+          aria-expanded={adding}
+          className="flex w-full items-center justify-between gap-4 text-left"
+        >
+          <span className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            Add someone
+          </span>
+          <span className="flex items-center gap-1.5 text-[0.8rem] text-ink-50">
+            {adding ? "Hide" : "New login"}
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden
+              className={`size-[14px] transition-transform duration-200 ${adding ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
+        </button>
 
+        {!adding && (
+          <p className="mt-3 text-[0.8rem] leading-relaxed text-ink-30">
+            They sign in where you do and see only what you tick. Settings is
+            never on the list — it sets AI models and spending limits.
+          </p>
+        )}
+
+        {adding && (
+        <>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-[0.78rem] text-ink-50">Username</span>
@@ -214,14 +257,30 @@ export function TeamManager({
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={() => void create()}
-          disabled={busy || username.trim().length < 3 || password.length < 10 || picked.length === 0}
-          className="mt-6 rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          {busy ? "Creating…" : "Create login"}
-        </button>
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={() => void create()}
+            disabled={
+              busy || username.trim().length < 3 || password.length < 10 || picked.length === 0
+            }
+            className="rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {busy ? "Creating…" : "Create login"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setError(null);
+            }}
+            className="text-[0.82rem] text-ink-50 underline underline-offset-4 hover:text-ink"
+          >
+            Cancel
+          </button>
+        </div>
+        </>
+        )}
       </section>
 
       {/* ----------------------------------------------------------- people */}

@@ -33,16 +33,6 @@ export default async function AdminTeam() {
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Team</h1>
-        <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Make a login for somebody, tick what they can reach, and send them
-          the username and password. They sign in at the same page you do and
-          see only what you ticked — everything else is not just hidden, it is
-          refused.
-        </p>
-        <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Settings is not on the list. It assigns AI models and spending
-          limits, so it stays with you.
-        </p>
       </div>
 
       <TeamManager team={result.data} sections={[...SECTIONS]} activity={activity} />
