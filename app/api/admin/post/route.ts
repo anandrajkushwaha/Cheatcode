@@ -100,9 +100,28 @@ export async function POST(request: Request) {
     post_type: "editorial",
   };
 
+  /**
+   * Who did this.
+   *
+   * `last_edited_by` on every save; `created_by` only on the insert, because
+   * "who wrote this" is not supposed to change when somebody else fixes a
+   * typo in it. Both are null for the owner — that account has no row in
+   * admin_users to point at, and the team screen reads a null as "you".
+   */
+  const actor = guard.session.role === "owner" ? null : guard.session.uid || null;
+
   const result = body.id
-    ? await db.from("posts").update(row).eq("id", body.id).select("id,slug").limit(1)
-    : await db.from("posts").insert(row).select("id,slug").limit(1);
+    ? await db
+        .from("posts")
+        .update({ ...row, last_edited_by: actor })
+        .eq("id", body.id)
+        .select("id,slug")
+        .limit(1)
+    : await db
+        .from("posts")
+        .insert({ ...row, created_by: actor, last_edited_by: actor })
+        .select("id,slug")
+        .limit(1);
 
   if (result.error) return Response.json({ ok: false, error: result.error.message }, { status: 500 });
 

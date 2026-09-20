@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentAdmin } from "@/lib/admin/guard";
 import { listTeam } from "@/lib/admin/users";
+import { getTeamActivity } from "@/lib/admin/activity";
 import { SECTIONS } from "@/lib/admin/roles";
 import { TeamManager } from "@/components/admin/TeamManager";
 
@@ -17,7 +18,7 @@ export default async function AdminTeam() {
   if (!session) redirect("/admin-login");
   if (session.role !== "owner") redirect("/admin");
 
-  const result = await listTeam();
+  const [result, activity] = await Promise.all([listTeam(), getTeamActivity()]);
 
   if (!result.ok) {
     return (
@@ -44,7 +45,7 @@ export default async function AdminTeam() {
         </p>
       </div>
 
-      <TeamManager team={result.data} sections={[...SECTIONS]} />
+      <TeamManager team={result.data} sections={[...SECTIONS]} activity={activity} />
     </div>
   );
 }
