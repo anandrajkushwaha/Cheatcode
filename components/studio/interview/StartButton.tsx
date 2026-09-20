@@ -66,7 +66,9 @@ export function StartButton({
         {busy ? busyLabel : children}
       </button>
       {error && (
-        <p className="mt-2 text-[0.78rem] leading-relaxed text-red-600">{error}</p>
+        <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[0.78rem] leading-relaxed text-red-700">
+          {error}
+        </p>
       )}
     </>
   );

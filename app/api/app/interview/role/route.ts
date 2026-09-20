@@ -1,4 +1,5 @@
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
+import { checkRole } from "@/lib/app/role-check";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,18 @@ export async function POST(request: Request) {
   const role = (body.role ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
   if (role.length < 2) {
     return Response.json({ ok: false, error: "Which role?" }, { status: 400 });
+  }
+
+  /**
+   * Shape, blocklist, then the model. See lib/app/role-check.ts.
+   *
+   * On the server rather than only in the box: this string becomes part of
+   * the prompt that writes four questions and a model answer, so a crafted
+   * POST would put it there whatever the screen refused.
+   */
+  const verdict = await checkRole(role, user.id);
+  if (!verdict.ok) {
+    return Response.json({ ok: false, error: verdict.error, blocked: true }, { status: 422 });
   }
 
   const db = createAppAdminClient();

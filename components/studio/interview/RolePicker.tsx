@@ -147,7 +147,11 @@ export function RolePicker({
         </div>
       </div>
 
-      {error && <p className="text-[0.8rem] text-red-600">{error}</p>}
+      {error && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[0.82rem] leading-relaxed text-red-700">
+          {error}
+        </p>
+      )}
 
       <button
         type="button"

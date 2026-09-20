@@ -100,12 +100,7 @@ export function ResumeActions({
           detail="Attach the PDF you actually send. Someone reads it against the job you are applying for and writes back by email."
           onClose={() => setOpen(null)}
         >
-          <ReviewForm
-            defaultRole={defaultRole}
-            email={email}
-            hasSaved={hasDocument}
-            onDone={() => setOpen(null)}
-          />
+          <ReviewForm defaultRole={defaultRole} email={email} onDone={() => setOpen(null)} />
         </Dialog>
       )}
     </>
@@ -117,13 +112,10 @@ export function ResumeActions({
 function ReviewForm({
   defaultRole,
   email,
-  hasSaved,
   onDone,
 }: {
   defaultRole: string | null;
   email: string | null;
-  /** Whether there is already a resume on file to fall back on. */
-  hasSaved: boolean;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -196,10 +188,7 @@ function ReviewForm({
 
       <div>
         <span className="mb-1.5 block text-[0.78rem] text-ink-50">
-          The document{" "}
-          <span className="text-ink-30">
-            {hasSaved ? "— optional, we use your saved resume otherwise" : "— required"}
-          </span>
+          The resume <span className="text-ink-30">— required</span>
         </span>
 
         <input
@@ -240,9 +229,9 @@ function ReviewForm({
         )}
 
         <span className="mt-1.5 block text-[0.73rem] leading-relaxed text-ink-30">
-          {hasSaved
-            ? "Half of what is wrong with a resume is only visible in the PDF — layout, spacing, where page two ends. Attach one if you have it."
-            : "PDF, DOCX or TXT, under 10MB."}
+          We review the file itself — half of what is wrong with a resume is
+          only visible in the PDF: layout, spacing, where page two ends. PDF,
+          DOCX or TXT, under 10MB.
         </span>
       </div>
 
@@ -255,17 +244,16 @@ function ReviewForm({
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={busy || role.trim().length < 2 || (!hasSaved && !file)}
+        disabled={busy || role.trim().length < 2 || !file}
         className="rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {busy ? "Sending…" : "Send for review"}
       </button>
 
       <p className="text-[0.75rem] leading-relaxed text-ink-30">
-        {file
-          ? "We review the file you attached, exactly as it is."
-          : "We read the resume saved on your account at the time we open it — so make your edits first."}{" "}
-        The reply comes by email{email ? ` to ${email}` : ""}.
+        We review the file you attach, exactly as it is — so send the version
+        you are actually sending out. The reply comes by email
+        {email ? ` to ${email}` : ""}.
       </p>
     </div>
   );

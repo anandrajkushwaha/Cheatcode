@@ -4,6 +4,7 @@ import { createAppAdminClient } from "@/lib/supabase/app";
 import { generateQuestions } from "@/lib/interview/generate";
 import { createSession, countToday } from "@/lib/interview/store";
 import { MOCK_REQUIRES_PRO, FREE_INTERVIEWS_PER_DAY } from "@/lib/interview/plan";
+import { checkRole } from "@/lib/app/role-check";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -85,6 +86,15 @@ export async function POST(request: Request) {
   }
 
   if (!topic) return bad("Pick something to practise.");
+
+  // The topic reaches the prompt the same way the role does. A job-derived
+  // topic comes from our own jobs table and cannot be crafted, but the chips
+  // post a string and a string can be anything. The verdict is cached, so a
+  // topic that has been seen before costs nothing.
+  if (kind !== "job") {
+    const verdict = await checkRole(topic, user.id);
+    if (!verdict.ok) return bad(verdict.error, 422);
+  }
 
   const resume = await getPrimaryResume();
 

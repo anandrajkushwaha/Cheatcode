@@ -65,6 +65,22 @@ export default async function StudioResumePage() {
         )}
       </div>
 
+      {/* Free accounts get the offer instead of the button. Paid accounts get
+          the button, which lives in the header above. */}
+      {!paid && (
+        <ProTeaser
+          from="resume-review"
+          eyebrow="Pro"
+          title="Have a person read your resume"
+          detail="Not a score and not a checklist — someone reads it against the job you are applying for and writes back."
+          points={[
+            "A real person reads it, not a parser",
+            "Written against the exact role you are applying for",
+            "Emailed back to you, usually within two working days",
+          ]}
+        />
+      )}
+
       <section className="rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6">
         {draft ? (
           <TemplateGallery
@@ -87,22 +103,6 @@ export default async function StudioResumePage() {
           </>
         )}
       </section>
-
-      {/* Free accounts get the offer instead of the button. Paid accounts get
-          the button, which lives in the header above. */}
-      {!paid && (
-        <ProTeaser
-          from="resume-review"
-          eyebrow="Pro"
-          title="Have a person read your resume"
-          detail="Not a score and not a checklist — someone reads it against the job you are applying for and writes back."
-          points={[
-            "A real person reads it, not a parser",
-            "Written against the exact role you are applying for",
-            "Emailed back to you, usually within two working days",
-          ]}
-        />
-      )}
 
       {/* Documents somebody else shared. Kept below their own work rather than
           mixed into it — a list where "my resume" and "a resume I was shown"

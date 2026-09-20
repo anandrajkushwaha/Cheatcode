@@ -1,6 +1,7 @@
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume, getPrimaryDraft, isPaid } from "@/lib/app/account";
 import { requestReview } from "@/lib/app/resume-review";
+import { checkRole } from "@/lib/app/role-check";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -56,21 +57,30 @@ export async function POST(request: Request) {
     return bad("Tell us the role you are aiming at — the review is written against it.");
   }
 
+  const verdict = await checkRole(targetRole, user.id);
+  if (!verdict.ok) return bad(verdict.error, 422);
+
   const [resume, draft] = await Promise.all([getPrimaryResume(), getPrimaryDraft()]);
   const file = form.get("file");
   const hasFile = file instanceof File && file.size > 0;
 
-  // Something has to be readable at the other end. An attachment, the resume
-  // they uploaded, or the one they built — with none of those, a reviewer
-  // opens an empty queue item and nobody can tell them why.
-  if (!hasFile && !resume && !draft) {
-    return bad("Attach a file, or upload a resume first — there is nothing to review yet.");
+  /**
+   * The file is required. It used to be optional, falling back to whatever
+   * was saved on the account — and that fallback was the bug: somebody with
+   * an old, half-parsed row could send a request with nothing attached, and
+   * a reviewer opened a queue item with no document in it.
+   *
+   * Asking for the file makes the request unambiguous. It is also the thing
+   * being reviewed: the PDF they actually send, not our reconstruction of it.
+   */
+  if (!hasFile) {
+    return bad("Attach the resume you want reviewed — we review the file, not a saved copy.");
   }
 
   let filePath: string | null = null;
   let fileName: string | null = null;
 
-  if (hasFile) {
+  {
     if (file.size > MAX_BYTES) {
       return bad(`That file is ${(file.size / 1048576).toFixed(1)}MB. Keep it under 10MB.`);
     }
