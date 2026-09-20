@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { cleanFlags, flagsNow, saveFlags } from "@/lib/app/flags";
 
 export const runtime = "nodejs";
@@ -19,8 +18,8 @@ export const dynamic = "force-dynamic";
  * panel is trusted" is how a typo becomes an outage nobody can explain.
  */
 async function guard(): Promise<boolean> {
-  const store = await cookies();
-  return verifySessionToken(store.get(ADMIN_COOKIE)?.value);
+  const guard = await requireAdmin();
+  return guard.ok;
 }
 
 export async function GET() {

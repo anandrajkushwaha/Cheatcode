@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitiseHtml, slugify, textOf, wordCount } from "@/lib/content/sanitise";
 import { withHeadingIds } from "@/lib/content/render";
@@ -28,8 +27,8 @@ const bad = (error: string, status = 400) =>
   Response.json({ ok: false, error }, { status });
 
 export async function POST(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return bad("Not signed in", 401);
+  const guard = await requireAdmin("articles");
+  if (!guard.ok) return guard.response;
 
   const db = createAdminClient();
   if (!db) return bad("Supabase isn't configured on this deployment.", 503);
@@ -125,8 +124,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return bad("Not signed in", 401);
+  // Owner only, deliberately. "Publish articles" is a different permission
+  // from "remove a published article", and an editor account exists to add to
+  // the site rather than to take things off it. If an editor needs something
+  // gone they can unpublish it, which is reversible.
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
 
   const db = createAdminClient();
   if (!db) return bad("Supabase isn't configured on this deployment.", 503);

@@ -28,9 +28,17 @@ const slugify = (s: string) =>
 export function PostEditor({
   post,
   categories,
+  canDelete = true,
 }: {
   post: EditablePost | null;
   categories: Category[];
+  /**
+   * Editors publish articles; they do not remove them.
+   *
+   * The API refuses it either way — this only stops a button appearing that
+   * would fail on press, which is worse than no button.
+   */
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const isNew = !post;
@@ -368,7 +376,7 @@ export function PostEditor({
             )}
           </section>
 
-          {!isNew && !imported && (
+          {!isNew && !imported && canDelete && (
             <button
               type="button"
               onClick={() => void remove()}

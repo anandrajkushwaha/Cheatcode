@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { ADMIN_COOKIE, readSession } from "@/lib/admin/auth";
+import { canOpenPage, canCallApi, homeFor } from "@/lib/admin/roles";
 
 /**
  * Next.js 16 renamed Middleware to Proxy. Same file-convention role,
@@ -19,15 +20,48 @@ import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ------------------------------------------------------------ admin API
+  // Before the page guard, because /api/admin/* does not start with /admin
+  // and would otherwise never be seen here at all. This is the wall: an
+  // editor cannot call an owner's endpoint even with a hand-written fetch,
+  // whatever the route handler itself remembers to check.
+  if (pathname.startsWith("/api/admin/")) {
+    // The login endpoint is how you get a session; it cannot require one.
+    if (pathname !== "/api/admin/login") {
+      const session = readSession(request.cookies.get(ADMIN_COOKIE)?.value);
+      if (!session) {
+        return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
+      }
+      if (!canCallApi(session.role, session.sections, pathname)) {
+        return NextResponse.json(
+          { ok: false, error: "Your account cannot do that." },
+          { status: 403 },
+        );
+      }
+    }
+    return NextResponse.next();
+  }
+
   // ---------------------------------------------------------------- admin
   if (pathname.startsWith("/admin")) {
-    const ok = verifySessionToken(request.cookies.get(ADMIN_COOKIE)?.value);
-    if (!ok) {
+    const session = readSession(request.cookies.get(ADMIN_COOKIE)?.value);
+    if (!session) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin-login";
       url.search = `?next=${encodeURIComponent(pathname)}`;
       return NextResponse.redirect(url);
     }
+
+    // Somebody typing a URL they were not given is sent to the first screen
+    // they were — there is nothing they can do about the refusal, so a page
+    // explaining it would only be a page.
+    if (!canOpenPage(session.role, session.sections, pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = homeFor(session.sections);
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+
     return NextResponse.next();
   }
 
@@ -83,5 +117,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/app/:path*", "/studio/:path*"],
+  // /api/admin is listed explicitly: it does not start with /admin, so
+  // without this line the API guard above would never run and the wall would
+  // be a decoration.
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/app/:path*", "/studio/:path*"],
 };

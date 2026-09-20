@@ -1,8 +1,8 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { canOpenPage } from "@/lib/admin/roles";
+import { currentAdmin } from "@/lib/admin/guard";
 import { LogoutButton } from "./LogoutButton";
 
 export const metadata: Metadata = {
@@ -45,29 +45,50 @@ const NAV = [
   { href: "/admin/bank", label: "Question bank" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/posts", label: "Articles" },
+  // Last, and owner-only by virtue of not being a grantable section: this is
+  // the screen that hands out the others.
+  { href: "/admin/team", label: "Team" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // Layer 2 of the guard. proxy.ts already redirected, but this re-verifies on
-  // every render so a stale or forged cookie can never render admin data.
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) {
-    redirect("/admin-login");
-  }
+  /**
+   * Layer 2 of the guard, and the authoritative one.
+   *
+   * proxy.ts has already checked the cookie, which is fast and up to twelve
+   * hours out of date. currentAdmin() re-reads the team member's permissions
+   * from the database, so a section taken away — or an account switched off —
+   * takes effect on the next page they open rather than tomorrow.
+   */
+  const session = await currentAdmin();
+  if (!session) redirect("/admin-login");
+
+  const { role, sections } = session;
+
+  /**
+   * The nav is filtered, not just the routes.
+   *
+   * An editor seeing six tabs they cannot open would be a worse screen than
+   * one tab, and a link that redirects is a link that looked like a promise.
+   * The proxy still refuses the URLs; this is what the screen shows.
+   */
+  const nav = NAV.filter((n) => canOpenPage(role, sections, n.href));
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <header className="sticky top-0 z-40 border-b border-ink-08 bg-paper/90 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-            <Link href="/admin" className="shrink-0 text-[0.9rem] font-semibold tracking-[-0.04em]">
+            <Link
+              href={nav[0]?.href ?? "/admin"}
+              className="shrink-0 text-[0.9rem] font-semibold tracking-[-0.04em]"
+            >
               Cheatcode <span className="text-ink-30">admin</span>
             </Link>
             {/* One nav that scrolls sideways on a phone, rather than a second
                 copy of itself underneath — two lists meant two places to
                 forget to add a link. */}
             <nav className="flex min-w-0 gap-1 overflow-x-auto">
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <Link
                   key={n.href}
                   href={n.href}

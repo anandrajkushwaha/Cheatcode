@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { listModels } from "@/lib/app/model-list";
 
 export const runtime = "nodejs";
@@ -18,10 +17,8 @@ export const dynamic = "force-dynamic";
  * secret, but is nobody's business but the operator's.
  */
 export async function GET(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) {
-    return Response.json({ ok: false, error: "Not signed in" }, { status: 401 });
-  }
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
 
   // `?refresh=1` skips the ten-minute cache, for the minute after somebody
   // adds a key and wants to see it take.

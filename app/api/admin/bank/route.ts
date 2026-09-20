@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { llmJson } from "@/lib/app/llm";
 import { toSlug } from "@/lib/interview/bank";
@@ -41,8 +40,8 @@ const SCHEMA = {
 type Body = { action?: "draft" | "publish" | "delete"; role?: string; id?: number; published?: boolean };
 
 export async function POST(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return bad("Not signed in", 401);
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
 
   const db = createAdminClient();
   if (!db) return bad("Supabase isn't configured on this deployment.", 503);

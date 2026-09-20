@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -63,8 +62,8 @@ async function renumber(db: NonNullable<ReturnType<typeof createAdminClient>>) {
 }
 
 export async function POST(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return bad("Not signed in", 401);
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
 
   const db = createAdminClient();
   if (!db) return bad("Supabase isn't configured on this deployment.", 503);

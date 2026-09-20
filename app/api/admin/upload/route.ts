@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
+import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +20,11 @@ const bad = (error: string, status = 400, hint?: string) =>
   Response.json({ ok: false, error, hint }, { status });
 
 export async function POST(request: Request) {
-  const store = await cookies();
-  if (!verifySessionToken(store.get(ADMIN_COOKIE)?.value)) return bad("Not signed in", 401);
+  // Shared by two sections: an article needs a cover image and a review needs
+  // a photo. Either grant is enough; neither on its own would be.
+  const articles = await requireAdmin("articles");
+  const guard = articles.ok ? articles : await requireAdmin("reviews");
+  if (!guard.ok) return guard.response;
 
   const db = createAdminClient();
   if (!db) return bad("Supabase isn't configured on this deployment.", 503);

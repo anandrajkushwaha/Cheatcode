@@ -5,7 +5,9 @@ import {
   createSessionToken,
   safeEqual,
   sessionCookieOptions,
+  type AdminSession,
 } from "@/lib/admin/auth";
+import { verifyTeamLogin } from "@/lib/admin/users";
 import { OWNER_COOKIE, ownerCookieOptions } from "@/lib/analytics/owner";
 
 // Small in-memory throttle. Serverless instances are short-lived, so this is a
@@ -38,10 +40,31 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "Invalid request." }, { status: 400 });
   }
 
-  const userOk = safeEqual(String(body.username ?? ""), process.env.ADMIN_USERNAME!);
-  const passOk = safeEqual(String(body.password ?? ""), process.env.ADMIN_PASSWORD!);
+  const username = String(body.username ?? "");
+  const password = String(body.password ?? "");
 
-  if (!userOk || !passOk) {
+  /**
+   * The owner first, from environment variables, then the team table.
+   *
+   * The owner is checked in full even when the username obviously is not
+   * theirs. Short-circuiting would make a wrong owner username measurably
+   * faster to reject than a wrong team one, and a timing difference is a way
+   * to learn which account exists.
+   */
+  const isOwner =
+    safeEqual(username, process.env.ADMIN_USERNAME ?? "") &&
+    safeEqual(password, process.env.ADMIN_PASSWORD ?? "");
+
+  let session: AdminSession | null = isOwner
+    ? { role: "owner", uid: "", sections: [] }
+    : null;
+
+  if (!session) {
+    const member = await verifyTeamLogin(username, password);
+    if (member) session = { role: "editor", uid: member.id, sections: member.sections };
+  }
+
+  if (!session) {
     const next = rec && rec.until > now ? rec.n + 1 : 1;
     attempts.set(ip, { n: next, until: now + 5 * 60 * 1000 });
     // Deliberately vague: never reveal which field was wrong.
@@ -50,14 +73,14 @@ export async function POST(request: Request) {
 
   attempts.delete(ip);
   const store = await cookies();
-  store.set(ADMIN_COOKIE, createSessionToken(), sessionCookieOptions());
+  store.set(ADMIN_COOKIE, createSessionToken(session), sessionCookieOptions());
 
   // Signing in is the clearest statement we will ever get that this browser is
   // yours. The admin session expires in 12 hours; this doesn't, so your
   // ordinary browsing of the live site stays out of the numbers as well.
   store.set(OWNER_COOKIE, "1", ownerCookieOptions(true));
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, role: session.role });
 }
 
 export async function DELETE() {
