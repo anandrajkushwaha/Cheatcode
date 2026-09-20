@@ -110,18 +110,37 @@ export async function POST(request: Request) {
    */
   const actor = guard.session.role === "owner" ? null : guard.session.uid || null;
 
-  const result = body.id
-    ? await db
-        .from("posts")
-        .update({ ...row, last_edited_by: actor })
-        .eq("id", body.id)
-        .select("id,slug")
-        .limit(1)
-    : await db
-        .from("posts")
-        .insert({ ...row, created_by: actor, last_edited_by: actor })
-        .select("id,slug")
-        .limit(1);
+  const write = (withAuthor: boolean) => {
+    const payload = withAuthor
+      ? body.id
+        ? { ...row, last_edited_by: actor }
+        : { ...row, created_by: actor, last_edited_by: actor }
+      : row;
+
+    return body.id
+      ? db.from("posts").update(payload).eq("id", body.id).select("id,slug").limit(1)
+      : db.from("posts").insert(payload).select("id,slug").limit(1);
+  };
+
+  let result = await write(true);
+
+  /**
+   * Save the article even if the authorship columns are not there yet.
+   *
+   * created_by and last_edited_by arrive in 86_post_authorship.sql. On a
+   * database where that has not been run, sending them turned every save into
+   * a 500 — which meant a schema migration nobody had got round to could stop
+   * the team publishing. Losing the byline is an acceptable failure; losing
+   * the article is not, so the write is retried without them and the reason
+   * is logged rather than shown.
+   */
+  if (result.error && /created_by|last_edited_by/.test(result.error.message)) {
+    console.error(
+      "[post] authorship columns missing — run supabase/schemas/86_post_authorship.sql",
+      result.error.message,
+    );
+    result = await write(false);
+  }
 
   if (result.error) return Response.json({ ok: false, error: result.error.message }, { status: 500 });
 
