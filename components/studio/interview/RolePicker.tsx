@@ -69,6 +69,11 @@ export function RolePicker({
       }
       onClose?.();
       router.refresh();
+      // Reset even on success. In dialog mode onClose unmounts this and it
+      // does not matter; on the first-run screen there is no onClose, so
+      // without this the button sat on "Saving…" for ever and the page
+      // looked stuck even though the save had worked.
+      setBusy(false);
     } catch {
       setError("Could not reach the server.");
       setBusy(false);

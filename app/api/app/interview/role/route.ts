@@ -43,7 +43,15 @@ export async function POST(request: Request) {
     patch.years_experience = Math.max(0, Math.min(40, Math.round(body.years)));
   }
 
-  const { error } = await db.from("profiles").update(patch).eq("id", user.id);
+  // .select() so a write that matched no row is distinguishable from one
+  // that worked. Without it a missing profile returned ok, the screen
+  // refreshed, and the picker came back with no explanation.
+  const { data, error } = await db
+    .from("profiles")
+    .update(patch)
+    .eq("id", user.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     const absent = /column .*interview_role.* does not exist/i.test(error.message);
@@ -55,6 +63,13 @@ export async function POST(request: Request) {
           : "Could not save that.",
       },
       { status: 502 },
+    );
+  }
+
+  if (!data) {
+    return Response.json(
+      { ok: false, error: "Your profile could not be found. Reload the page and try again." },
+      { status: 404 },
     );
   }
 

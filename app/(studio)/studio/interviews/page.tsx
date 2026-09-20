@@ -11,7 +11,6 @@ import {
 import { RolePicker } from "@/components/studio/interview/RolePicker";
 import { RoleHeader } from "@/components/studio/interview/RoleHeader";
 import { TopicGrid } from "@/components/studio/interview/TopicGrid";
-import { LockedPanel } from "@/components/studio/interview/LockedPanel";
 import { ProTeaser } from "@/components/studio/ProTeaser";
 import { OrbMark } from "@/components/studio/OrbMark";
 
@@ -123,7 +122,22 @@ export default async function StudioInterviewsPage() {
       </div>
 
       {locked ? (
-        <LockedPanel />
+        // Open on arrival: this is the whole screen, so there is nothing
+        // underneath to protect and a closed banner would just be a press
+        // between them and the only thing on the page.
+        <ProTeaser
+          defaultOpen
+          from="interviews"
+          eyebrow="Pro"
+          title="Practise the interview before you sit in it"
+          detail={`${QUESTIONS_PER_INTERVIEW} questions written for your role and your level, answered out loud or typed, and a report that quotes your own answers back to you.`}
+          points={[
+            "Questions pitched at your actual experience, not generic ones",
+            "Every answer rewritten using your own resume",
+            "Answer again and see whether it improved",
+            "Talk the report through with the coach afterwards",
+          ]}
+        />
       ) : !ready || !role ? (
         <RolePicker current={role} currentYears={years} suggestions={suggestions} />
       ) : (
@@ -143,26 +157,6 @@ export default async function StudioInterviewsPage() {
               <TopicGrid role={role} topics={topics} />
             </div>
           </section>
-
-          {/* The offer, for anybody not on Pro. Shown below the topics rather
-              than above them: they can still practise today, and a banner
-              between somebody and the thing they came to do is an
-              advertisement. Once MOCK_REQUIRES_PRO is switched on, the
-              LockedPanel above replaces the whole screen and this never
-              renders. */}
-          {!paid && (
-            <ProTeaser
-              from="interviews"
-              eyebrow="Pro"
-              title="Practise as often as you need"
-              detail={`Free accounts get ${FREE_INTERVIEWS_PER_DAY} interviews a day. Pro removes the limit and adds the part that makes it practice.`}
-              points={[
-                "Unlimited mock interviews, every day",
-                "Every answer rewritten using your own resume",
-                "Answer again and see whether it improved",
-              ]}
-            />
-          )}
 
           {/* ------------------------------------------------------ history */}
           {history.length > 0 && (

@@ -56,6 +56,9 @@ export async function requestReview(opts: {
   draftId: string | null;
   targetRole: string;
   note: string;
+  /** The document they attached, if they attached one. */
+  filePath: string | null;
+  fileName: string | null;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const db = createAppAdminClient();
   if (!db) return { ok: false, error: "Not configured." };
@@ -84,6 +87,8 @@ export async function requestReview(opts: {
       note: opts.note.slice(0, 1500) || null,
       email: opts.email,
       full_name: opts.fullName,
+      file_path: opts.filePath,
+      file_name: opts.fileName,
     })
     .select("id")
     .single();
@@ -110,6 +115,13 @@ export type QueueItem = {
   rawText: string | null;
   fileName: string | null;
   atsScore: number | null;
+  /**
+   * A short-lived link to the file they attached.
+   *
+   * Minted per page load rather than stored. A URL in a column is a URL that
+   * outlives the review, ends up in a log, and is still valid a year later.
+   */
+  fileUrl: string | null;
 };
 
 export async function getReviewQueue(): Promise<
@@ -122,16 +134,34 @@ export async function getReviewQueue(): Promise<
     .from("resume_reviews")
     .select(
       "id, status, email, full_name, target_role, note, created_at, done_at, admin_note, " +
-        "resume_drafts(share_id), resumes(raw_text, file_name, ats_score)",
+        "file_path, file_name, resume_drafts(share_id), resumes(raw_text, file_name, ats_score)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
 
   if (error) return { ok: false, missing: MISSING };
 
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+
+  // One signed URL per attachment, valid for an hour — long enough to read a
+  // resume and write an email, short enough that a copied link is useless by
+  // tomorrow.
+  const signed = new Map<string, string>();
+  await Promise.all(
+    rows
+      .map((r) => r.file_path as string | null)
+      .filter((path): path is string => Boolean(path))
+      .map(async (path) => {
+        const { data: url } = await db.storage
+          .from("resume-files")
+          .createSignedUrl(path, 3600);
+        if (url?.signedUrl) signed.set(path, url.signedUrl);
+      }),
+  );
+
   return {
     ok: true,
-    data: ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => {
+    data: rows.map((r) => {
       const draft = r.resume_drafts as { share_id?: string | null } | null;
       const resume = r.resumes as
         | { raw_text?: string | null; file_name?: string | null; ats_score?: number | null }
@@ -149,8 +179,11 @@ export async function getReviewQueue(): Promise<
         adminNote: (r.admin_note as string | null) ?? null,
         shareId: draft?.share_id ?? null,
         rawText: resume?.raw_text ?? null,
-        fileName: resume?.file_name ?? null,
+        // The attachment's name wins: it is the document they chose to have
+        // reviewed, where resumes.file_name is whatever they uploaded last.
+        fileName: (r.file_name as string | null) ?? resume?.file_name ?? null,
         atsScore: resume?.ats_score ?? null,
+        fileUrl: r.file_path ? (signed.get(r.file_path as string) ?? null) : null,
       };
     }),
   };

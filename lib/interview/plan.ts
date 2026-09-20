@@ -13,8 +13,13 @@
  *
  * MOCK_REQUIRES_PRO = false  → open to everyone, with a daily cap.
  * MOCK_REQUIRES_PRO = true   → Pro only; free accounts see the paywall.
+ *
+ * Switched on once the flow had been tested end to end against real answers.
+ * The daily cap below still exists and is now unreachable — it stays because
+ * turning this back to false for a trial week should not also mean
+ * remembering to reintroduce a limit.
  */
-export const MOCK_REQUIRES_PRO = false;
+export const MOCK_REQUIRES_PRO = true;
 
 /**
  * How many a free account may run in a day while the gate is open.

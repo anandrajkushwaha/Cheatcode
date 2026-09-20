@@ -1,8 +1,9 @@
-import { getSessionUser } from "@/lib/supabase/app";
+import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { getProfile, getPrimaryResume, getPrimaryDraft, isPaid } from "@/lib/app/account";
 import { requestReview } from "@/lib/app/resume-review";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /**
  * Ask a person to read your resume.
@@ -10,45 +11,98 @@ export const dynamic = "force-dynamic";
  * Pro only, checked here rather than only on the screen — the screen decides
  * what to show, this decides what is allowed, and those have to be two
  * different sentences or a crafted POST is a free review.
+ *
+ * Multipart, because the request can carry the document itself. The earlier
+ * version pointed at the stored resume, which is only ever text: a reviewer
+ * got the words and none of the layout, and half of what is wrong with a
+ * resume is only visible in the PDF.
  */
+
+const BUCKET = "resume-files";
+const MAX_BYTES = 10 * 1024 * 1024;
+
+// Deliberately not a general file list. These four are what a resume arrives
+// as; anything else is either a mistake or somebody testing what we accept.
+const ALLOWED = new Map([
+  ["application/pdf", "pdf"],
+  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"],
+  ["application/msword", "doc"],
+  ["text/plain", "txt"],
+]);
+
+const bad = (error: string, status = 400, extra: Record<string, unknown> = {}) =>
+  Response.json({ ok: false, error, ...extra }, { status });
+
 export async function POST(request: Request) {
   const user = await getSessionUser();
-  if (!user) return Response.json({ ok: false, error: "Sign in first." }, { status: 401 });
+  if (!user) return bad("Sign in first.", 401);
 
   const profile = await getProfile();
   if (!isPaid(profile)) {
-    return Response.json(
-      { ok: false, error: "Resume review is part of Pro.", upgrade: true },
-      { status: 402 },
-    );
+    return bad("Resume review is part of Pro.", 402, { upgrade: true });
   }
 
-  let body: { targetRole?: string; note?: string };
+  let form: FormData;
   try {
-    body = await request.json();
+    form = await request.formData();
   } catch {
-    return Response.json({ ok: false, error: "Could not read that." }, { status: 400 });
+    return bad("Could not read that request.");
   }
 
-  const targetRole = (body.targetRole ?? "").trim();
-  const note = (body.note ?? "").trim();
+  const targetRole = String(form.get("targetRole") ?? "").trim();
+  const note = String(form.get("note") ?? "").trim();
 
   if (targetRole.length < 2) {
-    return Response.json(
-      { ok: false, error: "Tell us the role you are aiming at — the review is written against it." },
-      { status: 400 },
-    );
+    return bad("Tell us the role you are aiming at — the review is written against it.");
   }
 
   const [resume, draft] = await Promise.all([getPrimaryResume(), getPrimaryDraft()]);
+  const file = form.get("file");
+  const hasFile = file instanceof File && file.size > 0;
 
-  // Nothing to read is the one failure worth catching before it reaches a
-  // reviewer, who would otherwise open an empty queue item.
-  if (!resume && !draft) {
-    return Response.json(
-      { ok: false, error: "Upload a resume or build one first — there is nothing to review yet." },
-      { status: 400 },
-    );
+  // Something has to be readable at the other end. An attachment, the resume
+  // they uploaded, or the one they built — with none of those, a reviewer
+  // opens an empty queue item and nobody can tell them why.
+  if (!hasFile && !resume && !draft) {
+    return bad("Attach a file, or upload a resume first — there is nothing to review yet.");
+  }
+
+  let filePath: string | null = null;
+  let fileName: string | null = null;
+
+  if (hasFile) {
+    if (file.size > MAX_BYTES) {
+      return bad(`That file is ${(file.size / 1048576).toFixed(1)}MB. Keep it under 10MB.`);
+    }
+
+    const ext = ALLOWED.get(file.type);
+    if (!ext) {
+      return bad(`${file.type || "That file type"} isn't allowed. Send a PDF, DOCX or TXT.`);
+    }
+
+    const db = createAppAdminClient();
+    if (!db) return bad("Not configured.", 503);
+
+    // Foldered by user id so a listing of the bucket is grouped by person,
+    // and stamped so a second request never overwrites the first one's file.
+    const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await db.storage
+      .from(BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (error) {
+      const missing = /bucket/i.test(error.message) && /not found|does not exist/i.test(error.message);
+      return bad(
+        missing
+          ? "File uploads aren't set up yet. Send it without the attachment and we'll read your saved resume."
+          : "Could not upload that file. Try again.",
+        502,
+      );
+    }
+
+    filePath = path;
+    fileName = file.name.slice(0, 200);
   }
 
   const created = await requestReview({
@@ -59,8 +113,10 @@ export async function POST(request: Request) {
     draftId: draft?.id ?? null,
     targetRole,
     note,
+    filePath,
+    fileName,
   });
 
-  if (!created.ok) return Response.json({ ok: false, error: created.error }, { status: 400 });
+  if (!created.ok) return bad(created.error);
   return Response.json({ ok: true });
 }

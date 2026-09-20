@@ -138,6 +138,19 @@ function Item({ item }: { item: QueueItem }) {
           send; an upload only has its extracted text, which is still what a
           reviewer reads. */}
       <div className="mt-4 flex flex-wrap items-center gap-3">
+        {/* The file they attached comes first: it is the document they
+            actually send to employers, and everything else here is a
+            reconstruction of it. The link is signed and expires in an hour. */}
+        {item.fileUrl && (
+          <a
+            href={item.fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-ink bg-ink px-3 py-1.5 text-[0.78rem] font-medium text-paper transition-opacity hover:opacity-90"
+          >
+            Open {item.fileName ?? "the attached file"} ↗
+          </a>
+        )}
         {item.shareId && (
           <a
             href={`/r/${item.shareId}`}
@@ -165,9 +178,9 @@ function Item({ item }: { item: QueueItem }) {
             Write the reply ↗
           </a>
         )}
-        {!item.shareId && !item.rawText && (
+        {!item.fileUrl && !item.shareId && !item.rawText && (
           <span className="text-[0.78rem] text-ink-30">
-            Nothing attached — they may have deleted it since.
+            Nothing to read — they may have deleted it since.
           </span>
         )}
       </div>

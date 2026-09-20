@@ -23,6 +23,7 @@ export function ProTeaser({
   detail,
   points,
   from,
+  defaultOpen = false,
 }: {
   eyebrow: string;
   title: string;
@@ -31,8 +32,16 @@ export function ProTeaser({
   points: string[];
   /** Tagged onto the upgrade link, so the admin screen knows which door. */
   from: string;
+  /**
+   * Start expanded.
+   *
+   * Used where this is the whole screen rather than a strip on one — there is
+   * nothing underneath to protect, so asking somebody to press once before
+   * reading what they get is a press for nothing.
+   */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div

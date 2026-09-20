@@ -1,5 +1,5 @@
 import "server-only";
-import { createAppServerClient, getSessionUser } from "@/lib/supabase/app";
+import { createAppServerClient, getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import type { AtsResult } from "@/lib/tools/ats";
 import { cleanResume, type Resume as ResumeContent } from "@/lib/app/resume-schema";
 import { cleanPresentation, type Presentation } from "@/lib/app/resume-style";
@@ -117,12 +117,20 @@ export type ResumeDraft = {
 };
 
 /**
- * The signed-in user's profile.
+ * The signed-in user's profile, created if it somehow is not there.
  *
- * Returns null when nobody is signed in, and — separately — null when the row
- * is missing. Those are different problems: the second means the sign-up
- * trigger did not fire, which is worth knowing rather than silently rendering
- * an empty dashboard.
+ * The row is supposed to be made by the on_auth_user_created trigger. It is
+ * not always: an account made before that trigger existed, or while it was
+ * broken, has a user and no profile — and everything downstream then behaves
+ * as though nobody is signed in. Preferences showed a dead end telling them
+ * to run a migration, the interviews screen could not save a role, and
+ * isPaid() said no to somebody who had paid.
+ *
+ * So a missing row is repaired here rather than reported. The insert is
+ * `upsert ... ignoreDuplicates`, so two requests arriving together cannot
+ * make two rows or fail each other. If even that fails — a database that is
+ * down, a schema that was never run — it returns null as before and the
+ * screens say so.
  */
 export async function getProfile(): Promise<Profile | null> {
   const supabase = await createAppServerClient();
@@ -137,7 +145,50 @@ export async function getProfile(): Promise<Profile | null> {
     .eq("id", user.id)
     .maybeSingle();
 
-  return (data as Profile) ?? null;
+  if (data) return data as Profile;
+
+  // The client above is the user's own session, which RLS lets read and
+  // update its own row but never insert one — the trigger was supposed to do
+  // that. So the repair needs the service key.
+  const admin = createAppAdminClient();
+  if (!admin) return null;
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const name =
+    (typeof meta.full_name === "string" && meta.full_name) ||
+    (typeof meta.name === "string" && meta.name) ||
+    null;
+  const avatar =
+    (typeof meta.avatar_url === "string" && meta.avatar_url) ||
+    (typeof meta.picture === "string" && meta.picture) ||
+    null;
+
+  const created = await admin
+    .from("profiles")
+    .upsert(
+      { id: user.id, email: user.email ?? null, full_name: name, avatar_url: avatar },
+      { onConflict: "id", ignoreDuplicates: true },
+    )
+    .select("*")
+    .maybeSingle();
+
+  if (created.error) {
+    console.error("[account] could not repair missing profile", created.error.message);
+    return null;
+  }
+
+  // ignoreDuplicates returns nothing when the row already existed — which
+  // happens when a parallel request won the race. Read it back rather than
+  // returning null and making this look like a failure.
+  if (created.data) return created.data as Profile;
+
+  const { data: again } = await admin
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return (again as Profile) ?? null;
 }
 
 export async function getResumes(): Promise<Resume[]> {
