@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
 import {
   calculateSalary,
   inr,
@@ -12,7 +13,13 @@ import {
 
 const STATES = Object.keys(PROFESSIONAL_TAX);
 
-export function SalaryCalculator() {
+/**
+ * @param context  See AtsChecker. Same calculator either side of the login;
+ *                 different next step, and different copy for it — inviting
+ *                 somebody to make the account they are already signed into is
+ *                 the clearest way to tell them the page cannot see them.
+ */
+export function SalaryCalculator({ context = "public" }: { context?: ToolContext } = {}) {
   const [ctc, setCtc] = useState(800000);
   const [basicPercent, setBasicPercent] = useState(45);
   const [regime, setRegime] = useState<Regime>("new");
@@ -259,18 +266,28 @@ export function SalaryCalculator() {
                 : "Most people accept the first number they are offered."}
             </p>
             <p className="mt-2.5 max-w-[46ch] text-[0.92rem] leading-relaxed text-ink-50">
-              Someone who has sat on the hiring side can tell you in 30 minutes whether
-              this offer is fair for your experience, and what to say if it isn&apos;t.
+              {context === "app"
+                ? "This number is decided by the offer you are given, not by the arithmetic. The band is set by the roles you apply to and the rounds you clear — both of which are a tab away."
+                : "This number is decided by the offer you are given, not by the arithmetic. A free account keeps this calculator alongside the things that move the offer itself — roles matched to you, a resume that survives the screen, and interview practice before the round that sets your band."}
             </p>
-            <Link
-              href="/signin"
-              data-ev="cta_click"
-              data-ev-location="salary-calculator"
-              data-ev-label="Talk to a mentor"
-              className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
-            >
-              Talk to a mentor
-            </Link>
+            {context === "app" ? (
+              <Link
+                href="/app/jobs"
+                data-ev="tool_result_cta"
+                data-ev-location="salary-calculator-app"
+                data-ev-label="See roles matched to you"
+                className="mt-5 inline-flex items-center justify-center whitespace-nowrap rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
+              >
+                See roles matched to you
+              </Link>
+            ) : (
+              <ToolAppCta
+                appHref="/app/tools/salary"
+                location="salary-calculator"
+                label="Create a free account"
+                className="mt-5 px-5 py-2.5 text-[0.85rem]"
+              />
+            )}
           </aside>
         )}
       </div>

@@ -21,7 +21,7 @@ export default function StudioAtsPage() {
       </div>
 
       <div className="rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6">
-        <AtsChecker />
+        <AtsChecker context="app" />
       </div>
     </div>
   );

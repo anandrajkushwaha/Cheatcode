@@ -21,7 +21,7 @@ export default function StudioSalaryPage() {
       </div>
 
       <div className="rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6">
-        <SalaryCalculator />
+        <SalaryCalculator context="app" />
       </div>
     </div>
   );

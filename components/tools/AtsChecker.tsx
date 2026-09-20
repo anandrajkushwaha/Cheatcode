@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
 import { useCallback, useRef, useState } from "react";
 import { EVENTS, track } from "@/lib/analytics/events";
 import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
@@ -14,7 +15,15 @@ type State =
 
 const ACCEPT = ".pdf,.docx,.txt";
 
-export function AtsChecker() {
+/**
+ * @param context  Which door this is being rendered behind. The public page
+ *                 and the signed-in one mount the same checker on purpose —
+ *                 two scorers would disagree with each other inside a month —
+ *                 but the step after the score is not the same step. Outside,
+ *                 it is the account; inside, the account is already had, so it
+ *                 is the builder that rewrites what this only flags.
+ */
+export function AtsChecker({ context = "public" }: { context?: ToolContext } = {}) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -232,15 +241,23 @@ export function AtsChecker() {
           >
             Check another
           </button>
-          <Link
-            href="/signin"
-            data-ev="tool_result_cta"
-            data-ev-location="ats-checker"
-            data-ev-label="Sign up"
-            className="rounded-full bg-ink px-6 py-3 text-[0.9rem] font-medium text-paper transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
-          >
-            Get the version that fixes it
-          </Link>
+          {context === "app" ? (
+            <Link
+              href="/app/resume/builder"
+              data-ev="tool_result_cta"
+              data-ev-location="ats-checker-app"
+              data-ev-label="Fix these in the builder"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-ink px-6 py-3 text-[0.9rem] font-medium text-paper transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
+            >
+              Fix these in the builder
+            </Link>
+          ) : (
+            <ToolAppCta
+              appHref="/app/tools/ats"
+              location="ats-checker"
+              label="Get the version that fixes it"
+            />
+          )}
         </div>
       </div>
     </div>
