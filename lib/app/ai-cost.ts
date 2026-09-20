@@ -40,6 +40,11 @@ export const FEATURES = [
   "ats_analysis",
   "resume_generation",
   "resume_rewrite",
+  // Two calls, not one, because they are priced and tuned differently:
+  // writing four questions is short and cheap, reading four answers back is
+  // the long one. Merging them would hide which half the money goes on.
+  "interview_questions",
+  "interview_feedback",
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];
@@ -53,6 +58,8 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   ats_analysis: "ATS analysis",
   resume_generation: "Writing a résumé",
   resume_rewrite: "Rewriting a section",
+  interview_questions: "Writing mock interview questions",
+  interview_feedback: "Marking a mock interview",
 };
 
 /** Who and what a call belongs to. Required, so a call cannot go unattributed. */

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/seo/constants";
 import { getAllPostSlugs, getCategories } from "@/lib/queries/posts";
+import { getPublishedBanks } from "@/lib/interview/bank";
 
 /**
  * One sitemap, every URL, at /sitemap.xml.
@@ -16,9 +17,10 @@ export const revalidate = 600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  const [posts, categories] = await Promise.all([
+  const [posts, categories, banks] = await Promise.all([
     getAllPostSlugs(),
     getCategories(),
+    getPublishedBanks(),
   ]);
 
   return [
@@ -31,6 +33,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    // The question bank. Only published pages are ever returned, so a draft
+    // can never be submitted to Google before somebody has read it.
+    {
+      url: `${SITE.url}/interview-questions`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    ...banks.map((b) => ({
+      url: `${SITE.url}/interview-questions/${b.slug}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     {
       url: `${SITE.url}/tools/resume-ats-checker`,
       lastModified: now,
