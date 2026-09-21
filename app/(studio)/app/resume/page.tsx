@@ -81,27 +81,25 @@ export default async function StudioResumePage() {
         />
       )}
 
+      {/* The templates are free and open to every account — no upload
+          first. They were gated behind having a draft, which meant a new
+          user saw a paragraph instead of sixty designs. Picking one now
+          starts the first draft: filled from their resume if they uploaded
+          one, from their profile if not, blank otherwise. */}
       <section className="rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6">
-        {draft ? (
-          <TemplateGallery
-            content={draft.content}
-            current={draft.template ?? DEFAULT_TEMPLATE}
-            basePath="/app"
-          />
-        ) : (
-          <>
-            <p className="max-w-[58ch] text-[0.87rem] leading-relaxed text-ink-50">
-              {resume
-                ? "Build your document first, and every template will show your own resume in it — your name, your jobs, your bullets — rather than a stranger's."
-                : "Upload a resume to start. Every template shows your own document, so there has to be one."}
+        {!draft && resume && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink-04 px-4 py-3">
+            <p className="text-[0.84rem] text-ink-50">
+              Your uploaded resume fills in whichever template you pick.
             </p>
-            {resume && (
-              <div className="mt-6">
-                <BuildDraftButton label="Build it from my resume" basePath="/app" />
-              </div>
-            )}
-          </>
+            <BuildDraftButton label="Build it from my resume" basePath="/app" />
+          </div>
         )}
+        <TemplateGallery
+          content={draft?.content ?? null}
+          current={draft ? (draft.template ?? DEFAULT_TEMPLATE) : null}
+          basePath="/app"
+        />
       </section>
 
       {/* Documents somebody else shared. Kept below their own work rather than

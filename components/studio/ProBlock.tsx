@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { OrbMark } from "@/components/studio/OrbMark";
 import { ProReveal } from "@/components/studio/ProReveal";
-import { PRO_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
+import { ALL_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
 
 /**
  * The Pro card, built to the design.
@@ -134,7 +134,7 @@ export function ProBlock({
               What you will get
             </p>
             <ul>
-              {PRO_PERKS.map((perk) => (
+              {ALL_PERKS.map((perk) => (
                 <li key={perk.title} className={`flex items-center gap-2.5 ${ROW}`}>
                   <Sparkle className="size-3.5 shrink-0 text-[#8f9dfb]" />
                   <span className="truncate text-[0.86rem] font-medium text-white">
@@ -151,12 +151,16 @@ export function ProBlock({
             >
               FREE
             </p>
-            {PRO_PERKS.map((perk) => (
+            {ALL_PERKS.map((perk) => (
               <div key={perk.title} className={`flex items-center justify-center ${ROW}`}>
-                <span
-                  className="block h-0.5 w-[18px] rounded-full bg-[#9aa0c4]"
-                  aria-label="Not included"
-                />
+                {perk.free ? (
+                  <Tick className="size-[19px] text-white/80" />
+                ) : (
+                  <span
+                    className="block h-0.5 w-[18px] rounded-full bg-[#9aa0c4]"
+                    aria-label="Not included"
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -172,7 +176,7 @@ export function ProBlock({
             </div>
 
             <div className="w-[58px]">
-              {PRO_PERKS.map((perk) => (
+              {ALL_PERKS.map((perk) => (
                 <div key={perk.title} className={`flex items-center justify-center ${ROW}`}>
                   <Tick className="size-[19px] text-[#d2662a]" />
                 </div>

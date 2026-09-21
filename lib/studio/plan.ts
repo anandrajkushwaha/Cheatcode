@@ -22,20 +22,28 @@
  * enforced somewhere, somebody is paying for nothing.
  */
 
-export type Perk = { title: string; built: boolean };
+export type Perk = { title: string; built: boolean; free?: boolean };
 
-/** Free on every account. Shown ticked in both columns. */
-export const FREE_PERKS: Perk[] = [
-  { title: "Resume Templates", built: true },
-  { title: "Resume Builder", built: true },
-];
-
-/** What ₹99 adds. Everything that lists "what Pro gets" reads this one. */
-export const PRO_PERKS: Perk[] = [
+/**
+ * The full list, in the order the design draws it. Banners and the compare
+ * table show all five — Pro still includes the free two, and a card that
+ * shrank to three rows read as Pro having lost features. The free ones are
+ * ticked in the FREE column as well, which is the honest version of the
+ * same picture.
+ */
+export const ALL_PERKS: Perk[] = [
   { title: "AI Career Agent", built: true },
+  { title: "AI Resume Builder", built: true, free: true },
+  { title: "Resume Templates", built: true, free: true },
   { title: "AI Mock Interviews", built: true },
   { title: "Expert Resume Review", built: true },
 ];
+
+/** Free on every account. */
+export const FREE_PERKS: Perk[] = ALL_PERKS.filter((p) => p.free);
+
+/** Only what ₹99 adds — for places that list what paying unlocks. */
+export const PRO_PERKS: Perk[] = ALL_PERKS.filter((p) => !p.free);
 
 /** As drawn. Kept here so the card and the upgrade screen cannot disagree. */
 export const PRO_PRICE_LABEL = "Unlock Pro ₹99";

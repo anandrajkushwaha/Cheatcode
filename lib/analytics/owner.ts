@@ -98,3 +98,30 @@ export function isOwnerEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   return ownerEmails().includes(email.trim().toLowerCase());
 }
+
+/* ------------------------------------------------------ analytics-only list */
+
+/**
+ * Accounts that are never counted in analytics — and get nothing else.
+ *
+ * Separate from ownerEmails() on purpose. An owner email also lifts the AI
+ * allowance (lib/app/allowance.ts) and changes how the agent treats the
+ * account, so putting a team or test inbox there to hide it from GA would
+ * quietly hand it unlimited paid usage. This list only stops the counting.
+ *
+ * Extend it with ANALYTICS_EXCLUDE_EMAILS (comma-separated) in Vercel.
+ */
+const ALWAYS_EXCLUDED_EMAILS = ["cheatcodeapp26@gmail.com"];
+
+export function analyticsExcludedEmails(): string[] {
+  const extra = (process.env.ANALYTICS_EXCLUDE_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set([...ALWAYS_EXCLUDED_EMAILS, ...extra, ...ownerEmails()])];
+}
+
+export function isAnalyticsExcludedEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return analyticsExcludedEmails().includes(email.trim().toLowerCase());
+}

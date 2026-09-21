@@ -45,8 +45,12 @@ export function TemplateGallery({
   current,
   basePath = "/app",
 }: {
-  content: Resume;
-  current: string;
+  /** Their own draft's content. Absent for somebody with no resume yet —
+   *  the gallery still shows, on the sample, and picking a template starts
+   *  their first draft (blank, or seeded from the profile). */
+  content?: Resume | null;
+  /** The template in use, or null when there is no draft yet. */
+  current: string | null;
   /** Which shell to open the editor in. /app by default; the studio passes its own. */
   basePath?: string;
 }) {
@@ -153,6 +157,7 @@ export function TemplateGallery({
 
       {error && <p className="mt-3 text-[0.84rem]">{error}</p>}
 
+      {content && (
       <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-[0.78rem] text-ink-50">
         <input
           type="checkbox"
@@ -162,13 +167,14 @@ export function TemplateGallery({
         />
         Show my own details in the previews
       </label>
+      )}
 
       <div
         ref={grid}
         className="mt-5 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 xl:grid-cols-4"
       >
         {shown.map((t) => {
-          const design = mine ? seedDesign(content, t.id) : previewDesign(t.id);
+          const design = mine && content ? seedDesign(content, t.id) : previewDesign(t.id);
           const scale = card / PAGE_PX;
           return (
             <button

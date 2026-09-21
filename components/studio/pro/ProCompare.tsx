@@ -1,6 +1,6 @@
 import { OrbMark } from "@/components/studio/OrbMark";
 import { CheckIcon, SparkIcon } from "@/components/studio/icons";
-import { FREE_PERKS, PRO_PERKS } from "@/lib/studio/plan";
+import { ALL_PERKS } from "@/lib/studio/plan";
 
 /**
  * "What you will get" — free on the left, Pro on the right.
@@ -71,7 +71,7 @@ export function ProCompare() {
         {/* Free rows first, ticked on both sides: the table has to say what
             the free plan already includes, or it reads as "everything costs
             money" — which is what it used to say, wrongly. */}
-        {[...FREE_PERKS.map((p) => ({ ...p, free: true })), ...PRO_PERKS.map((p) => ({ ...p, free: false }))].map(
+        {ALL_PERKS.map(
           (perk, i, all) => (
             <li
               key={perk.title}

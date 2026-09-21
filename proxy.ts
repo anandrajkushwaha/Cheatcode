@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { ADMIN_COOKIE, readSession } from "@/lib/admin/auth";
 import { canOpenPage, canCallApi, homeFor } from "@/lib/admin/roles";
+import { OWNER_COOKIE, ownerCookieOptions, isAnalyticsExcludedEmail } from "@/lib/analytics/owner";
 
 /**
  * Next.js 16 renamed Middleware to Proxy. Same file-convention role,
@@ -119,6 +120,17 @@ export async function proxy(request: NextRequest) {
       redirect.pathname = "/signin";
       redirect.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
       return NextResponse.redirect(redirect);
+    }
+
+    // Excluded accounts stop being counted on this device the first time
+    // they open the app — whichever way they signed in. The Google callback
+    // already did this, but email and phone sign-in never pass through it,
+    // so those devices were still counted.
+    if (
+      isAnalyticsExcludedEmail(data.user.email) &&
+      request.cookies.get(OWNER_COOKIE)?.value !== "1"
+    ) {
+      response.cookies.set(OWNER_COOKIE, "1", ownerCookieOptions(true));
     }
 
     return response;

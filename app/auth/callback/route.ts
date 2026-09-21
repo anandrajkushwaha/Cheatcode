@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAppServerClient } from "@/lib/supabase/app";
-import { OWNER_COOKIE, ownerCookieOptions, isOwnerEmail } from "@/lib/analytics/owner";
+import { OWNER_COOKIE, ownerCookieOptions, isAnalyticsExcludedEmail } from "@/lib/analytics/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   // cookie, an IP, a browser's localStorage — which is why checking the live
   // site from a phone kept landing in the numbers. This is tied to the
   // account, so it only has to happen once per device.
-  if (isOwnerEmail(data?.user?.email)) {
+  if (isAnalyticsExcludedEmail(data?.user?.email)) {
     response.cookies.set(OWNER_COOKIE, "1", ownerCookieOptions(true));
   }
 
