@@ -83,11 +83,6 @@ export function ProCompare() {
                 <span className="text-[0.85rem] font-medium leading-[22px] text-[#121224] sm:text-[1rem]">
                   {perk.title}
                 </span>
-                {perk.free && (
-                  <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-ink-04 px-2 py-[1px] align-middle text-[0.65rem] font-medium text-ink-50">
-                    Free
-                  </span>
-                )}
                 {!perk.built && (
                   <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-ink-04 px-2 py-[1px] align-middle text-[0.65rem] font-medium text-ink-50">
                     Coming soon
@@ -95,7 +90,7 @@ export function ProCompare() {
                 )}
               </div>
               <div className={`${MARK_COL} flex items-center justify-center`}>
-                {perk.free ? <CheckIcon className="size-[19px] text-[#121224]" /> : <Dash />}
+                <Dash />
               </div>
               <div className={`${PRO_COL} flex items-center justify-center`}>
                 <CheckIcon className="size-[19px] text-[#fdaa29]" />

@@ -26,15 +26,14 @@ export type Perk = { title: string; built: boolean; free?: boolean };
 
 /**
  * The full list, in the order the design draws it. Banners and the compare
- * table show all five — Pro still includes the free two, and a card that
- * shrank to three rows read as Pro having lost features. The free ones are
- * ticked in the FREE column as well, which is the honest version of the
- * same picture.
+ * table show all five, with a dash in every FREE cell, as designed. `free`
+ * is not drawn on the cards; it only keeps the two free features out of
+ * PRO_PERKS, the list of what paying unlocks.
  */
 export const ALL_PERKS: Perk[] = [
   { title: "AI Career Agent", built: true },
   { title: "AI Resume Builder", built: true, free: true },
-  { title: "Resume Templates", built: true, free: true },
+  { title: "Premium CV", built: true, free: true },
   { title: "AI Mock Interviews", built: true },
   { title: "Expert Resume Review", built: true },
 ];

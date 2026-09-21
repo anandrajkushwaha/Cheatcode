@@ -155,14 +155,10 @@ export function ProBlock({
             </p>
             {ALL_PERKS.map((perk) => (
               <div key={perk.title} className={`flex items-center justify-center ${ROW}`}>
-                {perk.free ? (
-                  <Tick className="size-[19px] text-white/80" />
-                ) : (
-                  <span
-                    className="block h-0.5 w-[18px] rounded-full bg-[#9aa0c4]"
-                    aria-label="Not included"
-                  />
-                )}
+                <span
+                  className="block h-0.5 w-[18px] rounded-full bg-[#9aa0c4]"
+                  aria-hidden
+                />
               </div>
             ))}
           </div>

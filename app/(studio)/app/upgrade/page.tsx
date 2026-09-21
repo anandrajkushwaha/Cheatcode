@@ -58,14 +58,22 @@ export default async function StudioProPage({
   ]);
 
   const paid = isPaid(profile);
-  if (!paid) await recordProIntent(params.from ?? "studio", "/app/upgrade");
 
   // The testimonials and the headline number are only wanted on the selling
   // version of the page, so they are not fetched for somebody who has already
   // bought — two queries saved on every visit by an existing subscriber.
+  //
+  // The intent write runs alongside them rather than before them. It used to
+  // be awaited on its own first, which put a database round trip between the
+  // click and anything appearing — part of why tapping a Pro card felt like
+  // it had not registered.
   const [reviews, proof] = paid
     ? [[], null]
-    : await Promise.all([getReviews(), getProof()]);
+    : await Promise.all([
+        getReviews(),
+        getProof(),
+        recordProIntent(params.from ?? "studio", "/app/upgrade"),
+      ]).then(([r, p]) => [r, p] as const);
 
   let mandate: Mandate | null = null;
   if (user && paid) {
