@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { createAppAdminClient } from "@/lib/supabase/app";
 
 /**
@@ -48,7 +49,16 @@ export function toReview(row: Row): Review {
  * is a worse outcome than a landing page with no testimonials, and the
  * section hides itself when the list is empty.
  */
-export async function getReviews(): Promise<Review[]> {
+/**
+ * Published reviews, cached for five minutes — they are the same for every
+ * visitor, and a query per page view was time spent before the Pro page could
+ * appear. A review published in the admin shows up within five minutes.
+ */
+export const getReviews = unstable_cache(readPublishedReviews, ["published-reviews"], {
+  revalidate: 300,
+});
+
+async function readPublishedReviews(): Promise<Review[]> {
   const db = createAppAdminClient();
   if (!db) return [];
 

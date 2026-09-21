@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { getProfile, isPaid } from "@/lib/app/account";
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { recordProIntent } from "@/lib/app/pro-intent";
@@ -63,17 +64,17 @@ export default async function StudioProPage({
   // version of the page, so they are not fetched for somebody who has already
   // bought — two queries saved on every visit by an existing subscriber.
   //
-  // The intent write runs alongside them rather than before them. It used to
-  // be awaited on its own first, which put a database round trip between the
-  // click and anything appearing — part of why tapping a Pro card felt like
-  // it had not registered.
   const [reviews, proof] = paid
     ? [[], null]
-    : await Promise.all([
-        getReviews(),
-        getProof(),
-        recordProIntent(params.from ?? "studio", "/app/upgrade"),
-      ]).then(([r, p]) => [r, p] as const);
+    : await Promise.all([getReviews(), getProof()]);
+
+  // Logged after the page has been sent — nobody should wait on a write
+  // they will never see.
+  if (!paid && user) {
+    const from = params.from ?? "studio";
+    const who = { id: user.id, email: user.email ?? null };
+    after(() => recordProIntent(from, "/app/upgrade", who));
+  }
 
   let mandate: Mandate | null = null;
   if (user && paid) {

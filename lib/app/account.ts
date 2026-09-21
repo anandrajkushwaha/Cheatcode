@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createAppServerClient, getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import type { AtsResult } from "@/lib/tools/ats";
 import { cleanResume, type Resume as ResumeContent } from "@/lib/app/resume-schema";
@@ -132,7 +133,8 @@ export type ResumeDraft = {
  * down, a schema that was never run — it returns null as before and the
  * screens say so.
  */
-export async function getProfile(): Promise<Profile | null> {
+/** Memoised per request — the layout and the page both ask. See getSessionUser. */
+export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createAppServerClient();
   if (!supabase) return null;
 
@@ -189,7 +191,7 @@ export async function getProfile(): Promise<Profile | null> {
     .maybeSingle();
 
   return (again as Profile) ?? null;
-}
+});
 
 export async function getResumes(): Promise<Resume[]> {
   const supabase = await createAppServerClient();

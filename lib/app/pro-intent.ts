@@ -28,9 +28,15 @@ import { getSessionUser } from "@/lib/supabase/app";
  */
 const DEDUPE_MINUTES = 30;
 
-export async function recordProIntent(source: string, path: string): Promise<void> {
+export async function recordProIntent(
+  source: string,
+  path: string,
+  known?: { id: string; email?: string | null } | null,
+): Promise<void> {
   try {
-    const user = await getSessionUser();
+    // Passed in when called after the response, where cookies can no longer
+    // be read.
+    const user = known ?? (await getSessionUser());
     if (!user) return;
 
     const db = createAppAdminClient();

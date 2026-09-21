@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { createAppAdminClient } from "@/lib/supabase/app";
 
 /**
@@ -28,7 +29,10 @@ function roundDown(n: number): number {
   return Math.floor(n / 10) * 10;
 }
 
-export async function getProof(): Promise<Proof> {
+/** Two count queries, rounded down anyway — cached for five minutes. */
+export const getProof = unstable_cache(countProof, ["pro-proof"], { revalidate: 300 });
+
+async function countProof(): Promise<Proof> {
   const db = createAppAdminClient();
   if (!db) return null;
 

@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { APP_SUPABASE_URL, APP_SUPABASE_ANON } from "./app-env";
 
 export { appAuthConfigured } from "./app-env";
@@ -55,12 +56,23 @@ export function createAppAdminClient() {
   });
 }
 
-/** The signed-in user, or null. Safe to call from any server context. */
-export async function getSessionUser() {
+/**
+ * The signed-in user, or null. Safe to call from any server context.
+ *
+ * Memoised per request with React's cache(). getUser() is a network round
+ * trip to Supabase Auth, and one page render used to make it four or five
+ * times over — the layout, getProfile() inside the layout, the page, and
+ * getProfile() and the intent log inside the page — mostly one after the
+ * other. That was most of the wait between tapping a card and the page
+ * appearing. It is the same answer every time within a request, so now it
+ * is asked once. (Route handlers are unaffected: cache() only dedupes
+ * during a server render.)
+ */
+export const getSessionUser = cache(async () => {
   const supabase = await createAppServerClient();
   if (!supabase) return null;
   // getUser() revalidates against Supabase; getSession() trusts the cookie,
   // which a client could have tampered with.
   const { data } = await supabase.auth.getUser();
   return data.user ?? null;
-}
+});
