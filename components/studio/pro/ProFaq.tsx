@@ -23,7 +23,7 @@ type Item = { q: string; a: string };
 const FAQ: Item[] = [
   {
     q: "What is Cheatcode Pro?",
-    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, an AI resume builder, and the premium template set. All in one place, for ₹99 a month.",
+    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, AI mock interviews with a written report, and a real person reviewing your resume. The resume builder and every template stay free on every account; Pro is ₹99 a month.",
   },
   {
     q: "Who can benefit from Cheatcode Pro?",
@@ -31,23 +31,23 @@ const FAQ: Item[] = [
   },
   {
     q: "How long is Cheatcode Pro valid, and how do I cancel?",
-    a: "Pro is a monthly plan. ₹99 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time from this page or by writing to us — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
+    a: "Pro is a monthly plan. ₹99 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time by writing to hello@cheatcodeapp.com — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
   },
   {
     q: "What kind of mock interviews are available?",
-    a: "AI mock interviews are being built and are not part of the plan yet — they are listed above with a Coming soon label so nobody pays for them expecting them today. When they arrive they will be included in Pro at no extra cost, for the roles you have saved on your profile.",
+    a: "Text-based mock interviews for the role and experience level you choose. You answer by typing or speaking, and at the end you get a written report: where each answer was strong or thin, a rewrite of your answer in your own words, and what to add to your resume. You can retry any question. Mock interviews are part of Pro.",
   },
   {
     q: "How many AI attempts do I get?",
-    a: "Pro removes the daily limits that apply on the free plan, so you can rewrite a resume section, re-run a job match, or ask the career agent as often as you need within fair use. Fair use exists only to stop automated abuse; ordinary job-hunting will never come near it.",
+    a: "Pro raises the career agent's daily limit well past the free plan's and unlocks mock interviews and resume review, within fair use. Fair use exists only to stop automated abuse; ordinary job-hunting will never come near it.",
   },
   {
     q: "Can I prepare for more than one role?",
-    a: "Yes. You can keep several target roles on your profile and hold a separate resume for each one, which is the usual situation when you are applying across two or three kinds of job. The agent tailors its suggestions to whichever role you are working on.",
+    a: "Yes. Keep several target roles on your profile, and choose the role and your experience level each time you start a mock interview, so the questions match the job. The agent tailors its suggestions to whichever role you ask about.",
   },
   {
     q: "Can I edit and download my resume more than once?",
-    a: "As many times as you like, for as long as your plan is active. Your resumes stay in your account, you can go back and change any version, and every download is a fresh PDF — there is no per-download charge and no watermark.",
+    a: "As many times as you like, on the free plan as well as Pro. Your resume stays in your account, you can come back and keep editing it, and every download is a fresh PDF — there is no per-download charge and no watermark.",
   },
   {
     q: "Who should I contact for help?",

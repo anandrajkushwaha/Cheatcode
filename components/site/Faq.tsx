@@ -9,7 +9,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "Will the resume tool be free?",
-    a: "Free while we're in early access. After that it moves to a subscription — we'd rather say that now than surprise you later. Mentor sessions are priced separately. You'll know the numbers before you're ever asked for a card.",
+    a: "Yes. The resume builder, all 60 templates, PDF downloads, the ATS checker and the salary calculator are free on every account, with no time limit. Cheatcode Pro is ₹99 a month and adds the AI career agent, AI mock interviews and a human review of your resume. Mentor sessions are still being set up and will be priced separately — you'll see the price before you're ever asked for a card.",
   },
   {
     q: "Who is Cheatcode actually for?",
@@ -25,7 +25,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "What does it cost?",
-    a: "Early access is free while we're building. We'll tell you well before that changes — and you'll never be charged without asking first.",
+    a: "A free account costs nothing and doesn't expire. Cheatcode Pro is ₹99 a month through UPI Autopay, and you can cancel any time. You're never charged unless you choose to subscribe.",
   },
   {
     q: "What can I actually ask?",
@@ -33,7 +33,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "When does it open?",
-    a: "We're onboarding mentors first — a good mentor pool matters more than a fast launch. Join the list and you'll be in the first batch we let in.",
+    a: "The app is open now — sign up and the resume builder, templates and free tools are yours today. Mentor sessions are the part still being set up: we're onboarding mentors first, because a good mentor pool matters more than a fast launch.",
   },
 ];
 

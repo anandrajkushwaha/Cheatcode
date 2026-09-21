@@ -35,12 +35,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     // The question bank. Only published pages are ever returned, so a draft
     // can never be submitted to Google before somebody has read it.
-    {
-      url: `${SITE.url}/interview-questions`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
+    // The index only once it lists something — see its generateMetadata.
+    ...(banks.length
+      ? [
+          {
+            url: `${SITE.url}/interview-questions`,
+            lastModified: now,
+            changeFrequency: "weekly" as const,
+            priority: 0.8,
+          },
+        ]
+      : []),
     ...banks.map((b) => ({
       url: `${SITE.url}/interview-questions/${b.slug}`,
       lastModified: now,

@@ -6,12 +6,24 @@ import { getPublishedBanks } from "@/lib/interview/bank";
 
 export const revalidate = 3600;
 
-export const metadata: Metadata = buildMetadata({
-  title: "Interview Questions and Answers by Role | Cheatcode",
-  description:
-    "Real interview questions asked for jobs in India, with answers written the way a strong candidate would say them out loud. Free, by role.",
-  path: "/interview-questions",
-});
+/**
+ * Indexable only once there is something on it.
+ *
+ * While no bank is published this page is a heading and "check back
+ * shortly" — a thin page Google would index and judge the site by. So it
+ * says noindex until the first role page exists, and the sitemap leaves it
+ * out on the same rule.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const banks = await getPublishedBanks();
+  return buildMetadata({
+    title: "Interview Questions and Answers by Role | Cheatcode",
+    description:
+      "Real interview questions asked for jobs in India, with answers written the way a strong candidate would say them out loud. Free, by role.",
+    path: "/interview-questions",
+    noindex: banks.length === 0,
+  });
+}
 
 /**
  * The index of role pages.
@@ -71,7 +83,7 @@ export default async function QuestionBankIndex() {
           href="/signin?next=/app/interviews"
           className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.88rem] font-medium text-paper transition-opacity hover:opacity-90"
         >
-          Try a mock interview
+          Practise in a mock interview · Pro
         </Link>
       </div>
     </>

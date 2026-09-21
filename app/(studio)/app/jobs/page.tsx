@@ -106,7 +106,7 @@ export default async function StudioJobsPage({
         )}
       </div>
 
-      <JobSearchBar q={q} sort={sort} />
+      <JobSearchBar q={q} sort={sort} base={pageHref(1).split("?")[1] ?? ""} />
 
       {!touched && filtered && (
         <p className="rounded-xl border border-ink-08 bg-paper px-4 py-3 text-[0.82rem] leading-relaxed text-ink-50">
@@ -116,7 +116,7 @@ export default async function StudioJobsPage({
       )}
 
       <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)]">
-        <JobFilterRail filters={filters} />
+        <JobFilterRail filters={filters} base={pageHref(1).split("?")[1] ?? ""} />
 
         <div className="min-w-0">
           {error ? (
@@ -135,7 +135,7 @@ export default async function StudioJobsPage({
               </p>
               <p className="mx-auto mt-2.5 max-w-[52ch] text-[0.85rem] leading-relaxed text-ink-50">
                 {totalInDb === 0
-                  ? "The first sync has not run yet. Trigger /api/jobs/ingest, or wait for the morning run."
+                  ? "New roles are pulled in every morning. Check back tomorrow."
                   : "Try removing a city, widening the experience filter, or looking further back than the last few days."}
               </p>
               {totalInDb > 0 && (

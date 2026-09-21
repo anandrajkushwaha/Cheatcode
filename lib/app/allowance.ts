@@ -179,7 +179,7 @@ export function outOfMessages(a: Allowance): string {
   if (!a.configured) return NOT_SET_UP;
   return a.paid
     ? "That's today's messages. They reset at midnight."
-    : "That's your ten free messages for today. Pro is unlimited — and the agent can talk.";
+    : "That's your ten free messages for today. Pro gives you far more — and the agent can talk.";
 }
 
 /**

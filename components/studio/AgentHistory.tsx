@@ -33,7 +33,14 @@ const WHEN = new Intl.DateTimeFormat("en-IN", {
   timeZone: "Asia/Kolkata",
 });
 
-export function AgentHistory({ conversations }: { conversations: Conversation[] }) {
+export function AgentHistory({
+  conversations,
+  requirePro = false,
+}: {
+  conversations: Conversation[];
+  /** Same rule as the orb in the corner — see the /app layout. */
+  requirePro?: boolean;
+}) {
   const [open, setOpen] = useState<{
     origin: { x: number; y: number };
     conversationId: string;
@@ -107,6 +114,7 @@ export function AgentHistory({ conversations }: { conversations: Conversation[] 
         <AgentOverlay
           origin={open.origin}
           onClose={() => setOpen(null)}
+          requirePro={requirePro}
           resume={{ conversationId: open.conversationId, turns: open.turns }}
         />
       )}

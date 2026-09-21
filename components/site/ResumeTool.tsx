@@ -48,7 +48,7 @@ export function ResumeTool() {
                 talent problem — it&apos;s a formatting problem nobody told you about.
               </p>
               <p className="mt-4 max-w-[54ch] text-lg leading-relaxed text-white/60">
-                So we&apos;re building the other half: a resume tool that gets you into
+                So we built the other half: a resume tool that gets you into
                 the room. The mentor is what happens once you&apos;re in.
               </p>
             </Reveal>

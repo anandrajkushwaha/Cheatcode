@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSessionUser, createAppAdminClient } from "@/lib/supabase/app";
 import { OrbMark } from "@/components/studio/OrbMark";
 import { AgentHistory } from "@/components/studio/AgentHistory";
+import { getProfile, isPaid } from "@/lib/app/account";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,10 @@ async function recentConversations(userId: string): Promise<Row[]> {
 
 export default async function StudioAgentPage() {
   const user = await getSessionUser();
-  const rows = user ? await recentConversations(user.id) : [];
+  const [rows, profile] = await Promise.all([
+    user ? recentConversations(user.id) : Promise.resolve([] as Row[]),
+    getProfile(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -73,6 +77,7 @@ export default async function StudioAgentPage() {
         </div>
       ) : (
         <AgentHistory
+          requirePro={!isPaid(profile)}
           conversations={rows.map((row) => ({
             id: row.id,
             title: row.title,

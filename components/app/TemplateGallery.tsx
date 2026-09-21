@@ -96,6 +96,12 @@ export function TemplateGallery({
   }, [shown.length]);
 
   async function choose(template: string) {
+    // Already the one in use: open it. Creating a draft here would start a
+    // fresh document and strand every design edit made to the current one.
+    if (template === current) {
+      router.push(`${basePath}/resume/builder`);
+      return;
+    }
     setBusy(template);
     setError(null);
     try {

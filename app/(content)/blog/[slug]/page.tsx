@@ -183,13 +183,15 @@ export default async function ArticlePage({ params }: Props) {
                 Reading about it only gets you so far.
               </p>
               <p className="mt-2.5 max-w-[52ch] text-[0.95rem] leading-relaxed text-ink-50">
-                Cheatcode gives you 30 minutes with someone 5–10 years ahead of you
-                who has sat on the other side of the hiring table. Free to start.
+                A free Cheatcode account gets you a resume builder with 60
+                templates, an ATS check, and a career agent that has read your
+                resume — so your next question gets an answer about you, not
+                about everyone.
               </p>
               <Link
-                href="/signin"
+                href="/signin?next=/app"
                 data-ev="cta_click"
-                data-ev-location="article-mentor-block"
+                data-ev-location="article-account-block"
                 data-ev-label="Sign up"
                 className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
               >

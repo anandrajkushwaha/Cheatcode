@@ -16,14 +16,26 @@ function db() {
   return createPublicClient();
 }
 
+/**
+ * One article, or null when it genuinely does not exist.
+ *
+ * A failed query throws rather than returning null, and that difference is
+ * the whole SEO story of this function. Null means notFound(): a 404 with a
+ * noindex tag, which ISR then caches — so a single Supabase timeout during a
+ * revalidation used to replace a ranking article with a cached "Not found"
+ * until the next one, and Google treats a 404 as a reason to drop the URL.
+ * A thrown error is different: Next keeps serving the last good render, and
+ * a crawler that does see a 500 treats it as temporary and comes back.
+ */
 export async function getPostBySlug(slug: string): Promise<Post | null> {
   const supabase = db();
   if (!supabase) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("posts")
     .select(FULL_COLS)
     .eq("slug", slug)
     .maybeSingle();
+  if (error) throw new Error(`[posts] could not load ${slug}: ${error.message}`);
   return (data as Post) ?? null;
 }
 

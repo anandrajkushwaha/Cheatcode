@@ -1,31 +1,40 @@
 /**
- * What the paid plan advertises, and what it costs.
+ * What the paid plan advertises, and what stays free.
  *
- * One list, because it appears on the promo card and on the upgrade screen,
- * and a benefit worded two ways is a benefit nobody trusts.
+ * One list per side, because they appear on the promo card, the upgrade
+ * screen and the agent's paywall, and a benefit worded two ways is a benefit
+ * nobody trusts.
  *
- * ---------------------------------------------------------------- a caveat
+ * ------------------------------------------------------------ the free side
  *
- * These five come from the design. Three of them exist today — the agent, the
- * builder, and the template set. Two do not: there is no mock-interview
- * feature and no human resume review anywhere in the product.
+ * Resume templates and the builder used to sit in the Pro column with a dash
+ * under "Free" — while the code never gated either of them. So the product
+ * gave them away and the marketing said it did not, which is the worst of both:
+ * a free user saw a padlock that was not there and left, and a paying one was
+ * charged for something the free plan already had. They are free, the page now
+ * says so, and they are the reason to sign up rather than the reason to pay.
  *
- * That is survivable while nothing can be bought, because the card is a
- * statement of where the plan is going. It stops being survivable the moment
- * CHECKOUT_LIVE is true: at that point somebody is paying ₹99 for a list of
- * five things and receiving three, which is a refund conversation rather than
- * a marketing one. Either those two ship first, or they come off this list
- * before the checkout opens.
+ * ------------------------------------------------------------- the pro side
+ *
+ * Only what the server actually refuses to a free account: the agent beyond
+ * its daily allowance, mock interviews (MOCK_REQUIRES_PRO) and the human
+ * resume review (the /api/app/resume/review check). If a line here is not
+ * enforced somewhere, somebody is paying for nothing.
  */
 
 export type Perk = { title: string; built: boolean };
 
+/** Free on every account. Shown ticked in both columns. */
+export const FREE_PERKS: Perk[] = [
+  { title: "Resume Templates", built: true },
+  { title: "Resume Builder", built: true },
+];
+
+/** What ₹99 adds. Everything that lists "what Pro gets" reads this one. */
 export const PRO_PERKS: Perk[] = [
   { title: "AI Career Agent", built: true },
-  { title: "AI Resume Builder", built: true },
-  { title: "Premium Templates", built: true },
-  { title: "AI Mock Interviews", built: false },
-  { title: "Expert Resume Review", built: false },
+  { title: "AI Mock Interviews", built: true },
+  { title: "Expert Resume Review", built: true },
 ];
 
 /** As drawn. Kept here so the card and the upgrade screen cannot disagree. */

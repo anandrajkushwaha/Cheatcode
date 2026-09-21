@@ -69,6 +69,17 @@ export function TopBar({
             one more piece of chrome, and pressing it made the whole screen
             grow out of the top of the page. */}
         <div className="flex items-center justify-end gap-3 justify-self-end">
+          {/* A plain form, not a fetch: the route answers with a 303 to the
+              home page, and letting the browser follow it clears the session
+              and the page in one step. */}
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
+            >
+              Sign out
+            </button>
+          </form>
           <Link href="/app/profile" aria-label="Your profile" className="shrink-0">
             <Avatar name={user.name} url={user.avatarUrl} size={36} className="ring-1 ring-ink-08" />
           </Link>

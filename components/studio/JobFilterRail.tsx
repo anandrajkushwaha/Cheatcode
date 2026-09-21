@@ -48,14 +48,22 @@ export type Filters = {
   maxAgeDays: number | null;
 };
 
-export function JobFilterRail({ filters }: { filters: Filters }) {
+/**
+ * The query string for what is on screen right now.
+ *
+ * Not `useSearchParams()`. On a first visit the page applies the profile's
+ * cities, experience and remote setting on the server, and none of those are
+ * in the URL — so building the next URL from the address bar silently
+ * dropped them the moment somebody changed the sort or one city. The server
+ * hands over the full state instead, and every change starts from that.
+ */
+export function JobFilterRail({ filters, base }: { filters: Filters; base: string }) {
   const router = useRouter();
-  const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const cityChoices = useCityChoices(filters.cities);
 
   function apply(changes: Record<string, string | null>) {
-    const next = new URLSearchParams(params.toString());
+    const next = new URLSearchParams(base);
     for (const [key, value] of Object.entries(changes)) {
       if (value === null || value === "") next.delete(key);
       else next.set(key, value);
@@ -264,7 +272,7 @@ function Chip({
 
 /* ------------------------------------------------------- search and sort */
 
-export function JobSearchBar({ q, sort }: { q: string; sort: string }) {
+export function JobSearchBar({ q, sort, base }: { q: string; sort: string; base: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const [text, setText] = useState(q);
@@ -277,7 +285,7 @@ export function JobSearchBar({ q, sort }: { q: string; sort: string }) {
   }, [params]);
 
   function apply(changes: Record<string, string | null>) {
-    const next = new URLSearchParams(params.toString());
+    const next = new URLSearchParams(base);
     for (const [key, value] of Object.entries(changes)) {
       if (value === null || value === "") next.delete(key);
       else next.set(key, value);

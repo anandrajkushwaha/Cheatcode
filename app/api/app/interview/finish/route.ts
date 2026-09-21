@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { isPaid, getProfile, getPrimaryResume } from "@/lib/app/account";
 import { getInterview, saveFeedback } from "@/lib/interview/store";
 import { markInterview } from "@/lib/interview/generate";
+import { MOCK_REQUIRES_PRO } from "@/lib/interview/plan";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,6 +29,15 @@ export async function POST(request: Request) {
   }
 
   const [profile, resume] = await Promise.all([getProfile(), getPrimaryResume()]);
+  // The marking run is the expensive call, and start/retry/coach already
+  // refuse free accounts — without this, a lapsed subscription or a saved
+  // interview URL could still get a report written.
+  if (MOCK_REQUIRES_PRO && !isPaid(profile)) {
+    return Response.json(
+      { ok: false, error: "Mock interviews are part of Pro.", upgrade: true },
+      { status: 402 },
+    );
+  }
   const full = await getInterview(body.sessionId, user.id, isPaid(profile));
   if (!full) return Response.json({ ok: false, error: "Not found." }, { status: 404 });
 
