@@ -5,6 +5,8 @@ import { ProfileCard } from "@/components/app/ProfileCard";
 import { ProBlock } from "@/components/studio/ProBlock";
 import { JobBuckets, type Bucket } from "@/components/studio/JobBuckets";
 import { BlogStrip, FeaturedGuide } from "@/components/studio/BlogStrip";
+import { InsightsCard } from "@/components/studio/InsightsCard";
+import { getInsights } from "@/lib/insights/query";
 
 /**
  * My home.
@@ -50,12 +52,13 @@ export default async function StudioHomePage({
   const cities = profile?.preferred_cities ?? [];
   const years = profile?.years_experience;
 
-  const [all, inCities, remote, byYears, blog] = await Promise.all([
+  const [all, inCities, remote, byYears, blog, insights] = await Promise.all([
     searchJobs({ limit: PER_BUCKET }),
     cities.length ? searchJobs({ cities, limit: PER_BUCKET }) : null,
     searchJobs({ remote: true, limit: PER_BUCKET }),
     typeof years === "number" ? searchJobs({ maxYears: years, limit: PER_BUCKET }) : null,
     getPosts({ perPage: 4 }),
+    getInsights(24),
   ]);
 
   // t=1 tells the jobs page these filters were chosen, not inherited — without
@@ -123,11 +126,11 @@ export default async function StudioHomePage({
         <BlogStrip posts={strip} />
       </div>
 
-      {/* The design's right rail also carried an Insights panel. Its feed is
-          parked until there is a decision on where those items come from, so
-          the rail is the featured guide alone rather than a panel with
-          invented cards in it. */}
-      <aside className="hidden min-w-0 xl:block">
+      {/* Insights above the featured guide, as designed. The card hides
+          itself until the first morning run has written something, so the
+          rail is never a panel of placeholders. */}
+      <aside className="hidden min-w-0 space-y-4 xl:block">
+        <InsightsCard items={insights} />
         <FeaturedGuide post={featured} />
       </aside>
     </div>

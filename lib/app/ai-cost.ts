@@ -45,6 +45,8 @@ export const FEATURES = [
   // the long one. Merging them would hide which half the money goes on.
   "interview_questions",
   "interview_feedback",
+  // The morning news run. No user behind it — userId is always null.
+  "insights",
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];
@@ -60,6 +62,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   resume_rewrite: "Rewriting a section",
   interview_questions: "Writing mock interview questions",
   interview_feedback: "Marking a mock interview",
+  insights: "Writing Insights (daily news)",
 };
 
 /** Who and what a call belongs to. Required, so a call cannot go unattributed. */

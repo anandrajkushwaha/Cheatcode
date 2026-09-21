@@ -22,8 +22,10 @@ const bad = (error: string, status = 400, hint?: string) =>
 export async function POST(request: Request) {
   // Shared by two sections: an article needs a cover image and a review needs
   // a photo. Either grant is enough; neither on its own would be.
+  // Insights cards can carry an image too.
   const articles = await requireAdmin("articles");
-  const guard = articles.ok ? articles : await requireAdmin("reviews");
+  const reviews = articles.ok ? articles : await requireAdmin("reviews");
+  const guard = reviews.ok ? reviews : await requireAdmin("insights");
   if (!guard.ok) return guard.response;
 
   const db = createAdminClient();

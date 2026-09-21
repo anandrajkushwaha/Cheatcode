@@ -22,6 +22,7 @@ export const STUDIO_NAV = [
   { href: "/app/jobs", label: "Jobs" },
   { href: "/app/interviews", label: "Mock Interviews" },
   { href: "/app/resume", label: "Resume" },
+  { href: "/app/insights", label: "Insights" },
   { href: "/app/tools", label: "Free Tools" },
 ];
 

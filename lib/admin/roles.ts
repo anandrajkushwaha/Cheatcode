@@ -40,6 +40,13 @@ export const SECTIONS: readonly Section[] = [
     apis: ["/api/admin/review", "/api/admin/upload"],
   },
   {
+    key: "insights",
+    label: "Insights",
+    detail: "Write and publish the short news cards in the app's Insights tab, with an optional image.",
+    pages: ["/admin/insights"],
+    apis: ["/api/admin/insight", "/api/admin/upload"],
+  },
+  {
     key: "bank",
     label: "Question bank",
     detail: "Draft and publish the public interview-question pages.",

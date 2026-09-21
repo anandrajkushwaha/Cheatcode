@@ -49,6 +49,8 @@ const NAV = [
   { href: "/admin/bank", label: "Question bank" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/posts", label: "Articles" },
+  // Beside Articles: the same kind of job, shorter.
+  { href: "/admin/insights", label: "Insights" },
   // Last, and owner-only by virtue of not being a grantable section: this is
   // the screen that hands out the others.
   { href: "/admin/team", label: "Team" },
