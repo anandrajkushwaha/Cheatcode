@@ -38,6 +38,33 @@ export function GoogleAnalytics() {
     setAllowed(true);
   }, [isAdmin]);
 
+  // Loading is decided once, but whether this browser counts can change under
+  // a tab that is already open — somebody reads a blog post, then signs in to
+  // the admin panel. gtag was already running in that tab, and it keeps
+  // sending engagement and session_start on its own whenever the tab comes
+  // back into focus. Those arrive with no page_view attached, which is
+  // exactly the "(blank) landing page, returning user, 0s" row in GA4.
+  //
+  // `ga-disable-<id>` is Google's own opt-out switch; gtag checks it before
+  // every hit, so setting it late still stops everything that follows. It is
+  // re-checked on every route change and every time the tab is shown again,
+  // because a session restart after idle is precisely when the stray hit goes.
+  useEffect(() => {
+    if (!GA_ID) return;
+    const key = `ga-disable-${GA_ID}`;
+    const sync = () => {
+      const off = (window.location.pathname.startsWith("/admin")) || isOwner();
+      if (off) (window as unknown as Record<string, unknown>)[key] = true;
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [pathname]);
+
   if (isAdmin || !allowed || !GA_ID) return null;
 
   return (

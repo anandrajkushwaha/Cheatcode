@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { canOpenPage } from "@/lib/admin/roles";
 import { currentAdmin } from "@/lib/admin/guard";
 import { LogoutButton } from "./LogoutButton";
+import { ExcludeThisDevice } from "@/components/admin/ExcludeThisDevice";
 
 export const metadata: Metadata = {
   title: "Admin — Cheatcode",
@@ -78,6 +79,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      <ExcludeThisDevice who={role === "owner" ? "owner" : `team ${session.uid}`} />
       <header className="sticky top-0 z-40 border-b border-ink-08 bg-paper/90 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-4 sm:gap-6">

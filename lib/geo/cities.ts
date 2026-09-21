@@ -9,6 +9,8 @@
  */
 
 export const CANONICAL_CITIES = [
+  // The markets that carry most of the hiring, and the ones offered as chips
+  // before anybody asks for more. PRIMARY_COUNT below depends on this order.
   "Bengaluru",
   "Hyderabad",
   "Pune",
@@ -25,9 +27,50 @@ export const CANONICAL_CITIES = [
   "Coimbatore",
   "Chandigarh",
   "Thiruvananthapuram",
+
+  // Everything else we can recognise. A job in Nagpur was always stored — it
+  // said India, so it passed — it simply could not be filtered for, which
+  // made the whole of tier two invisible to anyone using the city chips.
+  "Lucknow",
+  "Bhubaneswar",
+  "Nagpur",
+  "Surat",
+  "Vadodara",
+  "Bhopal",
+  "Visakhapatnam",
+  "Vijayawada",
+  "Mysuru",
+  "Mangaluru",
+  "Madurai",
+  "Tiruchirappalli",
+  "Kozhikode",
+  "Thrissur",
+  "Goa",
+  "Dehradun",
+  "Raipur",
+  "Patna",
+  "Guwahati",
+  "Ludhiana",
+  "Amritsar",
+  "Nashik",
+  "Rajkot",
+  "Kanpur",
+  "Jodhpur",
+  "Ranchi",
+  "Jamshedpur",
+  "Puducherry",
 ] as const;
 
 export type City = (typeof CANONICAL_CITIES)[number];
+
+/**
+ * How many of the above are shown before a "more cities" control. The filter
+ * rails are a row of chips; forty of them is not a filter, it is a wall, and
+ * the first sixteen cover the large majority of what the feed actually holds.
+ */
+export const PRIMARY_COUNT = 16;
+export const PRIMARY_CITIES = CANONICAL_CITIES.slice(0, PRIMARY_COUNT) as readonly City[];
+export const MORE_CITIES = CANONICAL_CITIES.slice(PRIMARY_COUNT) as readonly City[];
 
 /**
  * Aliases, longest first at match time so "greater noida" is not eaten by
@@ -52,12 +95,68 @@ const ALIASES: Record<City, string[]> = {
   Coimbatore: ["coimbatore"],
   Chandigarh: ["chandigarh", "mohali", "panchkula"],
   Thiruvananthapuram: ["thiruvananthapuram", "trivandrum", "technopark"],
+
+  Lucknow: ["lucknow"],
+  Bhubaneswar: ["bhubaneswar", "bhubaneshwar", "cuttack"],
+  Nagpur: ["nagpur"],
+  Surat: ["surat"],
+  Vadodara: ["vadodara", "baroda"],
+  Bhopal: ["bhopal"],
+  Visakhapatnam: ["visakhapatnam", "vishakhapatnam", "vizag"],
+  Vijayawada: ["vijayawada"],
+  Mysuru: ["mysuru", "mysore"],
+  Mangaluru: ["mangaluru", "mangalore"],
+  Madurai: ["madurai"],
+  Tiruchirappalli: ["tiruchirappalli", "trichy"],
+  Kozhikode: ["kozhikode", "calicut"],
+  Thrissur: ["thrissur", "trichur"],
+  Goa: ["goa", "panaji", "panjim", "margao"],
+  Dehradun: ["dehradun"],
+  Raipur: ["naya raipur", "raipur"],
+  Patna: ["patna"],
+  Guwahati: ["guwahati", "gauhati"],
+  Ludhiana: ["ludhiana"],
+  Amritsar: ["amritsar"],
+  Nashik: ["nashik", "nasik"],
+  Rajkot: ["rajkot"],
+  Kanpur: ["kanpur"],
+  Jodhpur: ["jodhpur"],
+  Ranchi: ["ranchi"],
+  Jamshedpur: ["jamshedpur"],
+  Puducherry: ["puducherry", "pondicherry"],
 };
 
+/**
+ * Match a whole word, not a substring.
+ *
+ * This used to be `text.includes(alias)`, which is the kind of shortcut that
+ * works on every example you think of and fails on the ones you do not:
+ * "franchise" contains "ranchi", "Jerusalem" contains "salem", and a location
+ * that matched a city was then treated as proof the job was in India. So a
+ * single stray word could import a foreign posting into an India-only feed.
+ *
+ * Written without lookbehind on purpose — Safari only learned it in 16.4, and
+ * this module is parsed in the browser, where a regex that throws at import
+ * time takes the whole page with it. The delimiters are captured and put back
+ * instead.
+ */
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const wordRe = (word: string) => new RegExp(`(^|[^a-z0-9])${escape(word)}([^a-z0-9]|$)`, "g");
+
 /** Every alias with its city, longest alias first. Built once. */
-const LOOKUP: { alias: string; city: City }[] = Object.entries(ALIASES)
-  .flatMap(([city, aliases]) => aliases.map((alias) => ({ alias, city: city as City })))
-  .sort((a, b) => b.alias.length - a.alias.length);
+const LOOKUP: { re: RegExp; city: City }[] = Object.entries(ALIASES)
+  .flatMap(([city, aliases]) =>
+    aliases.map((alias) => ({ alias, city: city as City })),
+  )
+  .sort((a, b) => b.alias.length - a.alias.length)
+  .map(({ alias, city }) => ({ re: wordRe(alias), city }));
+
+export type Place = {
+  cities: City[];
+  isRemote: boolean;
+  /** True when we are confident the role can be done from India. */
+  inIndia: boolean;
+};
 
 /**
  * Other signals that a location string is inside India — states and union
@@ -80,6 +179,12 @@ const REMOTE_WORDS = ["remote", "work from home", "wfh", "anywhere", "distribute
  * imported as an Indian job.
  */
 const FOREIGN_WORDS = [
+  // The bare abbreviations are here because the long forms were not enough:
+  // "Remote (US only)" contains neither "united states" nor "usa" nor "u.s.",
+  // so it read as a bare remote job and was imported as Indian. They are only
+  // safe to list now that matching is by whole word — as substrings, "us" and
+  // "uk" appear inside half the language.
+  "us", "uk", "u.k.", "america", "europe",
   "united states", "usa", "u.s.", "san francisco", "new york", "seattle", "austin",
   "united kingdom", "london", "ireland", "dublin", "germany", "berlin", "amsterdam",
   "netherlands", "france", "paris", "spain", "poland", "warsaw", "canada", "toronto",
@@ -93,12 +198,16 @@ const FOREIGN_WORDS = [
   "lisbon", "italy", "milan", "czech", "prague", "romania", "bucharest", "greece",
 ];
 
-export type Place = {
-  cities: City[];
-  isRemote: boolean;
-  /** True when we are confident the role can be done from India. */
-  inIndia: boolean;
-};
+const INDIA_RE = INDIA_WORDS.map(wordRe);
+const REMOTE_RE = REMOTE_WORDS.map(wordRe);
+const FOREIGN_RE = FOREIGN_WORDS.map(wordRe);
+
+/** `g` regexes carry lastIndex between calls; test() would be order-dependent. */
+const hits = (list: RegExp[], text: string) =>
+  list.some((re) => {
+    re.lastIndex = 0;
+    return re.test(text);
+  });
 
 /**
  * Read one or more location strings.
@@ -115,17 +224,19 @@ export function readPlace(...raw: (string | null | undefined)[]): Place {
 
   const cities: City[] = [];
   let scan = text;
-  for (const { alias, city } of LOOKUP) {
-    if (!scan.includes(alias)) continue;
-    if (!cities.includes(city)) cities.push(city);
+  for (const { re, city } of LOOKUP) {
     // Blank the match so a shorter alias inside it cannot match again:
-    // "greater noida" must not also register as "noida" a second time.
-    scan = scan.split(alias).join(" ");
+    // "greater noida" must not also register as "noida" a second time. The
+    // captured delimiters go back so neighbouring words keep their edges.
+    const next = scan.replace(re, "$1 $2");
+    if (next === scan) continue;
+    scan = next;
+    if (!cities.includes(city)) cities.push(city);
   }
 
-  const isRemote = REMOTE_WORDS.some((w) => text.includes(w));
-  const saysIndia = INDIA_WORDS.some((w) => text.includes(w));
-  const saysForeign = FOREIGN_WORDS.some((w) => text.includes(w));
+  const isRemote = hits(REMOTE_RE, text);
+  const saysIndia = hits(INDIA_RE, text);
+  const saysForeign = hits(FOREIGN_RE, text);
 
   const inIndia = cities.length > 0 || saysIndia || (isRemote && !saysForeign);
 
@@ -136,6 +247,9 @@ export function readPlace(...raw: (string | null | undefined)[]): Place {
 export function matchCity(input: string): City | null {
   const t = input.trim().toLowerCase();
   if (!t) return null;
-  for (const { alias, city } of LOOKUP) if (t.includes(alias)) return city;
+  for (const { re, city } of LOOKUP) {
+    re.lastIndex = 0;
+    if (re.test(t)) return city;
+  }
   return null;
 }

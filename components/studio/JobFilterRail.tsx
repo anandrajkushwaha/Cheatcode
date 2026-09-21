@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CANONICAL_CITIES } from "@/lib/geo/cities";
+import { useCityChoices } from "@/components/app/useCityChoices";
 
 /**
  * The filter rail.
@@ -52,6 +52,7 @@ export function JobFilterRail({ filters }: { filters: Filters }) {
   const router = useRouter();
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
+  const cityChoices = useCityChoices(filters.cities);
 
   function apply(changes: Record<string, string | null>) {
     const next = new URLSearchParams(params.toString());
@@ -98,11 +99,20 @@ export function JobFilterRail({ filters }: { filters: Filters }) {
         note={filters.remote ? "Remote roles show wherever you are." : undefined}
       >
         <div className="flex flex-wrap gap-2">
-          {CANONICAL_CITIES.map((city) => (
+          {cityChoices.shown.map((city) => (
             <Chip key={city} on={filters.cities.includes(city)} onClick={() => toggleCity(city)}>
               {city}
             </Chip>
           ))}
+          {(cityChoices.expanded || cityChoices.remaining > 0) && (
+            <button
+              type="button"
+              onClick={cityChoices.toggle}
+              className="rounded-full px-3 py-1.5 text-[0.8rem] text-ink-50 underline underline-offset-4 transition-colors hover:text-ink"
+            >
+              {cityChoices.expanded ? "Fewer cities" : `+${cityChoices.remaining} more cities`}
+            </button>
+          )}
         </div>
       </Group>
 

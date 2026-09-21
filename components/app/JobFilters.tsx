@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CANONICAL_CITIES } from "@/lib/geo/cities";
+import { useCityChoices } from "@/components/app/useCityChoices";
 
 /**
  * Search and filters, Naukri's shape: one query box, then chips.
@@ -47,6 +47,7 @@ export function JobFilters({
   }
 
   const cities = defaults.cities;
+  const cityChoices = useCityChoices(cities);
   const toggleCity = (city: string) => {
     const next = cities.includes(city) ? cities.filter((c) => c !== city) : [...cities, city];
     apply({ cities: next.join(",") || null });
@@ -69,7 +70,7 @@ export function JobFilters({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {CANONICAL_CITIES.map((city) => {
+        {cityChoices.shown.map((city) => {
           const on = cities.includes(city);
           return (
             <button
@@ -87,6 +88,15 @@ export function JobFilters({
             </button>
           );
         })}
+        {(cityChoices.expanded || cityChoices.remaining > 0) && (
+          <button
+            type="button"
+            onClick={cityChoices.toggle}
+            className="rounded-full px-3 py-1.5 text-[0.8rem] text-ink-50 underline underline-offset-4 transition-colors hover:text-ink"
+          >
+            {cityChoices.expanded ? "Fewer cities" : `+${cityChoices.remaining} more cities`}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

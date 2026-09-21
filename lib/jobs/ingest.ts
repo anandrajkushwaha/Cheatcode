@@ -62,11 +62,20 @@ const JSEARCH_PER_RUN = Math.max(
 );
 
 /**
- * How long an aggregated job survives without being seen again. Six weeks is
- * past the point where an Indian posting is usually still live, and well past
- * the rotation gap between two runs of the same query.
+ * How long an aggregated job survives without being seen again.
+ *
+ * Was six weeks, which was chosen to be safely past the rotation gap between
+ * two runs of the same query and turned out to be safely past the point where
+ * anybody would want to see the posting. Most Indian listings are filled or
+ * closed well inside a month, and a feed carrying six-week-old rows reads as a
+ * dead board even when the fresh rows above them are good.
+ *
+ * Three weeks still clears the rotation gap with room to spare: with 30 saved
+ * searches at JSEARCH_PER_RUN a night, each one comes round about every five
+ * days, so a job that is still live gets re-seen four times over before this
+ * cut-off can reach it.
  */
-const STALE_SEARCH_DAYS = 45;
+const STALE_SEARCH_DAYS = 21;
 
 export async function runIngest(
   db: SupabaseClient,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 import type { Profile } from "@/lib/app/account";
-import { CANONICAL_CITIES } from "@/lib/geo/cities";
+import { useCityChoices } from "@/components/app/useCityChoices";
 
 
 /**
@@ -34,6 +34,7 @@ export function ProfileForm({
     preferred_cities: profile.preferred_cities ?? [],
     open_to_remote: profile.open_to_remote,
   });
+  const cityChoices = useCityChoices(form.preferred_cities);
   const [rolesText, setRolesText] = useState((profile.target_roles ?? []).join(", "));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -171,7 +172,7 @@ export function ProfileForm({
         <div>
           <span className={label}>Cities you would work in</span>
           <div className="mt-2 flex flex-wrap gap-2">
-            {CANONICAL_CITIES.map((c) => (
+            {cityChoices.shown.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -185,6 +186,15 @@ export function ProfileForm({
                 {c}
               </button>
             ))}
+            {(cityChoices.expanded || cityChoices.remaining > 0) && (
+              <button
+                type="button"
+                onClick={cityChoices.toggle}
+                className="rounded-full px-3 py-1.5 text-[0.8rem] text-ink-50 underline underline-offset-4 transition-colors hover:text-ink"
+              >
+                {cityChoices.expanded ? "Fewer cities" : `+${cityChoices.remaining} more cities`}
+              </button>
+            )}
           </div>
           <label className="mt-4 flex items-center gap-2.5 text-[0.88rem]">
             <input
