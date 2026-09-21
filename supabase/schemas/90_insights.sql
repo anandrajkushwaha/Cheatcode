@@ -33,8 +33,8 @@ create table if not exists public.insights (
   id            uuid primary key default gen_random_uuid(),
   title         text not null check (char_length(title) between 5 and 160),
   summary       text not null check (char_length(summary) between 40 and 700),
-  -- trend: what the market is doing. guide: a rule, policy or date the
-  -- reader may need to act on.
+  -- trend: what the market is doing. guide: shown as "Tips" — a rule, date or
+  -- practical tip the reader can act on. The stored value stays 'guide'.
   category      text not null check (category in ('trend', 'guide')),
   source_name   text not null,
   source_url    text not null unique,

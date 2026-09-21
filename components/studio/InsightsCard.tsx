@@ -6,7 +6,7 @@ import type { Insight } from "@/lib/insights/query";
 
 /**
  * The Insights panel in the home screen's right rail, as designed: a serif
- * heading, All / Trend / Guide, and the three newest items for that tab.
+ * heading, All / Trend / Tips, and the three newest items for that tab.
  *
  * Every item opens the reader at that story; "View all" opens it at the top.
  * The tabs only filter what is already here — switching them is instant and
@@ -19,7 +19,7 @@ const SERIF = "'Playfair Display', Georgia, 'Times New Roman', serif";
 const TABS = [
   { key: "all", label: "All" },
   { key: "trend", label: "Trend" },
-  { key: "guide", label: "Guide" },
+  { key: "guide", label: "Tips" },
 ] as const;
 
 export function InsightsCard({ items }: { items: Insight[] }) {

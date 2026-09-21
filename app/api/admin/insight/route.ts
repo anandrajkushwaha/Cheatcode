@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     return bad(`The description is ${words(summary)} words. Insights are ${MAX_WORDS} words at most.`);
   }
   if (summary.length > 700) return bad("The description is too long.");
-  if (body.category !== "trend" && body.category !== "guide") return bad("Pick Trend or Guide.");
+  if (body.category !== "trend" && body.category !== "guide") return bad("Pick Trend or Tips.");
   if (imageUrl && !httpUrl(imageUrl)) return bad("The image link must start with https://");
   if (sourceUrl && !httpUrl(sourceUrl)) return bad("The source link must start with https://");
 

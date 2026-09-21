@@ -23,7 +23,7 @@ const SERIF = "'Playfair Display', Georgia, 'Times New Roman', serif";
 const TABS = [
   { key: "all", label: "All" },
   { key: "trend", label: "Trend" },
-  { key: "guide", label: "Guide" },
+  { key: "guide", label: "Tips" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
@@ -193,7 +193,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
                         i.category === "guide" ? "bg-[#e8efff] text-[#1f5bff]" : "bg-[#fff1dc] text-[#b35f00]"
                       }`}
                     >
-                      {i.category === "guide" ? "Guide" : "Trend"}
+                      {i.category === "guide" ? "Tips" : "Trend"}
                     </span>
                     {fresh && (
                       <span className="rounded-full bg-[#16162a] px-2 py-0.5 font-medium text-white">New</span>

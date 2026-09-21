@@ -156,12 +156,12 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
                         draft.category === c ? "bg-[#16162a] text-white" : "text-ink-50"
                       }`}
                     >
-                      {c === "trend" ? "Trend" : "Guide"}
+                      {c === "trend" ? "Trend" : "Tips"}
                     </button>
                   ))}
                 </div>
                 <p className="mt-1.5 text-[0.74rem] text-ink-30">
-                  Guide: a rule, deadline or change people may need to act on. Trend: everything else.
+                  Tips: something the reader can act on — a rule, a deadline, a change to PF or tax, or a practical career tip. Trend: what the job market is doing.
                 </p>
               </div>
 
@@ -301,7 +301,7 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
                         draft.category === "guide" ? "bg-[#e8efff] text-[#1f5bff]" : "bg-[#fff1dc] text-[#b35f00]"
                       }`}
                     >
-                      {draft.category === "guide" ? "Guide" : "Trend"}
+                      {draft.category === "guide" ? "Tips" : "Trend"}
                     </span>
                     <p className="mt-3 text-[1.05rem] font-semibold leading-snug">
                       {draft.title || "Your title"}
@@ -344,7 +344,7 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
                   <p className="text-[0.9rem] font-medium">{i.title}</p>
                   <p className="mt-1 line-clamp-2 text-[0.78rem] text-ink-50">{i.summary}</p>
                   <p className="mt-1.5 text-[0.72rem] text-ink-30">
-                    {i.category === "guide" ? "Guide" : "Trend"} ·{" "}
+                    {i.category === "guide" ? "Tips" : "Trend"} ·{" "}
                     {new Date(i.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                     {i.authorName ? ` · ${i.authorName}` : ""}
                     {i.published ? "" : " · Draft"}
