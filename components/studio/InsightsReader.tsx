@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Insight } from "@/lib/insights/query";
 import { ago } from "@/lib/insights/time";
+import { InsightShare } from "@/components/studio/InsightShare";
 
 /**
  * Inshorts, for careers.
@@ -33,7 +34,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
   const [tab, setTab] = useState<Tab>("all");
   const [index, setIndex] = useState(0);
   const [seenBefore, setSeenBefore] = useState<number | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<Insight | null>(null);
   const frame = useRef<HTMLDivElement>(null);
 
   const shown = useMemo(
@@ -102,20 +103,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
     frame.current?.scrollTo({ top: 0 });
   }
 
-  async function share(i: Insight) {
-    const text = `${i.title}\n\n${i.summary}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: i.title, text, ...(i.sourceUrl ? { url: i.sourceUrl } : {}) });
-        return;
-      }
-      await navigator.clipboard.writeText(i.sourceUrl ? `${text}\n\n${i.sourceUrl}` : text);
-      setCopied(i.id);
-      setTimeout(() => setCopied(null), 1800);
-    } catch {
-      /* Dismissed or blocked — nothing to do. */
-    }
-  }
+
 
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-3">
@@ -223,10 +211,10 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
                       )}
                       <button
                         type="button"
-                        onClick={() => share(i)}
-                        className="shrink-0 rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
+                        onClick={() => setSharing(i)}
+                        className="shrink-0 rounded-full bg-[#16162a] px-4 py-1.5 text-[0.8rem] font-medium text-white transition-opacity hover:opacity-90"
                       >
-                        {copied === i.id ? "Copied" : "Share"}
+                        Share
                       </button>
                     </div>
 
@@ -265,6 +253,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
           </div>
         </div>
       )}
+      {sharing && <InsightShare item={sharing} onClose={() => setSharing(null)} />}
     </div>
   );
 }

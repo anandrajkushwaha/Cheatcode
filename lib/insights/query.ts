@@ -99,3 +99,19 @@ export async function getAllInsights(): Promise<
     })),
   };
 }
+
+/** One published insight, for the public share page and its card image. */
+export async function getInsight(id: string): Promise<Insight | null> {
+  // Only a uuid ever reaches the database; anything else is simply not found.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  const db = createAppAdminClient();
+  if (!db) return null;
+  const { data, error } = await db
+    .from("insights")
+    .select(COLS)
+    .eq("id", id)
+    .eq("is_published", true)
+    .maybeSingle();
+  if (error || !data) return null;
+  return toInsight(data as Row);
+}
