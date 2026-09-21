@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { OrbMark } from "@/components/studio/OrbMark";
 import { ProReveal } from "@/components/studio/ProReveal";
+import { ClickToUpgrade } from "@/components/studio/ClickToUpgrade";
 import { ALL_PERKS, PRO_PRICE_LABEL } from "@/lib/studio/plan";
 
 /**
@@ -61,6 +62,7 @@ export function ProBlock({
   if (paid) return null;
 
   return (
+    <ClickToUpgrade href="/app/upgrade?from=studio-home">
     <section className="relative isolate overflow-hidden rounded-2xl bg-[#161616]">
       <div
         aria-hidden
@@ -187,6 +189,7 @@ export function ProBlock({
       </div>
       </ProReveal>
     </section>
+    </ClickToUpgrade>
   );
 }
 

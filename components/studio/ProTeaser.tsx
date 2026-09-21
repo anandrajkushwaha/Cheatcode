@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PRO_PRICE_PER_MONTH } from "@/lib/studio/plan";
+import { ClickToUpgrade } from "@/components/studio/ClickToUpgrade";
 
 /**
  * The Pro banner, where a free account meets a paid feature.
@@ -44,16 +45,14 @@ export function ProTeaser({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
+    <ClickToUpgrade href={`/app/upgrade?from=${from}`}>
     <div
       className="overflow-hidden rounded-[20px] border border-[#c8822f]/50 bg-black bg-[length:100%_100%] bg-no-repeat text-white"
       style={{ backgroundImage: "url('/pro-bg.png')" }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-5 p-6 text-left sm:p-7"
-      >
+      {/* The whole card goes to the upgrade page; only the round chevron
+          opens the list in place. */}
+      <div className="flex w-full items-center justify-between gap-5 p-6 text-left sm:p-7">
         <span className="min-w-0">
           <span className="flex items-center gap-2 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-[#fdaa29]">
             <LockIcon />
@@ -67,7 +66,13 @@ export function ProTeaser({
           </span>
         </span>
 
-        <span className="grid size-9 shrink-0 place-items-center rounded-full border border-white/20 text-white/70 transition-colors hover:border-white/50 hover:text-white">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? "Show less" : "See what you get"}
+          className="grid size-9 shrink-0 place-items-center rounded-full border border-white/20 text-white/70 transition-colors hover:border-white/50 hover:text-white"
+        >
           <svg
             viewBox="0 0 24 24"
             aria-hidden
@@ -80,8 +85,8 @@ export function ProTeaser({
           >
             <path d="m6 9 6 6 6-6" />
           </svg>
-        </span>
-      </button>
+        </button>
+      </div>
 
       {/* A grid-rows transition rather than max-height: it animates to the
           content's real height, so a three-line list and a one-line list both
@@ -131,6 +136,7 @@ export function ProTeaser({
         </div>
       </div>
     </div>
+    </ClickToUpgrade>
   );
 }
 

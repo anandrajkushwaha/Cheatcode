@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PRO_PERKS, PRO_PRICE_PER_MONTH } from "@/lib/studio/plan";
+import { ClickToUpgrade } from "@/components/studio/ClickToUpgrade";
 
 /**
  * What a free account sees when it tries to actually use the agent.
@@ -31,6 +32,7 @@ export function AgentPaywall({
 }) {
   return (
     <div className="absolute inset-0 z-40 grid place-items-center bg-paper/80 px-4 backdrop-blur-md">
+      <ClickToUpgrade href="/app/upgrade?from=agent-overlay" className="w-full max-w-[460px]">
       <div
         role="dialog"
         aria-modal="true"
@@ -88,6 +90,7 @@ export function AgentPaywall({
           ₹{PRO_PRICE_PER_MONTH} a month · cancel any time
         </p>
       </div>
+      </ClickToUpgrade>
     </div>
   );
 }

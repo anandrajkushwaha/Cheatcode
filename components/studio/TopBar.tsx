@@ -15,6 +15,10 @@ import { Avatar } from "@/components/studio/Avatar";
  */
 
 export const STUDIO_NAV = [
+  // Same page as the wordmark. Two ways to the same place is deliberate: the
+  // logo is where people who know the convention click, the tab is for
+  // everybody else.
+  { href: "/app", label: "Home" },
   { href: "/app/jobs", label: "Jobs" },
   { href: "/app/interviews", label: "Mock Interviews" },
   { href: "/app/resume", label: "Resume" },
@@ -48,7 +52,10 @@ export function TopBar({
           className="flex min-w-0 items-center justify-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {STUDIO_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            // Home is exact: every screen lives under /app, so a prefix match
+            // would light it up everywhere.
+            const active =
+              item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
