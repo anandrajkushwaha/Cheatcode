@@ -1,3 +1,4 @@
+import { classify, DIRECT, type Touch } from "@/lib/analytics/attribution";
 /**
  * The complete event taxonomy. Every event the site fires is listed here —
  * if it isn't in this file it isn't tracked, and nothing fires an ad-hoc
@@ -227,6 +228,56 @@ function ga(...args: unknown[]) {
   if (q.length < 50) q.push(args);
 }
 
+/**
+ * Where this visit came from, decided once per browser session.
+ *
+ * Every page view carries the session's source, not its own referrer: the
+ * second page of a visit that started from an Instagram ad has our own site
+ * as its referrer, and used to be filed as "direct" — so paid traffic was
+ * undercounted by however many pages each person read.
+ *
+ * The first source ever seen is also kept for 90 days in a cc_ft cookie, so
+ * that when somebody signs up — today or next week — their account records
+ * what first brought them (read in the /app layout).
+ */
+function sessionTouch(): Touch {
+  try {
+    const saved = sessionStorage.getItem("cc_attr");
+    if (saved) return JSON.parse(saved) as Touch;
+  } catch {
+    /* storage blocked — decide fresh each time */
+  }
+  let refHost: string | null = null;
+  try {
+    refHost = document.referrer ? new URL(document.referrer).hostname : null;
+  } catch {
+    refHost = null;
+  }
+  const touch = classify(window.location.search, refHost) ?? DIRECT;
+  try {
+    sessionStorage.setItem("cc_attr", JSON.stringify(touch));
+  } catch {
+    /* fine */
+  }
+  try {
+    if (!document.cookie.split("; ").some((c) => c.startsWith("cc_ft="))) {
+      const ft = JSON.stringify({
+        s: touch.source,
+        m: touch.medium,
+        c: touch.campaign,
+        l: window.location.pathname.slice(0, 120),
+        t: new Date().toISOString(),
+      });
+      document.cookie = `cc_ft=${encodeURIComponent(ft)}; Max-Age=${90 * 86400}; Path=/; SameSite=Lax${
+        location.protocol === "https:" ? "; Secure" : ""
+      }`;
+    }
+  } catch {
+    /* fine */
+  }
+  return touch;
+}
+
 export function trackPageView(path: string) {
   if (typeof window === "undefined" || window.__ccBot) return;
   if (path.startsWith("/admin") || isAdminSurface() || isOwner()) return;
@@ -247,6 +298,7 @@ export function trackPageView(path: string) {
       body: JSON.stringify({
         kind: "pageview",
         path,
+        attr: sessionTouch(),
         referrer: document.referrer || "",
         sessionId: sessionId(),
         visitorId: visitorId(),

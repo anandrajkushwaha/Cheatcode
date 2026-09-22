@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 
@@ -19,6 +19,43 @@ export function SignInForm({ next }: { next: string }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inApp, setInApp] = useState<null | { app: string; android: boolean }>(null);
+  const [copied, setCopied] = useState(false);
+
+  /*
+   * Instagram, Facebook and other apps open links in their own browser, and
+   * Google refuses to sign anybody in there ("disallowed_useragent"). People
+   * arriving from a Meta ad land exactly there, press "Continue with Google",
+   * get an error page from Google, and leave — never becoming an account, so
+   * they never showed up in the admin either. So in those browsers the phone
+   * number is offered first, and there is a way out to the real browser.
+   */
+  useEffect(() => {
+    const ua = navigator.userAgent || "";
+    const app = /Instagram/i.test(ua)
+      ? "Instagram"
+      : /FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)
+        ? "Facebook"
+        : /LinkedInApp/i.test(ua)
+          ? "LinkedIn"
+          : /Snapchat/i.test(ua)
+            ? "Snapchat"
+            : /\bLine\//i.test(ua)
+              ? "LINE"
+              : null;
+    if (app) setInApp({ app, android: /Android/i.test(ua) });
+  }, []);
+
+  function openInBrowser() {
+    const url = window.location.href;
+    if (inApp?.android) {
+      // Chrome on Android honours an intent: link from inside the app.
+      window.location.href = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+      return;
+    }
+    // iOS has no way to force it; copy the link and say where to paste it.
+    void navigator.clipboard?.writeText(url).then(() => setCopied(true)).catch(() => setCopied(true));
+  }
 
   // Supabase wants E.164. Indians type "98765 43210", so accept that and add +91.
   const e164 = (() => {
@@ -106,7 +143,36 @@ export function SignInForm({ next }: { next: string }) {
         </p>
       )}
 
-      {mode === "choose" && (
+      {mode === "choose" && inApp && (
+        <div className="mt-7 space-y-3">
+          <p className="rounded-xl bg-ink-04 p-3.5 text-[0.84rem] leading-relaxed text-ink-70">
+            You&apos;re in {inApp.app}&apos;s browser, where Google sign-in doesn&apos;t work. Use your
+            mobile number, or open this page in {inApp.android ? "Chrome" : "Safari or Chrome"}.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setMode("phone"); setError(null); }}
+            disabled={busy}
+            className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
+          >
+            Continue with mobile number
+          </button>
+          <button
+            type="button"
+            onClick={openInBrowser}
+            className="w-full rounded-full border border-ink-15 px-5 py-3 text-[0.92rem] text-ink-70"
+          >
+            {inApp.android ? "Open in Chrome" : copied ? "Link copied — paste it in Safari" : "Copy link to open in Safari"}
+          </button>
+          {!inApp.android && (
+            <p className="text-center text-[0.76rem] text-ink-30">
+              Or tap ••• at the top and choose &ldquo;Open in browser&rdquo;.
+            </p>
+          )}
+        </div>
+      )}
+
+      {mode === "choose" && !inApp && (
         <div className="mt-7 space-y-3">
           <button
             type="button"

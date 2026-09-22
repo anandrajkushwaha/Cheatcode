@@ -57,7 +57,7 @@ export const SECTIONS: readonly Section[] = [
     key: "dashboard",
     label: "Dashboard",
     detail: "Traffic, usage and what the AI is costing. Read only.",
-    pages: ["/admin"],
+    pages: ["/admin", "/admin/traffic"],
     apis: [],
   },
   {
@@ -90,7 +90,12 @@ export function homeFor(sections: readonly string[]): string {
 }
 
 function underAny(pathname: string, bases: readonly string[]): boolean {
-  return bases.some((base) => pathname === base || pathname.startsWith(`${base}/`));
+  // "/admin" is the Dashboard's page and matches only itself. As a prefix it
+  // would match every admin screen, and whoever held Dashboard could open
+  // Team, Settings and People by typing the URL.
+  return bases.some(
+    (base) => pathname === base || (base !== "/admin" && pathname.startsWith(`${base}/`)),
+  );
 }
 
 export function canOpenPage(

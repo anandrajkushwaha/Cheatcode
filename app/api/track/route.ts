@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
+import { sanitizeTouch } from "@/lib/analytics/attribution";
 import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin/auth";
 import { detectBot } from "@/lib/analytics/bot-server";
 import { OWNER_COOKIE, isExcludedIp } from "@/lib/analytics/owner";
@@ -90,6 +91,7 @@ type Body = {
   value?: number;
   params?: Record<string, unknown>;
   referrer?: string;
+  attr?: unknown;
   sessionId?: string;
   visitorId?: string;
   botReason?: string | null;
@@ -145,7 +147,10 @@ export async function POST(request: Request) {
   }
   const src = sourceOf(referrerHost);
   if (src === "internal") referrerHost = null;
-  const source = src === "internal" ? "direct" : src;
+  // The browser sends the session's source (lib/analytics/attribution.ts);
+  // the referrer is the fallback for an older client.
+  const touch = sanitizeTouch(body.attr);
+  const source = touch?.source ?? (src === "internal" ? "direct" : src);
 
   const ua = request.headers.get("user-agent") ?? "";
   const device = deviceOf(request, ua);
@@ -215,7 +220,7 @@ export async function POST(request: Request) {
   }
 
   // ---------------------------------------------------------------- page view
-  await supabase.from("page_views").insert({
+  const row = {
     path,
     referrer: referrer || null,
     referrer_host: referrerHost,
@@ -230,7 +235,13 @@ export async function POST(request: Request) {
     visitor_id: visitorId,
     is_bot: isBot,
     bot_reason: reason,
-  });
+  };
+  const withCampaign = { ...row, medium: touch?.medium ?? null, campaign: touch?.campaign ?? null };
+  const first = await supabase.from("page_views").insert(withCampaign);
+  // Before 91_attribution.sql the two columns do not exist; keep counting.
+  if (first.error && /medium|campaign/.test(first.error.message)) {
+    await supabase.from("page_views").insert(row);
+  }
 
   return ok();
 }

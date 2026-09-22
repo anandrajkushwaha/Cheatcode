@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { after } from "next/server";
+import { recordSignupSource } from "@/lib/app/signup-source";
 import type { Metadata } from "next";
 import { TopBar } from "@/components/studio/TopBar";
 import { getSessionUser } from "@/lib/supabase/app";
@@ -31,12 +34,26 @@ export default async function StudioLayout({
 }: {
   children: React.ReactNode;
 }) {
-  if (!appAuthConfigured) redirect("/app");
+  // Not a redirect: this layout *is* /app, so redirecting here looped forever.
+  if (!appAuthConfigured) {
+    return (
+      <main className="grid min-h-dvh place-items-center p-8 text-center text-[0.9rem] text-ink-50">
+        Accounts aren&apos;t configured on this deployment yet.
+      </main>
+    );
+  }
 
   const user = await getSessionUser();
   if (!user) redirect("/signin?next=/app");
 
   const profile = await getProfile();
+
+  // What first brought this person here, copied onto their account once —
+  // after the response, so it never slows a page.
+  if (profile && !(profile as { signup_source?: string | null }).signup_source) {
+    const ft = (await cookies()).get("cc_ft")?.value;
+    if (ft) after(() => recordSignupSource(user.id, ft));
+  }
 
   // overflow-x-clip, not hidden: clip does not create a scroll container, so
   // sticky headers inside still stick. It is here so a full-bleed band (the

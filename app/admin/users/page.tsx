@@ -39,7 +39,15 @@ export default async function AdminPeople() {
     );
   }
 
-  const { rows, total, last7, paid, truncated } = people.data;
+  const { rows, total, last7, paid, truncated, repaired } = people.data;
+
+  // Where accounts came from, over everybody listed.
+  const bySource = new Map<string, number>();
+  for (const r of rows) {
+    const k = r.source ?? "not recorded";
+    bySource.set(k, (bySource.get(k) ?? 0) + 1);
+  }
+  const sources = [...bySource.entries()].sort((a, b) => b[1] - a[1]);
 
   return (
     <>
@@ -57,6 +65,30 @@ export default async function AdminPeople() {
         <Stat label="On a paid plan" value={paid} hint={total ? `${((paid / total) * 100).toFixed(1)}% of accounts` : undefined} />
       </div>
 
+      {repaired > 0 && (
+        <p className="mt-4 rounded-xl border border-ink-15 px-4 py-3 text-[0.82rem] text-ink-50">
+          {repaired} {repaired === 1 ? "person had" : "people had"} signed in without an account row
+          and were missing from this list. They have been added.
+        </p>
+      )}
+
+      {sources.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-ink-08 p-6">
+          <p className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">Where accounts came from</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {sources.map(([s, n]) => (
+              <span key={s} className="rounded-full border border-ink-15 px-3 py-1 text-[0.8rem]">
+                {s} <span className="tabular-nums text-ink-50">· {n}</span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-[0.74rem] text-ink-30">
+            Recorded from the first visit, when somebody first opens the app after signing in.
+            &ldquo;not recorded&rdquo; is everyone from before this was switched on.
+          </p>
+        </div>
+      )}
+
       <div className="mt-6 rounded-2xl border border-ink-08 p-6">
         {!rows.length ? (
           <Empty>Nobody has signed in yet.</Empty>
@@ -68,6 +100,7 @@ export default async function AdminPeople() {
                   <th className="px-2 pb-2 font-medium">Person</th>
                   <th className="px-2 pb-2 font-medium">Contact</th>
                   <th className="px-2 pb-2 font-medium">Joined</th>
+                  <th className="px-2 pb-2 font-medium">Came from</th>
                   <th className="px-2 pb-2 text-right font-medium">Résumés</th>
                   <th className="px-2 pb-2 text-right font-medium">Downloads</th>
                   <th className="px-2 pb-2 font-medium">Plan</th>
@@ -92,6 +125,12 @@ export default async function AdminPeople() {
                       <span className="block truncate">{p.email ?? p.phone ?? "—"}</span>
                     </td>
                     <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">{day(p.joinedAt)}</td>
+                    <td className="max-w-[12rem] px-2 py-2.5 text-ink-50">
+                      <span className="block truncate" title={p.campaign ?? undefined}>
+                        {p.source ?? "—"}
+                        {p.campaign ? ` · ${p.campaign}` : ""}
+                      </span>
+                    </td>
                     <td className="px-2 py-2.5 text-right text-ink-50">{num(p.drafts)}</td>
                     <td className="px-2 py-2.5 text-right font-medium">{num(p.downloads)}</td>
                     <td className="px-2 py-2.5">
