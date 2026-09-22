@@ -83,6 +83,9 @@ export function GoogleAnalytics() {
             send_page_view: false,
             anonymize_ip: true
           });
+          // Replay what was sent before this script arrived — above all the
+          // landing page view, which carries the ad's utm / gclid / fbclid.
+          (window.__gaQueue || []).splice(0).forEach(function (a) { gtag.apply(null, a); });
         `}
       </Script>
     </>

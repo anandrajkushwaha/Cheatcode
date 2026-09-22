@@ -61,6 +61,8 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
     dataLayer?: unknown[];
+    /** Hits made before gtag loaded; flushed by components/GoogleAnalytics. */
+    __gaQueue?: unknown[][];
     __ccBot?: string | null;
   }
 }
@@ -166,7 +168,7 @@ export function track(event: EventName, params: EventParams = {}) {
   if (isAdminSurface() || isOwner()) return;
 
   try {
-    window.gtag?.("event", event, params);
+    ga("event", event, params);
   } catch {
     /* GA blocked by an extension — our own tracking still runs */
   }
@@ -201,11 +203,35 @@ export function track(event: EventName, params: EventParams = {}) {
   }
 }
 
+/**
+ * Send to GA4 now, or as soon as it has loaded.
+ *
+ * gtag is loaded after the automation check, a moment after the page mounts —
+ * and the first page view fires on mount. With `window.gtag?.(...)` that
+ * first hit simply vanished. The first page view is the one that carries the
+ * landing URL, and with it utm_source / gclid / fbclid, so losing it meant GA
+ * could not tell an ad click from someone typing the address: every paid
+ * visit showed up as (direct) / (none), and the landing page as (not set).
+ *
+ * Now anything sent early waits in a small queue and GoogleAnalytics replays
+ * it straight after `config`. The URL is captured at the moment of the call,
+ * so the replayed page view still carries the ad's parameters. If GA never
+ * loads (a bot, the owner, an ad blocker) the queue just sits there, capped.
+ */
+function ga(...args: unknown[]) {
+  if (window.gtag) {
+    window.gtag(...args);
+    return;
+  }
+  const q = (window.__gaQueue ??= []);
+  if (q.length < 50) q.push(args);
+}
+
 export function trackPageView(path: string) {
   if (typeof window === "undefined" || window.__ccBot) return;
   if (path.startsWith("/admin") || isAdminSurface() || isOwner()) return;
   try {
-    window.gtag?.("event", "page_view", {
+    ga("event", "page_view", {
       page_path: path,
       page_location: window.location.href,
       page_title: document.title,
