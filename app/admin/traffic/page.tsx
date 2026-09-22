@@ -19,11 +19,28 @@ export default async function AdminTraffic({
   const result = await getTraffic(range);
 
   if (!result.ok) {
+    const missing = /could not find the function|does not exist|schema cache/i.test(result.error);
     return (
-      <p className="rounded-xl border border-ink-15 px-4 py-3 text-[0.82rem] text-ink-50">
-        Traffic can&apos;t be read yet: {result.error}. The rollups come from{" "}
-        <code>supabase/schemas/10_dashboard.sql</code>.
-      </p>
+      <div className="rounded-xl border border-ink-15 px-5 py-4 text-[0.85rem] leading-relaxed text-ink-50">
+        {missing ? (
+          <>
+            <p className="font-medium text-ink">One database step is left before this screen works.</p>
+            <p className="mt-2">
+              The visits are already being recorded; the functions that add them up are not installed.
+              In Supabase → SQL Editor, in the project that holds <code>page_views</code>, run these
+              files in order:
+            </p>
+            <ol className="mt-2 list-decimal pl-5">
+              <li><code>supabase/schemas/09_owner_exclusion.sql</code></li>
+              <li><code>supabase/schemas/10_dashboard.sql</code></li>
+              <li><code>supabase/schemas/91_attribution.sql</code></li>
+            </ol>
+            <p className="mt-2">Then reload this page.</p>
+          </>
+        ) : (
+          <>Traffic can&apos;t be read right now: {result.error}</>
+        )}
+      </div>
     );
   }
   const t = result.data;
