@@ -61,10 +61,13 @@ export default async function StudioResumeBuilderPage() {
       : seedDesign(draft.content, template);
 
   return (
-    // Cancels the studio shell's padding and width cap. The editor manages its
-    // own layout, and a canvas that has to share a column with a 1160px
-    // container is a canvas you cannot use.
-    <div className="relative left-1/2 -my-5 w-screen max-w-[100vw] -translate-x-1/2 sm:-my-6">
+    // No wrapper. The editor is `fixed inset-0` and covers the whole screen on
+    // its own. It used to sit inside a full-bleed div centred with
+    // `-translate-x-1/2` — and a transformed ancestor becomes the containing
+    // block for `position: fixed`, so the "full screen" editor was pinned to
+    // that zero-height div instead: toolbar and footer stacked, canvas
+    // squeezed to nothing.
+    <>
       <DesignEditor
         draftId={draft.id}
         title={draft.title}
@@ -76,6 +79,6 @@ export default async function StudioResumeBuilderPage() {
         linkRole={draft.link_role}
         ownerEmail={user?.email ?? null}
       />
-    </div>
+    </>
   );
 }
