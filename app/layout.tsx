@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { MetaPixel } from "@/components/MetaPixel";
+import { META_PIXEL_SNIPPET } from "@/lib/analytics/meta-snippet";
 import localFont from "next/font/local";
 import "./globals.css";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -55,6 +56,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-IN" className={inter.variable} data-scroll-behavior="smooth">
+      <head>
+        {/* Meta Pixel base code — in the page source, first thing in <head>. */}
+        <script id="meta-pixel" dangerouslySetInnerHTML={{ __html: META_PIXEL_SNIPPET }} />
+      </head>
       <body className="antialiased">
         <a
           href="#main"

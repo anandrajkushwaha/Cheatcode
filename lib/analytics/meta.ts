@@ -1,11 +1,10 @@
 /**
  * Meta Pixel — for measuring the Facebook and Instagram ads.
  *
- * Same rules as Google Analytics: never on the admin panel, never for our own
- * browsers (cc_owner), never for a detected bot. The pixel script is loaded
- * by components/MetaPixel.tsx after the automation check; anything tracked
- * before it arrives waits in a small queue and is replayed after `init`, so
- * the first PageView of an ad click is not lost the way GA's used to be.
+ * Never on the admin panel and never for our own browsers (cc_owner). The
+ * base code is in the page's <head> (components/MetaPixel.tsx); anything
+ * tracked before it has run waits in a small queue and is replayed after
+ * `init`. Bots are left to Meta's own filtering.
  *
  * Events, and where they fire:
  *   PageView          every page, including route changes (MetaPixel.tsx)
@@ -27,9 +26,9 @@ declare global {
   }
 }
 
+/** Same two exclusions as the snippet in components/MetaPixel.tsx. */
 function blocked(): boolean {
   if (typeof window === "undefined") return true;
-  if (window.__ccBot) return true;
   if (window.location.pathname.startsWith("/admin")) return true;
   return isOwner();
 }

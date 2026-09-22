@@ -1,50 +1,58 @@
 "use client";
 
-import Script from "next/script";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { detectAutomation } from "@/lib/analytics/bot";
-import { isOwner } from "@/lib/analytics/events";
 import { META_PIXEL_ID, metaPageView } from "@/lib/analytics/meta";
 
 /**
- * Loads the Meta Pixel on the public site and the app — not on /admin, not
- * for our own browsers, not for bots — and sends a PageView on every route
- * change. Meta's own snippet only counts the first page; in a single-page app
- * every later screen would otherwise be invisible to it.
+ * The Meta Pixel.
+ *
+ * The base code is a plain <script> in the server-rendered <head> (see
+ * app/layout.tsx and lib/analytics/meta-snippet.ts), as Meta ships it. It used to be injected only after a
+ * client-side bot check, which kept automated visits out but also meant the
+ * code was invisible in the page source and never ran for any checker —
+ * Meta's diagnostics, Pixel Helper in a scripted browser, a plain curl. Meta
+ * filters bot traffic on its side, so the snippet now loads for everyone
+ * except two cases, checked before anything is fetched:
+ *
+ *   /admin/*          the back office is never measured
+ *   cc_owner cookie   our own browsers (admin login, the exclude link, the
+ *                     analytics-excluded accounts) — so testing does not
+ *                     count as ad results
+ *
+ * The snippet sends the first PageView itself. This component sends one for
+ * every later screen, because navigation inside the app does not reload the
+ * page and Meta's code would otherwise never see it.
  */
+
 export function MetaPixel() {
   const pathname = usePathname();
-  const isAdmin = pathname?.startsWith("/admin") ?? false;
-  const [allowed, setAllowed] = useState(false);
+  const first = useRef(true);
 
   useEffect(() => {
-    if (isAdmin || isOwner() || !META_PIXEL_ID) return;
-    if (window.__ccBot ?? detectAutomation()) return;
-    setAllowed(true);
-  }, [isAdmin]);
-
-  // One PageView per screen, queued until the pixel is ready.
-  useEffect(() => {
+    // The first page's PageView was sent by the snippet in <head>.
+    if (first.current) {
+      first.current = false;
+      return;
+    }
     if (!pathname || pathname.startsWith("/admin")) return;
     metaPageView();
   }, [pathname]);
 
-  if (isAdmin || !allowed || !META_PIXEL_ID) return null;
+  if (!META_PIXEL_ID) return null;
 
   return (
-    <Script id="meta-pixel" strategy="afterInteractive">
-      {`
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
-        document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '${META_PIXEL_ID}');
-        // Replay whatever was tracked before this ran — including the first
-        // PageView, which the queue already holds.
-        (window.__metaQueue || []).splice(0).forEach(function (a) { fbq.apply(null, a); });
-      `}
-    </Script>
+    <>
+      <noscript>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          height="1"
+          width="1"
+          style={{ display: "none" }}
+          alt=""
+          src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
+        />
+      </noscript>
+    </>
   );
 }
