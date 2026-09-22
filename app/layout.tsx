@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { MetaPixel } from "@/components/MetaPixel";
 import localFont from "next/font/local";
 import "./globals.css";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -63,6 +64,7 @@ export default function RootLayout({
         </a>
         {children}
         <GoogleAnalytics />
+        <MetaPixel />
         <Suspense fallback={null}>
           <Analytics />
         </Suspense>

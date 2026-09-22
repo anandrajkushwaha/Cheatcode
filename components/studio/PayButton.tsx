@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { metaTrack } from "@/lib/analytics/meta";
 
 /**
  * The button that opens Razorpay.
@@ -134,6 +135,10 @@ export function PayButton({
       return;
     }
 
+    // The payment window is about to open: somebody has started to buy.
+    metaTrack("InitiateCheckout", { value: 99, currency: "INR" }, `checkout-${data.subscriptionId}`);
+    const subscriptionId = data.subscriptionId;
+
     const rzp = new window.Razorpay({
       key: data.keyId,
       subscription_id: data.subscriptionId,
@@ -146,6 +151,10 @@ export function PayButton({
       },
       theme: { color: "#161616" },
       handler: () => {
+        // Razorpay only calls this when the payment succeeded. The
+        // subscription id as the event id means a retried report is counted
+        // once. (The plan itself is still granted by the webhook.)
+        metaTrack("Purchase", { value: 99, currency: "INR" }, `purchase-${subscriptionId}`);
         setPhase("waiting");
         // The webhook is what grants the plan. These are just looks at the
         // page while it lands.

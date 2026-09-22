@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
 import { useCallback, useRef, useState } from "react";
 import { EVENTS, track } from "@/lib/analytics/events";
+import { metaTrack } from "@/lib/analytics/meta";
 import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
 import { ExtractError, extractResume } from "@/lib/tools/extract";
 
@@ -45,6 +46,8 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
 
       const result = analyseResume(facts);
       setState({ phase: "done", name: file.name, result });
+      // A finished free check is the lead the ads are optimised for.
+      metaTrack("Lead", { content_name: "resume-ats-checker" });
 
       track(EVENTS.TOOL_COMPUTE, {
         label: "resume-ats-checker",

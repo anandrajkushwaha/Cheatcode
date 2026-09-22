@@ -180,6 +180,9 @@ export default function PrivacyPage() {
         <li>
           <strong>Google Analytics cookies</strong>, described below.
         </li>
+        <li>
+          <strong>Meta Pixel cookies</strong>, described below.
+        </li>
       </ul>
 
       <h2>Google Analytics</h2>
@@ -191,6 +194,20 @@ export default function PrivacyPage() {
         sets its own cookies and processes the data on its own terms. You can
         opt out entirely with Google&apos;s browser add-on, or with any
         content blocker.
+      </p>
+
+      <h2>Meta Pixel</h2>
+      <p>
+        We advertise on Facebook and Instagram, and use the Meta Pixel to see
+        whether those ads work. It tells Meta when someone who came from an ad
+        views a page, finishes a free resume check, starts a Pro payment or
+        completes one — so Meta can count results and show our ads to people
+        likely to find Cheatcode useful. It does not receive your resume,
+        your conversations or what you type. Like Google Analytics, it is
+        never loaded on our admin pages or for automated browsers. Meta sets
+        its own cookies and processes this data under its own policies; you can
+        control ad personalisation in your Facebook or Instagram ad settings,
+        or block it with any content blocker.
       </p>
 
       <h2>Who else handles your data</h2>
@@ -214,6 +231,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Google Analytics</strong> — audience measurement, as above.
+        </li>
+        <li>
+          <strong>Meta</strong> — measuring our Facebook and Instagram ads, as above.
         </li>
         <li>
           <strong>OpenAI, Google (Gemini) and Sarvam AI</strong> — the language
