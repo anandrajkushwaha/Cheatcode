@@ -47,6 +47,8 @@ export function seedFromResume(resume: Resume | null, profile: Profile | null): 
     ...base,
     ...(p ?? {}),
     full_name: p?.full_name ?? profile?.full_name ?? null,
+    email: p?.email ?? profile?.email ?? null,
+    phone: p?.phone ?? profile?.phone ?? null,
     location: p?.location ?? profile?.preferred_cities?.[0] ?? null,
     headline: p?.headline ?? profile?.current_title ?? null,
     years_experience: p?.years_experience ?? profile?.years_experience ?? null,

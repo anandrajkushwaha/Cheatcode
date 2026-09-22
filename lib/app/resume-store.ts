@@ -4,6 +4,7 @@ import { getPrimaryResume, getProfile, type ResumeDraft } from "@/lib/app/accoun
 import { cleanResume, emptyResume, resumeIsEmpty, type Resume } from "@/lib/app/resume-schema";
 import { scoreDraft, seedFromResume } from "@/lib/app/resume-draft";
 import { templateById } from "@/lib/app/resume-templates";
+import { starterContent } from "@/lib/app/starter-content";
 import { cleanPresentation } from "@/lib/app/resume-style";
 import { cleanDesign } from "@/lib/app/design";
 
@@ -241,12 +242,15 @@ export async function createFromTemplate(userId: string, template: string): Prom
   // working on, then the uploaded resume, then nothing.
   const existing = await getDraft();
   const [resume, profile] = await Promise.all([getPrimaryResume(), getProfile()]);
-  const content =
+  const own =
     existing?.content && !resumeIsEmpty(existing.content)
       ? existing.content
       : resume || profile
         ? seedFromResume(resume, profile)
         : emptyResume();
+  // Nothing of theirs beyond a name? Open the template complete, with the
+  // gallery's sample in it for them to write over — see starter-content.ts.
+  const content = starterContent(own, template);
 
   // Scored in the template it will be rendered in, because a sidebar and a
   // plain column are not worth the same number.

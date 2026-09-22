@@ -6,6 +6,7 @@ import { BuildDraftButton } from "@/components/app/ResumeBuilderActions";
 import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 import { designIsEmpty } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
+import { designTextLength, isThin, starterContent } from "@/lib/app/starter-content";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +56,17 @@ export default async function StudioResumeBuilderPage() {
   }
 
   const template = draft.template ?? DEFAULT_TEMPLATE;
-  const design =
-    draft.design && !designIsEmpty(draft.design)
-      ? draft.design
-      : seedDesign(draft.content, template);
+  // A saved design is kept unless it is effectively empty. Drafts made before
+  // templates opened complete hold just a name and a contact line (under 200
+  // characters of text); those are re-seeded with the template's starter
+  // content so there is something to write over. Anything longer is the
+  // person's work and is left exactly as it is.
+  const hasOwnDesign =
+    draft.design && !designIsEmpty(draft.design) &&
+    !(isThin(draft.content) && designTextLength(draft.design) < 200);
+  const design = hasOwnDesign
+    ? draft.design!
+    : seedDesign(starterContent(draft.content, template), template);
 
   return (
     // No wrapper. The editor is `fixed inset-0` and covers the whole screen on
