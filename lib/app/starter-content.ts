@@ -12,9 +12,9 @@ import { sampleFor } from "@/lib/app/design-sample";
  * template arrives complete, and you replace its words with yours.
  *
  * So a thin draft is filled with the same sample résumé the gallery card
- * showed, with the person's own name and contact details put in place of the
- * sample's. What they have written is never replaced: this only applies when
- * there are no roles, no education, no projects and next to no skills.
+ * showed, exactly as the card showed it. What they have written is never
+ * replaced: this only applies when there are no roles, no education, no
+ * projects and next to no skills.
  */
 export function isThin(r: Resume): boolean {
   return (
@@ -28,16 +28,11 @@ export function isThin(r: Resume): boolean {
 
 export function starterContent(own: Resume, templateId: string): Resume {
   if (!isThin(own)) return own;
-  const sample = sampleFor(templateId);
-  return {
-    ...sample,
-    full_name: own.full_name || sample.full_name,
-    email: own.email || sample.email,
-    phone: own.phone || sample.phone,
-    location: own.location || sample.location,
-    headline: own.headline || sample.headline,
-    target_role: own.target_role || sample.target_role,
-  };
+  // The template's own sample, complete and untouched. An earlier version put
+  // the person's name and contact details into it, which read as their résumé
+  // mixed with somebody else's jobs — worse than either. The whole document is
+  // theirs to write over.
+  return sampleFor(templateId);
 }
 
 /**
