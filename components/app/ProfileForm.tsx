@@ -90,7 +90,7 @@ export function ProfileForm({
   }
 
   const field =
-    "w-full rounded-xl border border-ink-15 px-3.5 py-2.5 text-[0.92rem] outline-none focus:border-ink-30";
+    "w-full rounded-xl border border-ink-15 px-3.5 py-2.5 text-[16px] outline-none focus:border-ink-30 sm:text-[0.92rem]";
   const label = "text-[0.75rem] text-ink-50";
 
   /** Empty means "not answered", which is different from zero. */

@@ -129,7 +129,10 @@ export default async function StudioHomePage({
       {/* Insights above the featured guide, as designed. The card hides
           itself until the first morning run has written something, so the
           rail is never a panel of placeholders. */}
-      <aside className="hidden min-w-0 space-y-4 xl:block">
+      {/* A rail on a wide screen, the last block of the page on a phone —
+          where it used to be `hidden`, so most visitors never saw Insights or
+          the featured guide at all. */}
+      <aside className="order-last min-w-0 space-y-4 xl:order-none">
         <InsightsCard items={insights} />
         <FeaturedGuide post={featured} />
       </aside>

@@ -38,7 +38,7 @@ export function TopBar({
       {/* Three tracks rather than a flex row: the outer two take the leftover
           space equally, which is what puts the nav on the page's centre line
           instead of merely between the wordmark and the avatar. */}
-      <div className="mx-auto grid h-[68px] max-w-[1120px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-x-4 px-4 py-2.5 sm:h-[68px] sm:flex-nowrap sm:grid sm:grid-cols-[1fr_auto_1fr] sm:gap-4 sm:px-6 sm:py-0">
         <Link
           href="/app"
           className="justify-self-start text-[1.25rem] font-semibold tracking-[-0.04em] text-ink sm:text-[1.45rem]"
@@ -48,9 +48,12 @@ export function TopBar({
 
         {/* Scrolls sideways under its own width rather than pushing the
             wordmark off a narrow screen. */}
+        {/* On a phone this is its own full-width row under the wordmark: in
+            the middle of a three-column grid it had about 115px for six
+            links, with no sign that it scrolled. */}
         <nav
           aria-label="Studio"
-          className="flex min-w-0 items-center justify-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="order-last -mx-4 flex w-screen min-w-0 items-center gap-6 overflow-x-auto border-t border-ink-08 px-4 py-2.5 [scrollbar-width:none] sm:order-none sm:mx-0 sm:w-auto sm:justify-center sm:border-0 sm:px-0 sm:py-0 [&::-webkit-scrollbar]:hidden"
         >
           {STUDIO_NAV.map((item) => {
             // Home is exact: every screen lives under /app, so a prefix match
@@ -62,7 +65,7 @@ export function TopBar({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`whitespace-nowrap text-[0.88rem] transition-colors ${
+                className={`whitespace-nowrap py-1.5 text-[0.88rem] transition-colors ${
                   active ? "font-medium text-ink" : "text-ink-50 hover:text-ink"
                 }`}
               >

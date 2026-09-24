@@ -92,7 +92,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -100,7 +100,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
         aria-modal="true"
         aria-label="Share this insight"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[420px] overflow-hidden rounded-3xl bg-paper shadow-2xl"
+        className="max-h-[92dvh] w-full max-w-[420px] overflow-y-auto rounded-3xl bg-paper shadow-2xl"
       >
         <div className="flex items-center justify-between px-5 pt-4">
           <p className="text-[0.95rem] font-semibold">Share</p>

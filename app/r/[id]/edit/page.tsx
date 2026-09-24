@@ -42,7 +42,7 @@ export default async function SharedResumeEditPage({
   // is a missing step. Say which step.
   if (!shared.canEdit) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f4f4f5] px-5">
+      <main className="grid min-h-dvh place-items-center bg-[#f4f4f5] px-5">
         <div className="max-w-[46ch] text-center">
           <h1 className="text-xl font-semibold tracking-[-0.03em]">
             {shared.linkRole === "edit" && !viewer ? "Sign in to edit this resume" : "You can read this one"}

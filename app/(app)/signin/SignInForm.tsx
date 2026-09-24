@@ -21,6 +21,8 @@ export function SignInForm({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
   const [inApp, setInApp] = useState<null | { app: string; android: boolean }>(null);
   const [copied, setCopied] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
   /*
    * Instagram, Facebook and other apps open links in their own browser, and
@@ -46,6 +48,13 @@ export function SignInForm({ next }: { next: string }) {
     if (app) setInApp({ app, android: /Android/i.test(ua) });
   }, []);
 
+  // Counts down after a code is sent, so "Resend" cannot be hammered.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = window.setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [resendIn]);
+
   function openInBrowser() {
     const url = window.location.href;
     if (inApp?.android) {
@@ -53,8 +62,15 @@ export function SignInForm({ next }: { next: string }) {
       window.location.href = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
       return;
     }
-    // iOS has no way to force it; copy the link and say where to paste it.
-    void navigator.clipboard?.writeText(url).then(() => setCopied(true)).catch(() => setCopied(true));
+    // iOS has no way to force it, and in a WKWebView navigator.clipboard is
+    // often missing entirely — the old code called it optionally, so nothing
+    // was copied and nothing said so. Show the link to copy by hand instead.
+    const copy = navigator.clipboard?.writeText(url);
+    if (!copy) {
+      setShowLink(true);
+      return;
+    }
+    void copy.then(() => setCopied(true)).catch(() => setShowLink(true));
   }
 
   // Supabase wants E.164. Indians type "98765 43210", so accept that and add +91.
@@ -124,7 +140,7 @@ export function SignInForm({ next }: { next: string }) {
   }
 
   const field =
-    "w-full rounded-xl border border-ink-15 px-4 py-3 text-[0.95rem] outline-none focus:border-ink-30";
+    "w-full rounded-xl border border-ink-15 px-4 py-3 text-[16px] outline-none focus:border-ink-30 sm:text-[0.95rem]";
 
   return (
     <div className="w-full max-w-sm">
@@ -164,6 +180,14 @@ export function SignInForm({ next }: { next: string }) {
           >
             {inApp.android ? "Open in Chrome" : copied ? "Link copied — paste it in Safari" : "Copy link to open in Safari"}
           </button>
+          {showLink && (
+            <input
+              readOnly
+              value={typeof window === "undefined" ? "" : window.location.href}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-full rounded-xl border border-ink-15 px-3 py-2.5 text-[16px] text-ink-50"
+            />
+          )}
           {!inApp.android && (
             <p className="text-center text-[0.76rem] text-ink-30">
               Or tap ••• at the top and choose &ldquo;Open in browser&rdquo;.
@@ -231,8 +255,13 @@ export function SignInForm({ next }: { next: string }) {
 
       {mode === "otp" && (
         <div className="mt-7 space-y-3">
+          {/* type=tel + one-time-code is what makes iOS offer the SMS code
+              above the keyboard; without it everybody types six digits. */}
           <input
             autoFocus
+            type="tel"
+            name="otp"
+            autoComplete="one-time-code"
             inputMode="numeric"
             maxLength={6}
             value={code}
@@ -244,18 +273,29 @@ export function SignInForm({ next }: { next: string }) {
           <button
             type="button"
             onClick={() => void verifyCode()}
-            disabled={busy || code.length < 4}
+            disabled={busy || code.length < 6}
             className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
           >
             {busy ? "Checking…" : "Sign in"}
           </button>
-          <button
-            type="button"
-            onClick={() => { setMode("phone"); setCode(""); setError(null); }}
-            className="w-full text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink"
-          >
-            Change number
-          </button>
+          <div className="flex items-center justify-between gap-4 pt-1">
+            <button
+              type="button"
+              onClick={() => { setMode("phone"); setCode(""); setError(null); }}
+              className="text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink"
+            >
+              Change number
+            </button>
+            {/* An SMS that never arrives used to mean starting over. */}
+            <button
+              type="button"
+              disabled={busy || resendIn > 0}
+              onClick={() => void sendCode()}
+              className="text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink disabled:no-underline disabled:opacity-60"
+            >
+              {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend code"}
+            </button>
+          </div>
         </div>
       )}
 

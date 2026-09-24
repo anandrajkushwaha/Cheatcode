@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ToolsMenu } from "./ToolsMenu";
 import { AuthLinks } from "./AuthLinks";
+import { MobileLinks } from "./MobileLinks";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -76,6 +77,7 @@ export function Nav() {
           <AuthLinks location="nav" />
         </div>
       </nav>
+      <MobileLinks />
     </header>
   );
 }

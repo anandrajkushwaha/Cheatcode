@@ -54,7 +54,7 @@ export default async function SharedResumePage({
       : seedDesign(shared.content, shared.template);
 
   return (
-    <main className="min-h-screen bg-[#f4f4f5] print:bg-white">
+    <main className="min-h-dvh bg-[#f4f4f5] print:bg-white">
       <header className="no-print sticky top-0 z-10 border-b border-black/[0.07] bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[900px] items-center justify-between gap-6 px-5">
           <Link href="/" className="text-[0.9rem] font-semibold tracking-[-0.04em]">

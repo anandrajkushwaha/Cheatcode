@@ -196,9 +196,33 @@ function loose(
 type TextItem = { str: string; transform: number[]; width: number };
 type Row = { y: number; items: { x: number; end: number; str: string }[] };
 
+/**
+ * pdf.js 6 calls Promise.withResolvers, which Safari only learned in 17.4 —
+ * and every in-app browser (Instagram, Facebook) is Safari on iOS. On an
+ * older phone the library threw before it read a byte, which is why "Choose a
+ * file" ended in "something went wrong" for people arriving from an ad while
+ * the same file worked on a laptop. Defined here, before the import, rather
+ * than globally: it is pdf.js that needs it.
+ */
+function polyfillWithResolvers() {
+  const P = Promise as unknown as { withResolvers?: unknown };
+  if (typeof P.withResolvers === "function") return;
+  P.withResolvers = function <T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 async function extractPdf(file: File): Promise<ResumeFacts> {
+  polyfillWithResolvers();
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  // The shim polyfills inside the worker, then loads the real one.
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.shim.mjs";
 
   const data = new Uint8Array(await file.arrayBuffer());
 

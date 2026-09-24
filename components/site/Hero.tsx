@@ -15,7 +15,7 @@ export function Hero() {
       />
 
       <div className="container-page text-center">
-        <Reveal delay={60}>
+        <Reveal delay={60} immediate>
           <h1 className="mx-auto max-w-[15ch] text-[length:var(--text-hero)] font-semibold leading-[0.95]">
             Someone&apos;s cousin works at Google.
           </h1>
@@ -24,7 +24,7 @@ export function Hero() {
           </p>
         </Reveal>
 
-        <Reveal delay={140}>
+        <Reveal delay={140} immediate>
           <p className="mx-auto mt-8 max-w-[52ch] text-lg leading-relaxed text-ink-70 sm:text-xl">
             The people who move fast early aren&apos;t smarter. They just have
             someone to ask. Cheatcode gives you 1-on-1 time with people 5–10
@@ -33,7 +33,7 @@ export function Hero() {
           </p>
         </Reveal>
 
-        <Reveal delay={220}>
+        <Reveal delay={220} immediate>
           {/*
             This was an email box on a waitlist. The waitlist was honest while
             there was nothing to open; now there is, and asking for an address

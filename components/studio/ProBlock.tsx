@@ -139,7 +139,7 @@ export function ProBlock({
               {ALL_PERKS.map((perk) => (
                 <li key={perk.title} className={`flex items-center gap-2.5 ${ROW}`}>
                   <Sparkle className="size-3.5 shrink-0 text-[#8f9dfb]" />
-                  <span className="truncate text-[0.86rem] font-medium text-white">
+                  <span className="text-[0.78rem] font-medium leading-tight text-white sm:truncate sm:text-[0.86rem]">
                     {perk.title}
                   </span>
                 </li>

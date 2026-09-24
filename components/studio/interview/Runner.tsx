@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { InterviewQuestion } from "@/lib/interview/types";
-import { dictationSupported, startDictation } from "@/lib/interview/dictation";
+import { inAppBrowser, dictationSupported, startDictation } from "@/lib/interview/dictation";
 
 /**
  * The interview itself.
@@ -229,7 +229,7 @@ export function Runner({
               rows={8}
               maxLength={6000}
               placeholder="Answer as you would out loud. Rough is fine — it is the thinking that gets marked, not the grammar."
-              className="w-full resize-y bg-transparent p-4 text-[0.94rem] leading-relaxed outline-none placeholder:text-ink-30"
+              className="w-full resize-y bg-transparent p-4 text-[16px] leading-relaxed outline-none placeholder:text-ink-30 sm:text-[0.94rem]"
             />
 
             {/* The recogniser's current guess. Shown under the box rather than
@@ -259,7 +259,9 @@ export function Runner({
                   </button>
                 ) : (
                   <span className="px-1 text-[0.74rem] text-ink-30">
-                    Dictation needs Chrome, Edge or Safari
+                    {inAppBrowser()
+                      ? "To speak your answer, open this page in Safari or Chrome"
+                      : "Dictation needs Chrome, Edge or Safari"}
                   </span>
                 )}
               </div>

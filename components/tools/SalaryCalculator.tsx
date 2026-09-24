@@ -21,12 +21,14 @@ const STATES = Object.keys(PROFESSIONAL_TAX);
  */
 export function SalaryCalculator({ context = "public" }: { context?: ToolContext } = {}) {
   const [ctc, setCtc] = useState(800000);
+  const [ctcText, setCtcText] = useState("800000");
   const [basicPercent, setBasicPercent] = useState(45);
   const [regime, setRegime] = useState<Regime>("new");
   const [state, setState] = useState("Karnataka");
   const [capPf, setCapPf] = useState(true);
   const [gratuity, setGratuity] = useState(true);
   const [other, setOther] = useState(0);
+  const [otherText, setOtherText] = useState("0");
   const [touched, setTouched] = useState(false);
 
   const r = useMemo(
@@ -44,7 +46,7 @@ export function SalaryCalculator({ context = "public" }: { context?: ToolContext
   );
 
   const field =
-    "w-full rounded-xl border border-ink-15 bg-paper px-4 py-3 text-[0.95rem] outline-none focus:border-ink";
+    "w-full rounded-xl border border-ink-15 bg-paper px-4 py-3 text-[16px] outline-none focus:border-ink sm:text-[0.95rem]";
   const label = "block text-[0.78rem] font-medium uppercase tracking-wider text-ink-30";
 
   return (
@@ -55,14 +57,19 @@ export function SalaryCalculator({ context = "public" }: { context?: ToolContext
           <label htmlFor="ctc" className={label}>
             Annual CTC
           </label>
+          {/* The raw text is what is shown, so the field can be emptied and
+              retyped. It used to hold a number, and Number("") is 0 — so
+              clearing it snapped to 0 and you had to delete six digits before
+              typing a new figure on a phone. */}
           <input
             id="ctc"
-            type="number"
-            min={0}
-            step={10000}
-            value={ctc}
+            type="text"
+            inputMode="numeric"
+            value={ctcText}
             onChange={(e) => {
-              setCtc(Number(e.target.value));
+              const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 9);
+              setCtcText(raw);
+              setCtc(raw === "" ? 0 : Number(raw));
               setTouched(true);
             }}
             className={`${field} mt-2`}
@@ -74,6 +81,7 @@ export function SalaryCalculator({ context = "public" }: { context?: ToolContext
                 type="button"
                 onClick={() => {
                   setCtc(v);
+                  setCtcText(String(v));
                   setTouched(true);
                 }}
                 className={`rounded-full px-3 py-1.5 text-[0.78rem] transition-colors ${
@@ -155,12 +163,13 @@ export function SalaryCalculator({ context = "public" }: { context?: ToolContext
           </label>
           <input
             id="other"
-            type="number"
-            min={0}
-            step={100}
-            value={other}
+            type="text"
+            inputMode="numeric"
+            value={otherText}
             onChange={(e) => {
-              setOther(Number(e.target.value));
+              const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 7);
+              setOtherText(raw);
+              setOther(raw === "" ? 0 : Number(raw));
               setTouched(true);
             }}
             className={`${field} mt-2`}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DesignCanvas } from "@/components/app/DesignCanvas";
-import { DesignStyles } from "@/components/app/DesignPage";
+import { DesignPage, DesignStyles } from "@/components/app/DesignPage";
 import { DesignToolbar } from "@/components/app/DesignToolbar";
 import { LeftRail, SidePanel, type PanelId } from "@/components/app/DesignPanels";
 import { ShareDialog } from "@/components/app/ShareDialog";
@@ -78,6 +78,41 @@ export function DesignEditor({
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.72);
   const [panel, setPanel] = useState<PanelId | null>("templates");
+
+  /**
+   * Phones get a preview, not the editor.
+   *
+   * The editor is a 68px rail, a 286px panel and an A4 sheet side by side —
+   * 354px of a 360px screen, leaving the page itself about six pixels wide.
+   * Handles are nine pixels and the zoom slider sits off the right edge. It
+   * was not awkward on a phone, it was unusable, and most people arrive on
+   * one. So below 1024px this shows the résumé, read only, with the way to
+   * download it and an honest line about where to edit it.
+   */
+  const [narrow, setNarrow] = useState(false);
+  const fitBox = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(0.45);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // The preview is scaled to whatever width the phone has, measured rather
+  // than guessed, so a page is never cut off down the side.
+  useEffect(() => {
+    if (!narrow) return;
+    const el = fitBox.current;
+    if (!el) return;
+    const pageWidthPx = A4.w * (96 / 25.4);
+    const measure = () => setFit(el.clientWidth / pageWidthPx);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [narrow]);
   const [share, setShare] = useState(false);
 
   const [dirty, setDirty] = useState(false);
@@ -397,6 +432,27 @@ export function DesignEditor({
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
+
+      /*
+       * iOS ignores the download attribute on a blob URL, and every in-app
+       * browser is iOS Safari — so on a phone the button did nothing at all,
+       * silently, because the fetch had succeeded and nothing threw. Opening
+       * the PDF is the behaviour that works there: it lands in the viewer,
+       * with its own share and save.
+       */
+      const ua = navigator.userAgent || "";
+      const iOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+      if (iOS) {
+        const opened = window.open(url, "_blank");
+        if (!opened) {
+          setError("Your résumé is ready — tap Download again and allow the popup to open it.");
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          return;
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
+
       const a = document.createElement("a");
       a.href = url;
       a.download = `${(title || "Resume").replace(/[^\w\s.-]+/g, " ").trim() || "Resume"}.pdf`;
@@ -415,6 +471,55 @@ export function DesignEditor({
   }
 
   /* -------------------------------------------------------------- draw */
+
+  if (narrow) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-[#edeef1] print:static print:z-auto print:bg-white">
+        <DesignStyles />
+        <header className="no-print flex shrink-0 items-center gap-2 border-b border-ink-08 bg-paper px-3 py-2">
+          <a
+            href="/app/resume"
+            className="rounded-full px-3 py-2 text-[0.85rem] font-medium text-ink-50"
+          >
+            {sharedAs ? "← Your resumes" : "← Templates"}
+          </a>
+          <span className="ml-auto" />
+          <button
+            type="button"
+            onClick={() => void download()}
+            disabled={busy}
+            className="rounded-full bg-ink px-4 py-2 text-[0.85rem] font-semibold text-paper disabled:opacity-40"
+          >
+            {busy ? "Building…" : "Download"}
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-5">
+          <p className="mx-auto mb-4 max-w-[36rem] rounded-2xl bg-paper p-4 text-[0.86rem] leading-relaxed text-ink-70">
+            This is your résumé as it will print. Editing needs a bigger screen — open{" "}
+            <span className="font-medium text-ink">cheatcodeapp.com</span> on a laptop and it will be
+            here, saved. You can download the PDF from this phone.
+          </p>
+          {error && <p className="mx-auto mb-4 max-w-[36rem] text-[0.85rem] text-ink">{error}</p>}
+
+          {/* Scaled to the screen's width rather than cropped. */}
+          <div ref={fitBox} className="mx-auto w-full max-w-[36rem] space-y-5">
+            {design.pages.map((p, i) => (
+              <div
+                key={i}
+                className="overflow-hidden rounded-xl bg-white shadow-sm"
+                style={{ height: A4.h * (96 / 25.4) * fit }}
+              >
+                <div style={{ transform: `scale(${fit})`, transformOrigin: "top left" }}>
+                  <DesignPage page={p} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#edeef1] print:static print:z-auto print:bg-white">
@@ -543,7 +648,7 @@ export function DesignEditor({
       </div>
 
       {/* -------------------------------------------------------- footer */}
-      <footer className="no-print flex shrink-0 items-center gap-3 border-t border-ink-08 bg-paper px-4 py-2">
+      <footer className="no-print flex shrink-0 items-center gap-3 overflow-x-auto border-t border-ink-08 bg-paper px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={pageOps.add}

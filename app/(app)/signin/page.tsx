@@ -24,7 +24,7 @@ export default async function SignInPage({
 
   if (!appAuthConfigured) {
     return (
-      <main className="container-page flex min-h-screen items-center justify-center">
+      <main className="container-page flex min-h-dvh items-center justify-center">
         <div className="max-w-md rounded-2xl border border-ink-30 p-7">
           <p className="text-[0.95rem] font-medium">Accounts aren&apos;t configured yet</p>
           <p className="mt-2.5 text-[0.9rem] leading-relaxed text-ink-50">
@@ -40,7 +40,7 @@ export default async function SignInPage({
   if (await getSessionUser()) redirect(target);
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-dvh flex-col">
       <div className="container-page py-8">
         <Link href="/" className="text-[0.95rem] font-semibold tracking-[-0.04em]">
           Cheatcode

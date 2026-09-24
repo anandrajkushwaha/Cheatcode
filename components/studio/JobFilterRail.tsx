@@ -312,7 +312,7 @@ export function JobSearchBar({ q, sort, base }: { q: string; sort: string; base:
           }}
           placeholder="Search by role or company"
           aria-label="Search jobs"
-          className="min-w-0 flex-1 bg-transparent py-1 text-[0.88rem] outline-none placeholder:text-ink-30"
+          className="min-w-0 flex-1 bg-transparent py-1 text-[16px] sm:text-[0.88rem] outline-none placeholder:text-ink-30"
         />
         {text && (
           <button

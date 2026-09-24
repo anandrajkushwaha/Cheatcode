@@ -153,7 +153,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
         <div className="relative">
           <div
             ref={frame}
-            className="h-[calc(100dvh-230px)] min-h-[440px] snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="h-[calc(100dvh-230px)] min-h-[360px] snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {shown.map((i, n) => {
               const fresh = seenBefore !== null && seenBefore > 0 && new Date(i.at).getTime() > seenBefore;
@@ -189,7 +189,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
                     <span className="ml-auto text-ink-30">{ago(i.at)}</span>
                   </div>
 
-                  <div className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-5 sm:px-8 sm:pb-7">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-6 pt-5 sm:px-8 sm:pb-7">
                     <h2 className="text-[1.3rem] font-semibold leading-snug tracking-[-0.02em] text-[#121224] sm:text-[1.45rem]">
                       {i.title}
                     </h2>

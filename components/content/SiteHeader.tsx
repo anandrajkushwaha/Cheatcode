@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ToolsMenu } from "@/components/site/ToolsMenu";
 import { AuthLinks } from "@/components/site/AuthLinks";
+import { MobileLinks } from "@/components/site/MobileLinks";
 
 /** Header for content pages. */
 export function SiteHeader() {
@@ -42,6 +43,7 @@ export function SiteHeader() {
           <AuthLinks location="content-nav" />
         </div>
       </nav>
+      <MobileLinks />
     </header>
   );
 }

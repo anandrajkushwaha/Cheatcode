@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EVENTS, track } from "@/lib/analytics/events";
 import { metaTrack } from "@/lib/analytics/meta";
 import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
@@ -14,7 +14,14 @@ type State =
   | { phase: "done"; name: string; result: AtsResult }
   | { phase: "error"; message: string };
 
-const ACCEPT = ".pdf,.docx,.txt";
+// Both the MIME types and the extensions. Android's WebView maps `accept`
+// through its own table and does not know ".docx" on many builds, which left
+// the Instagram file chooser with everything greyed out — no file, no error,
+// nothing for the person to do.
+const ACCEPT =
+  "application/pdf,.pdf," +
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx," +
+  "text/plain,.txt,application/vnd.oasis.opendocument.text,.odt,application/rtf,.rtf"
 
 /**
  * @param context  Which door this is being rendered behind. The public page
@@ -26,6 +33,12 @@ const ACCEPT = ".pdf,.docx,.txt";
  */
 export function AtsChecker({ context = "public" }: { context?: ToolContext } = {}) {
   const [state, setState] = useState<State>({ phase: "idle" });
+  // Said before the attempt, not after it: in these browsers the file picker
+  // sometimes returns nothing at all, and then no error is ever shown.
+  const [inAppBrowser, setInAppBrowser] = useState(false);
+  useEffect(() => {
+    setInAppBrowser(/Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(navigator.userAgent || ""));
+  }, []);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,12 +71,28 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
         failing: result.checks.filter((c) => c.status === "fail").length,
       });
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const inApp = /Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(
+        typeof navigator === "undefined" ? "" : navigator.userAgent,
+      );
       const message =
         err instanceof ExtractError
           ? err.message
-          : "Something went wrong reading that file. Try a different export, or a PDF.";
+          : inApp
+            ? // The in-app browsers are where this fails most, and opening the
+              // page properly is a fix the person can actually apply.
+              "That file couldn't be read inside Instagram's browser. Tap ••• at the top and choose \u201cOpen in browser\u201d, then try again — or send a PDF."
+            : "Something went wrong reading that file. Try a different export, or a PDF.";
       setState({ phase: "error", message });
-      track(EVENTS.TOOL_COMPUTE, { label: "resume-ats-checker", outcome: "error" });
+      // The real reason, recorded: "outcome: error" alone told us a file had
+      // failed and nothing about why, on a device we cannot reproduce.
+      track(EVENTS.TOOL_COMPUTE, {
+        label: "resume-ats-checker",
+        outcome: "error",
+        reason: detail.slice(0, 120),
+        file_type: (file.name.split(".").pop() ?? "").toLowerCase().slice(0, 8),
+        in_app: inApp,
+      });
     }
   }, []);
 
@@ -78,6 +107,13 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
   if (state.phase !== "done") {
     return (
       <div>
+        {inAppBrowser && state.phase === "idle" && (
+          <p className="mb-4 rounded-2xl bg-ink-04 p-3.5 text-[0.85rem] leading-relaxed text-ink-70">
+            You are in Instagram&apos;s browser. If choosing a file does not work here, tap ••• at the
+            top and choose &ldquo;Open in browser&rdquo;.
+          </p>
+        )}
+
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -90,7 +126,15 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
           }`}
         >
           <p className="text-[1.35rem] font-medium tracking-[-0.02em]">
-            {state.phase === "reading" ? "Reading it now…" : "Drop your resume here"}
+            {state.phase === "reading" ? (
+              "Reading it now…"
+            ) : (
+              <>
+                {/* There is nothing to drop on a phone. */}
+                <span className="sm:hidden">Upload your resume</span>
+                <span className="hidden sm:inline">Drop your resume here</span>
+              </>
+            )}
           </p>
           <p className="mx-auto mt-3 max-w-[46ch] text-[0.95rem] leading-relaxed text-ink-50">
             {state.phase === "reading"

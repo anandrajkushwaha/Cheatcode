@@ -77,9 +77,19 @@ export function dictationSupported(): boolean {
   return ctor() !== null;
 }
 
+/**
+ * Instagram's and Facebook's browsers have no speech recognition and no
+ * address bar, so both the feature and the usual advice about the microphone
+ * icon are wrong there. Worth saying what actually works instead.
+ */
+export function inAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(navigator.userAgent || "");
+}
+
 const MESSAGES: Record<string, string> = {
   "not-allowed":
-    "Microphone access is blocked. Click the icon at the left of the address bar, allow the microphone, and try again.",
+    "Microphone access is blocked. Allow the microphone for this site in your browser settings, then try again — or keep typing.",
   "service-not-allowed":
     "Your browser would not start the microphone. Keep typing instead.",
   "audio-capture": "No microphone found. Keep typing instead.",
