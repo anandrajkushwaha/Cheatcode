@@ -1,4 +1,5 @@
 import { ExtractError, extractResume, type Extracted } from "@/lib/tools/extract";
+import { installModernPolyfills } from "@/lib/tools/modern-polyfills";
 
 /**
  * Reading a file for the agent, which is the same pipeline with eyes.
@@ -78,8 +79,9 @@ export async function readAnyFile(
  * a model to do worse than the parser already did for free.
  */
 async function renderPdfPages(file: File, limit: number): Promise<string[]> {
+  installModernPolyfills();
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.shim.mjs";
 
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
   const out: string[] = [];

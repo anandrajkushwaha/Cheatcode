@@ -24,6 +24,7 @@
  */
 
 import type { ResumeFacts } from "./ats";
+import { installModernPolyfills } from "./modern-polyfills";
 
 export class ExtractError extends Error {}
 
@@ -196,43 +197,58 @@ function loose(
 type TextItem = { str: string; transform: number[]; width: number };
 type Row = { y: number; items: { x: number; end: number; str: string }[] };
 
-/**
- * pdf.js 6 calls Promise.withResolvers, which Safari only learned in 17.4 —
- * and every in-app browser (Instagram, Facebook) is Safari on iOS. On an
- * older phone the library threw before it read a byte, which is why "Choose a
- * file" ended in "something went wrong" for people arriving from an ad while
- * the same file worked on a laptop. Defined here, before the import, rather
- * than globally: it is pdf.js that needs it.
- */
-function polyfillWithResolvers() {
-  const P = Promise as unknown as { withResolvers?: unknown };
-  if (typeof P.withResolvers === "function") return;
-  P.withResolvers = function <T>() {
-    let resolve!: (value: T | PromiseLike<T>) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  };
-}
-
 async function extractPdf(file: File): Promise<ResumeFacts> {
-  polyfillWithResolvers();
-  const pdfjs = await import("pdfjs-dist");
-  // The shim polyfills inside the worker, then loads the real one.
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.shim.mjs";
+  installModernPolyfills();
+
+  let pdfjs: typeof import("pdfjs-dist");
+  try {
+    pdfjs = await import("pdfjs-dist");
+  } catch (e) {
+    throw new ExtractError(
+      `The PDF reader could not load in this browser (${short(e)}). Open the page in Chrome or Safari, or send a DOCX.`,
+    );
+  }
 
   const data = new Uint8Array(await file.arrayBuffer());
 
-  const task = pdfjs.getDocument({ data });
-  let doc;
-  try {
-    doc = await task.promise;
-  } catch {
+  /*
+   * Two attempts, and the second is the one that matters on a phone.
+   *
+   * pdf.js runs in a module worker, which has its own global scope — the
+   * shim polyfills Promise.withResolvers inside it, for the Safari versions
+   * that lack it. If anything about that worker fails (blocked, unsupported,
+   * a stale cached copy), the retry points workerSrc at nothing, which makes
+   * pdf.js run on this thread instead, where the polyfill above already
+   * applies. Slower, and it works.
+   */
+  let doc: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]> | null = null;
+  let task: ReturnType<typeof pdfjs.getDocument> | null = null;
+  let firstError: unknown = null;
+
+  for (const src of ["/pdf.worker.shim.mjs", ""]) {
+    try {
+      pdfjs.GlobalWorkerOptions.workerSrc = src;
+      task = pdfjs.getDocument({ data: data.slice() });
+      doc = await task.promise;
+      break;
+    } catch (e) {
+      firstError ??= e;
+      try {
+        await task?.destroy();
+      } catch {
+        /* nothing to clean up */
+      }
+      task = null;
+      doc = null;
+    }
+  }
+
+  if (!doc || !task) {
+    const why = short(firstError);
     throw new ExtractError(
-      "That PDF couldn't be opened. If it's password protected, remove the password and try again.",
+      /password/i.test(why)
+        ? "That PDF is password protected. Remove the password and try again."
+        : `That PDF could not be opened here (${why}). Try a DOCX, or open the page in Chrome or Safari.`,
     );
   }
 
@@ -275,6 +291,12 @@ async function extractPdf(file: File): Promise<ResumeFacts> {
     charsPerPage,
     multiColumnPages,
   };
+}
+
+/** An error in a few words, short enough to show somebody. */
+function short(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e ?? "unknown");
+  return m.replace(/\s+/g, " ").trim().slice(0, 90) || "unknown";
 }
 
 /**

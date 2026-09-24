@@ -12,7 +12,7 @@ type State =
   | { phase: "idle" }
   | { phase: "reading"; name: string }
   | { phase: "done"; name: string; result: AtsResult }
-  | { phase: "error"; message: string };
+  | { phase: "error"; message: string; detail?: string };
 
 // Both the MIME types and the extensions. Android's WebView maps `accept`
 // through its own table and does not know ".docx" on many builds, which left
@@ -83,7 +83,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
               // page properly is a fix the person can actually apply.
               "That file couldn't be read inside Instagram's browser. Tap ••• at the top and choose \u201cOpen in browser\u201d, then try again — or send a PDF."
             : "Something went wrong reading that file. Try a different export, or a PDF.";
-      setState({ phase: "error", message });
+      setState({ phase: "error", message, detail: detail.slice(0, 160) });
       // The real reason, recorded: "outcome: error" alone told us a file had
       // failed and nothing about why, on a device we cannot reproduce.
       track(EVENTS.TOOL_COMPUTE, {
@@ -174,6 +174,14 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
             <p className="mt-2 max-w-[62ch] text-[0.92rem] leading-relaxed text-ink-50">
               {state.message}
             </p>
+            {/* The technical reason, small and last. It is the only thing that
+                makes a failure on somebody else's phone diagnosable — without
+                it every report is "it didn't work". */}
+            {state.detail && (
+              <p className="mt-3 max-w-[62ch] break-words text-[0.74rem] leading-relaxed text-ink-30">
+                Reason: {state.detail}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => setState({ phase: "idle" })}
