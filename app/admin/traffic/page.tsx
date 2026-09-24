@@ -126,6 +126,70 @@ export default async function AdminTraffic({
         </div>
       </Panel>
 
+      <Panel
+        title="Free tools that failed"
+        note="A run that ended with an error or with no readable text, and the reason the browser gave."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat
+            label="Failed runs"
+            value={num(t.toolFailures.total)}
+            hint={
+              t.toolFailures.runs
+                ? `${Math.round((t.toolFailures.total / t.toolFailures.runs) * 100)}% of ${num(t.toolFailures.runs)} attempts`
+                : "no attempts yet"
+            }
+          />
+          <Stat
+            label="Inside an app's browser"
+            value={num(t.toolFailures.inApp)}
+            hint="Instagram or Facebook"
+          />
+          <Stat
+            label="Attempts"
+            value={num(t.toolFailures.runs)}
+            hint="successes included"
+          />
+        </div>
+        {t.toolFailures.total === 0 ? (
+          <div className="mt-6">
+            <Empty>
+              No failed runs in this window. If someone reports one, check the range — this counts
+              only what the browser actually reported back.
+            </Empty>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p className="mb-3 text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">Why it failed</p>
+              <BarList
+                rows={t.toolFailures.reasons.map((r) => ({ label: r.reason, value: r.count }))}
+                empty="Nothing yet."
+                unit="runs"
+              />
+            </div>
+            <div className="grid gap-6">
+              <div>
+                <p className="mb-3 text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">File type</p>
+                <BarList
+                  rows={t.toolFailures.fileTypes.map((r) => ({ label: r.fileType, value: r.count }))}
+                  empty="Nothing yet."
+                  unit="runs"
+                />
+              </div>
+              <div>
+                <p className="mb-3 text-[0.72rem] uppercase tracking-[0.16em] text-ink-30">Device</p>
+                <BarList
+                  rows={t.toolFailures.devices.map((r) => ({ label: r.device, value: r.count }))}
+                  empty="Nothing yet."
+                  unit="runs"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </Panel>
+
       <Panel title="From visit to sign-up" note="Visits that reached each step in this window.">
         <FunnelChart
           steps={[
