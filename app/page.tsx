@@ -1,7 +1,8 @@
 import { Nav } from "@/components/site/Nav";
 import { Hero } from "@/components/site/Hero";
 import { Problem } from "@/components/site/Problem";
-import { HowItWorks } from "@/components/site/HowItWorks";
+import { WhatYouGet } from "@/components/site/WhatYouGet";
+import { Plans } from "@/components/site/Plans";
 import { Mentors } from "@/components/site/Mentors";
 import { Questions } from "@/components/site/Questions";
 import { Difference } from "@/components/site/Difference";
@@ -21,11 +22,20 @@ export default function HomePage() {
       <main id="main">
         <Hero />
         <Problem />
-        <HowItWorks />
-        <Questions />
-        <Mentors />
-        <Difference />
+        {/*
+          Order follows the sign-up decision, not the story we like telling.
+          What you get, then the one place most people are actually losing,
+          then the questions the agent is for, then the price — so nothing
+          costs money without having been named first. Mentors come after all
+          of that, because they are the one thing on this page that is a plan
+          rather than a product.
+        */}
+        <WhatYouGet />
         <ResumeTool />
+        <Questions />
+        <Plans />
+        <Difference />
+        <Mentors />
         <LatestGuides />
         <Faq />
         <FinalCta />

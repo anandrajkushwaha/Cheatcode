@@ -34,10 +34,10 @@ export function ResumeTool() {
           <div>
             <Reveal>
               <p className="text-[0.75rem] font-medium uppercase tracking-[0.18em] text-white/40">
-                The second half
+                Where most people lose
               </p>
-              <h2 className="mt-5 max-w-[18ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
-                A mentor can&apos;t fix what a machine already deleted.
+              <h2 className="mt-5 max-w-[20ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
+                No advice helps if a machine already deleted you.
               </h2>
             </Reveal>
 
@@ -48,8 +48,8 @@ export function ResumeTool() {
                 talent problem — it&apos;s a formatting problem nobody told you about.
               </p>
               <p className="mt-4 max-w-[54ch] text-lg leading-relaxed text-white/60">
-                So we built the other half: a resume tool that gets you into
-                the room. The mentor is what happens once you&apos;re in.
+                So this is where Cheatcode starts: getting you past the filter
+                and into the room. Everything else only matters after that.
               </p>
             </Reveal>
           </div>
@@ -82,8 +82,8 @@ export function ResumeTool() {
         <Reveal delay={220}>
           <div className="mt-12 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-[48ch] text-[0.95rem] leading-relaxed text-white/50">
-              Both come with the same free account — you pick what you use
-              first.
+              The builder, all 60 templates and the ATS check are free on every
+              account, with no time limit.
             </p>
             <AuthCta location="resume-tool" invert className="shrink-0" />
           </div>

@@ -25,9 +25,10 @@ export function FinalCta() {
         </Reveal>
 
         <Reveal delay={80}>
-          <p className="mx-auto mt-6 max-w-[48ch] text-lg leading-relaxed text-white/55">
-            One account, both things — the mentor sessions and the resume
-            builder. Make it in about ten seconds and start with the resume.
+          <p className="mx-auto mt-6 max-w-[50ch] text-lg leading-relaxed text-white/55">
+            One account opens the resume builder, the job search, the mock
+            interviews and the agent. It takes about ten seconds, and the
+            resume is the place to start.
           </p>
         </Reveal>
 

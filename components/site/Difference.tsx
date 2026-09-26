@@ -33,9 +33,9 @@ export function Difference() {
                 You&apos;ve already tried the free stuff.
               </h2>
               <p className="mt-6 max-w-[42ch] text-lg leading-relaxed text-ink-70">
-                It didn&apos;t work because none of it was about you. Advice
-                only becomes useful when the person giving it has seen your
-                actual resume, your actual offer, your actual situation.
+                It didn&apos;t work because none of it was about you. Advice only
+                becomes useful once something has seen your actual resume, your
+                actual offer, your actual situation.
               </p>
             </Reveal>
           </div>
@@ -62,9 +62,9 @@ export function Difference() {
                   Cheatcode
                 </p>
                 <p className="mt-2.5 text-[1.05rem] leading-relaxed text-white/85">
-                  One person, still in the industry, who looks at your specific
-                  situation for thirty minutes and tells you the truth. That
-                  used to be a family connection. Now it&apos;s a booking.
+                  Your actual resume, scored against what the software reads.
+                  Your actual situation, answered by something that has read it.
+                  That used to be a family connection. Now it is an account.
                 </p>
               </div>
             </Reveal>

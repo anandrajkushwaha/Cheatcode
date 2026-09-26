@@ -51,15 +51,16 @@ export function Questions() {
     <section className="overflow-hidden border-t border-ink-08 bg-ink py-24 text-paper sm:py-36">
       <div className="container-page text-center">
         <Reveal>
-          <h2 className="mx-auto max-w-[20ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
+          <h2 className="mx-auto max-w-[22ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
             The questions you&apos;d never ask out loud.
           </h2>
         </Reveal>
         <Reveal delay={80}>
-          <p className="mx-auto mt-6 max-w-[52ch] text-lg leading-relaxed text-white/55">
+          <p className="mx-auto mt-6 max-w-[54ch] text-lg leading-relaxed text-white/55">
             Not on LinkedIn, where your batchmates are watching. Not to a
-            recruiter who&apos;s screening you. To one person, privately, who
-            has no reason to lie to you.
+            recruiter who is screening you. Ask the career agent instead — it
+            has read your resume and knows what you are applying for, so the
+            answer is about you rather than about everybody.
           </p>
         </Reveal>
       </div>

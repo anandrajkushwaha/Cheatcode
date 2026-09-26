@@ -4,36 +4,36 @@ import { faqJsonLd } from "@/lib/seo/jsonld";
 
 export const FAQ_ITEMS = [
   {
-    q: "What is Cheatcode building, exactly?",
-    a: "Two things that solve two halves of the same problem. Mentor sessions — 30 minutes with someone 5–10 years ahead of you. And a resume tool that scores what you're already sending, rewrites the lines that are costing you, builds one from scratch if you don't have it, and reshapes it for a specific job description. The resume gets you into the room; the mentor is what happens once you're in.",
+    q: "What is Cheatcode, exactly?",
+    a: "The thing you use in the first few years of a career, when nobody has told you how any of it works. Today that is four things: a resume builder with an ATS check that shows what screening software actually reads, a job search across company boards and the big portals, AI mock interviews with a written report, and a career agent that has read your resume. More is coming — this is the window we are building for, not a single tool.",
   },
   {
-    q: "Will the resume tool be free?",
-    a: "Yes. The resume builder, all 60 templates, PDF downloads, the ATS checker and the salary calculator are free on every account, with no time limit. Cheatcode Pro is ₹99 a month and adds the AI career agent, AI mock interviews and a human review of your resume. Mentor sessions are still being set up and will be priced separately — you'll see the price before you're ever asked for a card.",
+    q: "What is free and what costs money?",
+    a: "The resume builder, all 60 templates, PDF downloads with no watermark, the ATS checker, the salary calculator, the job search, the guides and the daily insights are free on every account, with no time limit and no card. Cheatcode Pro is ₹99 a month and adds the AI career agent, AI mock interviews and a human review of your resume. That is the whole price list.",
   },
   {
     q: "Who is Cheatcode actually for?",
-    a: "Final-year students and people in their first two years of work. If you're figuring out placements, your first switch, or whether the job you took was a mistake — that's exactly the window we're built for.",
+    a: "Final-year students and people in their first few years of work. If you are figuring out placements, your first switch, or whether the job you took was a mistake — that is exactly the window we are built for.",
+  },
+  {
+    q: "What does the ATS checker actually tell me?",
+    a: "It reads your file the way screening software does and reports what came out: whether the text can be extracted at all, whether it is being read as two columns, whether standard section headings exist, and then the writing itself — opening verbs, numbers, dates, skills. No ATS publishes its scoring, so anything claiming to return your real Workday score is guessing. This is the checkable half, made measurable.",
+  },
+  {
+    q: "Where do the jobs come from?",
+    a: "Straight from company career boards — Greenhouse, Lever, Ashby — plus a search across the big portals. They are deduplicated, filtered by your city, your years and whether the role is genuinely remote, and every listing links out to the company's own application page. Nothing here is a sponsored placement.",
+  },
+  {
+    q: "Are the mentor sessions live yet?",
+    a: "No. Mentor sessions are the part still being built — we are onboarding mentors first, because a thin mentor pool is worse than none. Everything else on this page works today. If you are five or more years in and have hired people, there is an application form on the mentors section.",
   },
   {
     q: "How is this different from free advice online?",
-    a: "General advice is written for a million people. A mentor looks at your resume, your offer, your situation and tells you the specific thing to change. That's a different kind of answer.",
+    a: "General advice is written for a million people and none of them are you. Here the ATS check runs on your actual file, the job filters run on your actual profile, and the agent answers with your resume in front of it. Same subject, different kind of answer.",
   },
   {
-    q: "Who are the mentors?",
-    a: "People with 5–10+ years of experience who still work in the industry. Most have sat on hiring panels, reviewed resumes, and made the decisions you're currently guessing about.",
-  },
-  {
-    q: "What does it cost?",
-    a: "A free account costs nothing and doesn't expire. Cheatcode Pro is ₹99 a month through UPI Autopay, and you can cancel any time. You're never charged unless you choose to subscribe.",
-  },
-  {
-    q: "What can I actually ask?",
-    a: "Anything you'd ask an older sibling in the industry. Why you keep getting rejected, whether an offer is fair, if you should switch, how to handle a manager, whether you're behind. Nothing is too small or too obvious.",
-  },
-  {
-    q: "When does it open?",
-    a: "The app is open now — sign up and the resume builder, templates and free tools are yours today. Mentor sessions are the part still being set up: we're onboarding mentors first, because a good mentor pool matters more than a fast launch.",
+    q: "How does the ₹99 billing work?",
+    a: "UPI Autopay, charged when you subscribe and then once a month until you cancel. No lock-in, no cancellation fee, and the month you have already paid for stays yours. You are never charged unless you choose to subscribe, and nothing asks for a card when you sign up.",
   },
 ];
 

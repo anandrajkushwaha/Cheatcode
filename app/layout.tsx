@@ -31,9 +31,9 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Cheatcode — Talk to someone who's already done it",
+    title: "Cheatcode — Resume, jobs and interview prep for freshers in India",
     description:
-      "Some people have a cousin at Google. Now you have Cheatcode. Get 1-on-1 time with people 5–10 years ahead of you — real answers on resumes, interviews, salary and first jobs.",
+      "Some people have a cousin at Google. Now you have Cheatcode. Free ATS resume checker and builder with 60 templates, jobs from company boards, AI mock interviews and a career agent that has read your resume.",
     path: "/",
   }),
   // Search engine ownership verification. Set these in Vercel and redeploy —
