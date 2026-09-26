@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { AdminInsight } from "@/lib/insights/query";
+import type { InsightTraffic } from "@/lib/admin/insight-traffic";
 
 /**
  * Write an insight, see it as the reader will, publish it.
@@ -39,7 +40,15 @@ const label = "text-[0.74rem] font-medium uppercase tracking-[0.12em] text-ink-3
 
 const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
-export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; canDelete: boolean }) {
+export function InsightsManager({
+  items,
+  canDelete,
+  traffic,
+}: {
+  items: AdminInsight[];
+  canDelete: boolean;
+  traffic: InsightTraffic;
+}) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(BLANK);
   const [open, setOpen] = useState(items.length === 0);
@@ -48,6 +57,21 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [order, setOrder] = useState<"newest" | "read" | "shared">("newest");
+
+  const stat = (id: string) =>
+    traffic.by[id] ?? { reads: 0, webViews: 0, people: 0, shares: 0 };
+
+  // Newest is the writing order and stays the default — this screen is mostly
+  // used to publish, not to read numbers. The other two are for the question
+  // the numbers exist to answer: which kind of story is worth more of these.
+  const ordered = useMemo(() => {
+    if (order === "newest") return items;
+    const score = (i: AdminInsight) =>
+      order === "shared" ? stat(i.id).shares : stat(i.id).reads + stat(i.id).webViews;
+    return [...items].sort((a, b) => score(b) - score(a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, order, traffic]);
 
   const count = words(draft.summary);
   const over = count > MAX_WORDS;
@@ -325,16 +349,65 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
 
       {note && <p className="text-[0.84rem] text-ink-50">{note}</p>}
 
+      {/* ----------------------------------------------------------- traffic */}
+      {traffic.ok && (
+        <section className="rounded-2xl border border-ink-08 px-5 py-4">
+          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            How insights are doing
+          </h2>
+          <p className="mt-2 text-[0.78rem] leading-relaxed text-ink-30">
+            Since each one was published, not for a date range — an insight gets its readers in
+            the first day or two and then stops.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Figure label="Read in the app" value={traffic.totals.reads} />
+            <Figure label="Opened from a link" value={traffic.totals.webViews} />
+            <Figure label="People" value={traffic.totals.people} />
+            <Figure label="Shared" value={traffic.totals.shares} />
+          </div>
+          {traffic.totals.reads + traffic.totals.webViews === 0 && (
+            <p className="mt-4 text-[0.78rem] leading-relaxed text-ink-50">
+              Nothing recorded yet. Reading inside the app only started being counted with the
+              latest deploy, so numbers begin from there rather than from when these were written.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* -------------------------------------------------------------- list */}
       <section>
-        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-          All insights ({items.length})
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            All insights ({items.length})
+          </h2>
+          {traffic.ok && (
+            <div className="flex gap-1 rounded-lg border border-ink-15 p-0.5">
+              {(
+                [
+                  ["newest", "Newest"],
+                  ["read", "Most read"],
+                  ["shared", "Most shared"],
+                ] as const
+              ).map(([key, text]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setOrder(key)}
+                  className={`rounded-md px-2.5 py-1 text-[0.76rem] transition-colors ${
+                    order === key ? "bg-ink text-paper" : "text-ink-50 hover:bg-ink-04"
+                  }`}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {items.length === 0 ? (
           <p className="mt-3 text-[0.85rem] text-ink-50">Nothing written yet.</p>
         ) : (
           <ul className="mt-3 divide-y divide-ink-08 overflow-hidden rounded-2xl border border-ink-08 bg-paper">
-            {items.map((i) => (
+            {ordered.map((i) => (
               <li key={i.id} className="flex flex-wrap items-start gap-4 px-5 py-4">
                 {i.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -349,6 +422,27 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
                     {i.authorName ? ` · ${i.authorName}` : ""}
                     {i.published ? "" : " · Draft"}
                   </p>
+                  {traffic.ok && (
+                    <p className="mt-1.5 text-[0.72rem] tabular-nums text-ink-50">
+                      {stat(i.id).reads + stat(i.id).webViews === 0 ? (
+                        <span className="text-ink-30">No reads yet</span>
+                      ) : (
+                        <>
+                          <strong className="font-medium text-ink">
+                            {stat(i.id).reads + stat(i.id).webViews}
+                          </strong>{" "}
+                          {stat(i.id).reads + stat(i.id).webViews === 1 ? "read" : "reads"}
+                          <span className="text-ink-30"> · {stat(i.id).people} people</span>
+                          {stat(i.id).webViews > 0 && (
+                            <span className="text-ink-30"> · {stat(i.id).webViews} from a link</span>
+                          )}
+                          {stat(i.id).shares > 0 && (
+                            <span className="text-ink-30"> · {stat(i.id).shares} shared</span>
+                          )}
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-[0.8rem]">
                   <button type="button" onClick={() => edit(i)} className="text-ink-50 hover:text-ink">
@@ -368,6 +462,18 @@ export function InsightsManager({ items, canDelete }: { items: AdminInsight[]; c
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+/** One number with its name under it. Big enough to read across the row. */
+function Figure({ label: name, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <p className="text-[1.5rem] font-semibold tabular-nums leading-none tracking-[-0.03em]">
+        {value.toLocaleString("en-IN")}
+      </p>
+      <p className="mt-1.5 text-[0.72rem] uppercase tracking-[0.12em] text-ink-30">{name}</p>
     </div>
   );
 }

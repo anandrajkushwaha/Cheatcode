@@ -1,6 +1,7 @@
 import { getAllInsights } from "@/lib/insights/query";
 import { InsightsManager } from "@/components/admin/InsightsManager";
 import { currentAdmin } from "@/lib/admin/guard";
+import { getInsightTraffic } from "@/lib/admin/insight-traffic";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,11 @@ export const dynamic = "force-dynamic";
  * card is opened in the Insights tab; the home screen shows text alone.
  */
 export default async function AdminInsights() {
-  const [result, admin] = await Promise.all([getAllInsights(), currentAdmin()]);
+  const [result, admin, traffic] = await Promise.all([
+    getAllInsights(),
+    currentAdmin(),
+    getInsightTraffic(),
+  ]);
 
   if (!result.ok) {
     return (
@@ -40,7 +45,11 @@ export default async function AdminInsights() {
         </p>
       </div>
 
-      <InsightsManager items={result.data} canDelete={admin?.role === "owner"} />
+      <InsightsManager
+        items={result.data}
+        canDelete={admin?.role === "owner"}
+        traffic={traffic}
+      />
     </div>
   );
 }
