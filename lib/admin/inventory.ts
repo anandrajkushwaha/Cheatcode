@@ -135,6 +135,12 @@ export function canonicalPath(raw: string): string {
   if (p.length > 1) p = p.replace(/\/+$/, "");
   if (!p.startsWith("/")) p = `/${p}`;
 
+  // The app lived at /studio until it moved to /app. Visits recorded under
+  // the old prefix are the same screens — filed separately they made every
+  // App row read zero while a duplicate set of "not in the page list" rows
+  // held the actual traffic.
+  if (p === "/studio" || p.startsWith("/studio/")) p = `/app${p.slice(7)}`;
+
   p = p
     .replace(/^\/app\/interviews\/[^/]+\/feedback$/, "/app/interviews/[id]/feedback")
     .replace(/^\/app\/interviews\/[^/]+$/, "/app/interviews/[id]")

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EVENTS, track } from "@/lib/analytics/events";
 import type { Insight } from "@/lib/insights/query";
 import { ago } from "@/lib/insights/time";
 import { InsightShare } from "@/components/studio/InsightShare";
@@ -96,6 +97,33 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [go, index]);
+
+  /**
+   * Which story was actually read.
+   *
+   * An insight is read inside this reader, not at its own URL, so nothing
+   * was ever recorded against /insights/<id> and every insight showed zero
+   * views in the admin however many people scrolled past it. The event is
+   * filed against that public path so the reading lands on the same row the
+   * share does, and each one counts once per mount — scrolling back up is
+   * the same read, not a second one.
+   */
+  const counted = useRef(new Set<string>());
+  useEffect(() => {
+    const item = shown[index];
+    if (!item || counted.current.has(item.id)) return;
+    // A card only glimpsed on the way past is not a read.
+    const id = window.setTimeout(() => {
+      if (counted.current.has(item.id)) return;
+      counted.current.add(item.id);
+      track(EVENTS.ARTICLE_VIEW, {
+        label: `/insights/${item.id}`,
+        path: `/insights/${item.id}`,
+        location: "app-reader",
+      });
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, [shown, index]);
 
   function pick(next: Tab) {
     setTab(next);

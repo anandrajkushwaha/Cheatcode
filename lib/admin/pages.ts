@@ -66,9 +66,9 @@ export async function getPages(
 
   let events = db
     .from("page_events")
-    .select("event,path,label,value,session_id,location")
+    .select("event,path,label,value,session_id,visitor_id,location")
     .eq("is_bot", false)
-    .in("event", ["scroll_depth", "time_on_page", "content_share"])
+    .in("event", ["scroll_depth", "time_on_page", "content_share", "article_view"])
     .gte("created_at", since)
     .limit(ROW_LIMIT);
   if (until) events = events.lte("created_at", until);
@@ -145,6 +145,8 @@ export async function getPages(
       label: string | null;
       value: number | null;
       session_id: string | null;
+      visitor_id: string | null;
+      location: string | null;
     }[]) {
       // scroll_depth and time_on_page carry the path they belong to in
       // `label`; content_share puts the shared path there too. `path` is the
@@ -164,6 +166,16 @@ export async function getPages(
         if (s > 0 && s < 3600) a.seconds.set(key, (a.seconds.get(key) ?? 0) + s);
       } else if (r.event === "content_share") {
         a.shares += 1;
+      } else if (r.event === "article_view" && r.location === "app-reader") {
+        // An insight is read inside the app's reader, which never navigates
+        // to /insights/<id> and so never records a page view. Without this
+        // every insight reads zero no matter how many people scrolled it.
+        // Only the in-app reader is counted here: a blog article fires
+        // article_view as well, and there it would double the page view it
+        // already has.
+        a.views += 1;
+        if (r.visitor_id) a.people.add(r.visitor_id);
+        if (r.session_id) a.sessions.add(r.session_id);
       }
     }
   }
