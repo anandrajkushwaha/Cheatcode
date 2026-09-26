@@ -160,35 +160,43 @@ function TabBar({ active = 1 }: { active?: number }) {
 
 // ---------------------------------------------------------------- screens
 
-/** Mentor discovery. */
+/**
+ * Jobs, as the app actually shows them.
+ *
+ * This screen used to be a mentor marketplace — "Find your person", three
+ * invented mentors with ratings, prices and a "Book a 30-min call" button.
+ * None of that exists: no mentors table, no booking, no payment. A hero
+ * image of a product we cannot deliver is a worse promise than a sentence,
+ * because nobody reads a picture sceptically.
+ */
 export function PhoneScreenDiscover() {
-  const mentors = [
-    { i: "RS", n: "Rhea Sharma", r: "SDE-2 · Razorpay", p: "₹499", rt: "4.9", s: "128", on: true },
-    { i: "AK", n: "Arjun Kapoor", r: "PM · Swiggy", p: "₹699", rt: "4.8", s: "94", on: false },
-    { i: "MN", n: "Meera Nair", r: "Data · Flipkart", p: "Free", rt: "5.0", s: "41", on: true },
+  const jobs = [
+    { c: "Razorpay", r: "Backend Engineer", m: "Bengaluru · 0–2 yrs", p: "2d ago", n: true },
+    { c: "Swiggy", r: "Associate Product Manager", m: "Remote · 1–3 yrs", p: "4d ago", n: false },
+    { c: "Zoho", r: "Data Analyst", m: "Chennai · 0–1 yrs", p: "6d ago", n: false },
   ];
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-ink-04 to-paper">
       <StatusBar />
       <div className="px-4 pt-11">
         <p className="text-[0.42rem] font-medium uppercase tracking-[0.14em] text-ink-30">
-          Bengaluru
+          1,240 open roles
         </p>
         <h3 className="mt-0.5 text-[0.82rem] font-semibold tracking-[-0.03em] text-ink">
-          Find your person
+          Worth applying to
         </h3>
 
         <div className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-ink-08 bg-paper px-2.5 py-[7px] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
           <Icon d={S.search} className="size-[11px] text-ink-30" />
-          <span className="text-[0.5rem] text-ink-30">Search by company or role</span>
+          <span className="text-[0.5rem] text-ink-30">Role, company or skill</span>
         </div>
 
         <div className="mt-2.5 flex gap-1.5">
-          {["All", "SDE", "Product", "Data"].map((c, i) => (
+          {["Bengaluru", "0–2 yrs", "Remote", "New"].map((c, i) => (
             <span
               key={c}
               className={`rounded-full px-2 py-[3px] text-[0.45rem] font-medium ${
-                i === 0 ? "bg-ink text-paper" : "border border-ink-08 bg-paper text-ink-50"
+                i < 2 ? "bg-ink text-paper" : "border border-ink-08 bg-paper text-ink-50"
               }`}
             >
               {c}
@@ -198,35 +206,33 @@ export function PhoneScreenDiscover() {
       </div>
 
       <div className="mt-2.5 flex-1 space-y-1.5 overflow-hidden px-4">
-        {mentors.map((m) => (
+        {jobs.map((j) => (
           <div
-            key={m.i}
+            key={j.c}
             className="rounded-xl border border-ink-08 bg-paper p-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
           >
-            <div className="flex items-center gap-2">
-              <Avatar initials={m.i} online={m.on} />
+            <div className="flex items-start gap-2">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-ink-08 text-[0.5rem] font-semibold text-ink">
+                {j.c.slice(0, 1)}
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[0.55rem] font-semibold tracking-[-0.01em] text-ink">
-                  {m.n}
+                  {j.r}
                 </p>
-                <p className="truncate text-[0.47rem] text-ink-50">{m.r}</p>
+                <p className="truncate text-[0.47rem] text-ink-50">{j.c}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[0.55rem] font-semibold tracking-[-0.02em] text-ink">{m.p}</p>
-                <p className="text-[0.4rem] text-ink-30">30 min</p>
-              </div>
-            </div>
-            <div className="mt-1.5 flex items-center gap-2 border-t border-ink-04 pt-1.5">
-              <span className="flex items-center gap-[3px] text-[0.42rem] text-ink-50">
-                <Icon d={S.star} className="size-[7px] text-ink" />
-                {m.rt}
-              </span>
-              <span className="text-[0.42rem] text-ink-30">{m.s} sessions</span>
-              {m.on && (
-                <span className="ml-auto flex items-center gap-[3px] text-[0.42rem] font-medium text-ink">
-                  <span className="size-[4px] rounded-full bg-ink" /> Free today
+              {j.n && (
+                <span className="shrink-0 rounded-full bg-ink px-1.5 py-[2px] text-[0.4rem] font-medium text-paper">
+                  New
                 </span>
               )}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 border-t border-ink-04 pt-1.5">
+              <span className="text-[0.42rem] text-ink-50">{j.m}</span>
+              <span className="ml-auto flex items-center gap-[3px] text-[0.42rem] text-ink-30">
+                <Icon d={S.clock} className="size-[7px]" />
+                {j.p}
+              </span>
             </div>
           </div>
         ))}
@@ -234,7 +240,7 @@ export function PhoneScreenDiscover() {
 
       <div className="px-4 pb-2 pt-2">
         <div className="flex items-center justify-center gap-1 rounded-full bg-gradient-to-b from-ink-70 to-ink py-2 text-[0.52rem] font-medium text-paper shadow-[0_4px_12px_-4px_rgba(0,0,0,0.5)]">
-          <Icon d={S.bolt} className="size-[9px]" /> Book a 30-min call
+          <Icon d={S.bolt} className="size-[9px]" /> Apply on the company site
         </div>
       </div>
       <TabBar active={1} />
@@ -243,223 +249,137 @@ export function PhoneScreenDiscover() {
   );
 }
 
-/** One-to-one conversation. */
+/**
+ * The career agent, mid-conversation.
+ *
+ * Was a chat with an invented mentor called Rhea Sharma, complete with an
+ * online dot and a video-call button. It is the agent now, which is the
+ * thing that answers at one in the morning and the thing that exists.
+ */
 export function PhoneScreenChat() {
-  /**
-   * Who sits on which side is the whole readability of this screen.
-   * "them" is Rhea, the mentor named in the header — left, light bubbles.
-   * "me" is the student — right, dark bubbles. Getting this backwards makes
-   * the header read as though Rhea is greeting herself, which is exactly how
-   * an unreadable mockup happens.
-   */
-  const thread: { from: "me" | "them"; text?: string; file?: boolean }[] = [
-    {
-      from: "them",
-      text: "Hey Ananya — got your booking for Wednesday. Anything you want me to look at before we talk?",
-    },
-    { from: "me", text: "Hi Rhea — final year at VIT, applying for backend roles." },
-    { from: "them", text: "Nice. How many have you applied to, and how many replied?" },
-    { from: "me", text: "Around 40 sent. 2 replies." },
-    { from: "them", text: "That ratio is almost never the candidate. It's the resume not being read properly. Send it across?" },
-    { from: "me", file: true },
-    { from: "them", text: "Found it. Your skills sit in a sidebar, so the parser reads them into the middle of your job history." },
-    {
-      from: "them",
-      text: "Put everything in one column instead. That one change usually takes a resume from 61 to about 85.",
-    },
+  // Left bubbles are the agent, right are the person. The rhythm matters more
+  // than the words: a wall of one-sided text does not read as a conversation.
+  const thread = [
+    { me: false, t: "You have sent 40 applications and had 2 replies. That ratio is almost never the candidate." },
+    { me: true, t: "So what is it?" },
+    { me: false, t: "Your skills sit in a sidebar. The parser reads them into the middle of your job history, so the roles look like nonsense." },
+    { me: true, t: "Fix it?" },
+    { me: false, t: "One column instead. That single change usually takes a resume from 61 to about 85." },
   ];
-
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-paper to-ink-04">
+    <div className="flex h-full flex-col bg-paper">
       <StatusBar />
-      <div className="flex items-center gap-2 border-b border-ink-08 bg-paper/90 px-3 pb-2 pt-10 backdrop-blur">
-        <Icon d={S.chevronL} className="size-[11px] text-ink-30" stroke />
-        <Avatar initials="RS" size="sm" online />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.55rem] font-semibold tracking-[-0.01em] text-ink">
-            Rhea Sharma
-          </p>
-          <p className="text-[0.42rem] text-ink-50">SDE-2 at Razorpay · Online</p>
-        </div>
-        <span className="flex size-6 items-center justify-center rounded-full border border-ink-08">
-          <Icon d={S.video} className="size-[10px] text-ink" />
+      <div className="flex items-center gap-2 border-b border-ink-08 px-3.5 pb-2 pt-11">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-ink-70 to-ink">
+          <Icon d={S.bolt} className="size-[11px] text-paper" />
         </span>
+        <div className="min-w-0">
+          <p className="truncate text-[0.58rem] font-semibold tracking-[-0.01em] text-ink">
+            Career agent
+          </p>
+          <p className="truncate text-[0.45rem] text-ink-50">Has read Ananya_Resume.pdf</p>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col justify-end space-y-[5px] overflow-hidden px-3 pb-1 pt-2">
-        {/* The booked session, pinned above the thread. It explains in one
-            line what this conversation is and why the mentor showed up. */}
-        <div className="mx-auto mb-1 flex items-center gap-1.5 rounded-full border border-ink-08 bg-paper px-2.5 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <Icon d={S.clock} className="size-[8px] text-ink" />
-          <span className="text-[0.42rem] font-medium text-ink">30-min session</span>
-          <span className="text-[0.42rem] text-ink-30">Wed 20 Aug, 4:30 PM</span>
-        </div>
-
-        <p className="pb-0.5 text-center text-[0.4rem] font-medium text-ink-30">TODAY</p>
-
-        {thread.map((m, i) => {
-          const mine = m.from === "me";
-
-          if (m.file) {
-            return (
-              <div
-                key={i}
-                className="ml-auto flex max-w-[80%] items-center gap-1.5 rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]"
-              >
-                <span className="flex size-[17px] shrink-0 items-center justify-center rounded-md bg-white/15">
-                  <Icon d={S.doc} className="size-[10px] text-paper" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[0.47rem] font-medium text-paper">
-                    Ananya_Resume.pdf
-                  </p>
-                  <p className="text-[0.4rem] text-white/50">184 KB · ATS score 61</p>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              key={i}
-              className={
-                mine
-                  ? "ml-auto max-w-[84%] rounded-2xl rounded-tr-md bg-gradient-to-br from-ink-70 to-ink px-2.5 py-1.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]"
-                  : "mr-auto max-w-[84%] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-              }
+      <div className="flex-1 space-y-1.5 overflow-hidden px-3 py-2.5">
+        {thread.map((m, i) => (
+          <div key={i} className={`flex ${m.me ? "justify-end" : "justify-start"}`}>
+            <p
+              className={`max-w-[82%] rounded-2xl px-2.5 py-[7px] text-[0.5rem] leading-relaxed ${
+                m.me
+                  ? "rounded-br-md bg-ink text-paper"
+                  : "rounded-bl-md bg-ink-04 text-ink-70"
+              }`}
             >
-              <p
-                className={`text-[0.5rem] leading-[1.45] ${mine ? "text-paper" : "text-ink"}`}
-              >
-                {m.text}
-              </p>
-            </div>
-          );
-        })}
-
-        {/* Rhea is still typing — on her side, where a reply would arrive. */}
-        <div className="mr-auto flex w-fit items-center gap-[3px] rounded-2xl rounded-tl-md border border-ink-08 bg-paper px-2.5 py-2">
-          {[1, 0.6, 0.3].map((o, i) => (
-            <span key={i} className="size-[3px] rounded-full bg-ink-30" style={{ opacity: o }} />
-          ))}
-        </div>
-      </div>
-
-      <div className="px-3 pb-1.5 pt-1.5">
-        <div className="flex items-center gap-1.5 rounded-full border border-ink-08 bg-paper py-1 pl-2 pr-1 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <Icon d={S.plus} className="size-[11px] text-ink-30" stroke />
-          <span className="flex-1 text-[0.48rem] text-ink-30">Message</span>
-          <span className="flex size-[19px] items-center justify-center rounded-full bg-gradient-to-b from-ink-70 to-ink">
-            <Icon d={S.send} className="size-[9px] text-paper" />
+              {m.t}
+            </p>
+          </div>
+        ))}
+        <div className="flex justify-start">
+          <span className="flex gap-[3px] rounded-2xl rounded-bl-md bg-ink-04 px-2.5 py-2">
+            {[0, 1, 2].map((d) => (
+              <span key={d} className="block size-[3px] rounded-full bg-ink-30" />
+            ))}
           </span>
         </div>
       </div>
+
+      <div className="flex items-center gap-2 border-t border-ink-08 px-3 py-2">
+        <Icon d={S.plus} className="size-[12px] text-ink-30" stroke />
+        <span className="flex-1 text-[0.5rem] text-ink-30">Ask anything</span>
+        <span className="flex size-6 items-center justify-center rounded-full bg-ink">
+          <Icon d={S.send} className="size-[9px] text-paper" />
+        </span>
+      </div>
       <HomeBar />
     </div>
   );
 }
 
-/** Slot picker and confirmation. */
+/**
+ * The written report after a mock interview.
+ *
+ * Replaces a slot picker with a date grid and a ₹699 "Confirm booking"
+ * button — a checkout for something that cannot be bought.
+ */
 export function PhoneScreenBooking() {
+  const answers = [
+    { q: "Tell me about yourself", v: "Weak", bad: true },
+    { q: "Why this role?", v: "Good", bad: false },
+    { q: "A project you owned", v: "Weak", bad: true },
+    { q: "Where in five years", v: "Good", bad: false },
+  ];
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-ink-04 to-paper">
       <StatusBar />
-      <div className="px-3.5 pt-11">
-        <div className="rounded-2xl border border-ink-08 bg-paper p-3 text-center shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <div className="flex justify-center">
-            <Avatar initials="AK" size="lg" />
-          </div>
-          <p className="mt-1.5 text-[0.62rem] font-semibold tracking-[-0.02em] text-ink">
-            Arjun Kapoor
-          </p>
-          <p className="text-[0.45rem] text-ink-50">Product Manager · Swiggy</p>
-          <div className="mt-1.5 flex items-center justify-center gap-2 text-[0.42rem] text-ink-50">
-            <span className="flex items-center gap-[3px]">
-              <Icon d={S.star} className="size-[7px] text-ink" />
-              4.8
-            </span>
-            <span className="text-ink-15">·</span>
-            <span className="flex items-center gap-[3px]">
-              <Icon d={S.clock} className="size-[7px]" />
-              30 min
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2.5 px-3.5">
-        <div className="flex items-center justify-between">
-          <p className="text-[0.52rem] font-semibold tracking-[-0.01em] text-ink">August</p>
-          <div className="flex gap-1">
-            <Icon d={S.chevronL} className="size-[9px] text-ink-30" stroke />
-            <Icon d={S.chevronR} className="size-[9px] text-ink" stroke />
-          </div>
-        </div>
-
-        <div className="mt-1.5 grid grid-cols-5 gap-1">
-          {[["Mon", "18"], ["Tue", "19"], ["Wed", "20"], ["Thu", "21"], ["Fri", "22"]].map(
-            ([d, n], i) => (
-              <div
-                key={n}
-                className={`flex flex-col items-center rounded-lg py-1.5 ${
-                  i === 2
-                    ? "bg-gradient-to-b from-ink-70 to-ink text-paper shadow-[0_3px_8px_-3px_rgba(0,0,0,0.5)]"
-                    : "border border-ink-08 bg-paper text-ink"
-                }`}
-              >
-                <span className={`text-[0.38rem] ${i === 2 ? "text-white/60" : "text-ink-30"}`}>
-                  {d}
-                </span>
-                <span className="text-[0.55rem] font-semibold tabular-nums tracking-tight">
-                  {n}
-                </span>
-              </div>
-            ),
-          )}
-        </div>
-      </div>
-
-      <div className="mt-2.5 flex-1 px-3.5">
-        <p className="text-[0.42rem] font-medium uppercase tracking-[0.12em] text-ink-30">
-          Available slots
+      <div className="px-4 pt-11">
+        <p className="text-[0.42rem] font-medium uppercase tracking-[0.14em] text-ink-30">
+          Backend Engineer · 4 questions
         </p>
-        <div className="mt-1.5 grid grid-cols-3 gap-1">
-          {["10:00", "11:30", "2:00", "4:30", "6:00", "8:30"].map((t, i) => (
+        <h3 className="mt-0.5 text-[0.82rem] font-semibold tracking-[-0.03em] text-ink">
+          How that interview went
+        </h3>
+      </div>
+
+      <div className="mt-3 space-y-1.5 px-4">
+        {answers.map((a) => (
+          <div
+            key={a.q}
+            className="flex items-center gap-2 rounded-xl border border-ink-08 bg-paper px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+          >
+            <Icon
+              d={a.bad ? S.alert : S.check}
+              className={`size-[10px] shrink-0 ${a.bad ? "text-ink" : "text-ink-30"}`}
+              stroke={!a.bad}
+            />
+            <p className="min-w-0 flex-1 truncate text-[0.5rem] text-ink-70">{a.q}</p>
             <span
-              key={t}
-              className={`rounded-lg py-[5px] text-center text-[0.45rem] font-medium tabular-nums ${
-                i === 3
-                  ? "bg-ink text-paper"
-                  : i === 1
-                    ? "border border-ink-08 bg-ink-04 text-ink-30 line-through"
-                    : "border border-ink-08 bg-paper text-ink"
+              className={`shrink-0 text-[0.45rem] font-medium ${
+                a.bad ? "text-ink" : "text-ink-30"
               }`}
             >
-              {t}
+              {a.v}
             </span>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
-      <div className="px-3.5 pb-2">
-        <div className="mb-1.5 space-y-[5px] rounded-lg border border-ink-08 bg-paper p-2">
-          {["30-minute video call", "Ask anything — resume, offers, switching", "Notes shared after"].map(
-            (t) => (
-              <div key={t} className="flex items-center gap-1.5">
-                <span className="flex size-[10px] shrink-0 items-center justify-center rounded-full bg-ink">
-                  <Icon d={S.check} className="size-[6px] text-paper" stroke />
-                </span>
-                <span className="truncate text-[0.42rem] text-ink-50">{t}</span>
-              </div>
-            ),
-          )}
-        </div>
-        <div className="mb-1.5 flex items-center justify-between rounded-lg bg-ink-04 px-2 py-1.5">
-          <span className="text-[0.45rem] text-ink-50">Wed 20 Aug · 4:30 PM</span>
-          <span className="text-[0.55rem] font-semibold tracking-[-0.02em] text-ink">₹699</span>
-        </div>
-        <div className="rounded-full bg-gradient-to-b from-ink-70 to-ink py-2 text-center text-[0.52rem] font-medium text-paper shadow-[0_4px_12px_-4px_rgba(0,0,0,0.5)]">
-          Confirm booking
+      <div className="mx-4 mt-3 flex-1 overflow-hidden rounded-xl border border-ink-08 bg-paper p-2.5">
+        <p className="text-[0.42rem] font-medium uppercase tracking-[0.12em] text-ink-30">
+          Your answer, rewritten
+        </p>
+        <p className="mt-1.5 text-[0.5rem] leading-relaxed text-ink-70">
+          &ldquo;I built the payments retry service at my internship — it cut failed
+          transactions from 9% to under 2% over six weeks.&rdquo;
+        </p>
+        <p className="mt-2 border-t border-ink-04 pt-1.5 text-[0.45rem] leading-relaxed text-ink-50">
+          You said what the team did. Say what you did, and put a number on it.
+        </p>
+      </div>
+
+      <div className="px-4 pb-2 pt-2.5">
+        <div className="flex items-center justify-center rounded-full bg-gradient-to-b from-ink-70 to-ink py-2 text-[0.52rem] font-medium text-paper shadow-[0_4px_12px_-4px_rgba(0,0,0,0.5)]">
+          Try that round again
         </div>
       </div>
       <HomeBar />
@@ -467,7 +387,6 @@ export function PhoneScreenBooking() {
   );
 }
 
-/** ATS score and the fixes behind it. */
 export function PhoneScreenResume() {
   const R = 26;
   const C = 2 * Math.PI * R;
@@ -604,21 +523,24 @@ export function PhoneScreenResume() {
 export function PhoneCluster() {
   return (
     <div className="relative mx-auto flex w-full max-w-[900px] items-end justify-center gap-4 sm:gap-6">
+      {/* The ATS report takes the centre because it is the one screen that
+          makes the problem legible in a glance — a number, and two things
+          costing you it. The agent and the job list flank it. */}
       <div className="hidden w-[26%] translate-y-8 sm:block">
         <PhoneFrame className="opacity-[0.82]">
-          <PhoneScreenBooking />
+          <PhoneScreenDiscover />
         </PhoneFrame>
       </div>
 
       <div className="w-[62%] sm:w-[34%]">
         <PhoneFrame>
-          <PhoneScreenChat />
+          <PhoneScreenResume />
         </PhoneFrame>
       </div>
 
       <div className="hidden w-[26%] translate-y-8 sm:block">
         <PhoneFrame className="opacity-[0.82]">
-          <PhoneScreenDiscover />
+          <PhoneScreenChat />
         </PhoneFrame>
       </div>
     </div>

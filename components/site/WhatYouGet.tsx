@@ -14,35 +14,27 @@ import { SinglePhone } from "./PhoneMock";
 const THINGS = [
   {
     n: "01",
-    title: "A resume that survives the software",
-    body: "Upload what you are already sending and see the version a screening system reads — what it skipped, what it could not find, the score it hands over before a person opens anything. Then fix it here, in 60 templates built to parse cleanly.",
-    href: "/tools/resume-ats-checker",
-    linkText: "Check your resume free",
-    screen: "resume" as const,
-  },
-  {
-    n: "02",
     title: "Roles worth applying to",
-    body: "Openings pulled straight from company boards and the big portals, filtered by your city, your years and whether it is actually remote. No sponsored listings and no six-month-old posting that was filled in March.",
+    body: "Openings pulled straight from company boards and the big portals, filtered by your city, your years and whether it is actually remote. No sponsored listings, and no six-month-old posting that was filled in March.",
     href: "/signin?next=/app/jobs",
     linkText: "See open roles",
     screen: "discover" as const,
   },
   {
-    n: "03",
+    n: "02",
     title: "The interview, before the interview",
     body: "Mock rounds for the role you are actually applying for, answered by typing or speaking. Afterwards you get the written version: what each answer was missing, and the same answer rewritten the way it should have been said.",
     href: "/signin?next=/app/interviews",
     linkText: "Try a mock round",
-    screen: "chat" as const,
+    screen: "booking" as const,
   },
   {
-    n: "04",
-    title: "Somebody to ask at 1am",
-    body: "A career agent that has read your resume and knows what you are applying for — so the answer is about you, not the general advice you have already read. Is this offer fair. Why does this keep happening. What do I fix first.",
-    href: "/signin?next=/app",
-    linkText: "Create a free account",
-    screen: "booking" as const,
+    n: "03",
+    title: "What changed this week",
+    body: "EPFO rules, wage ceilings, who is hiring and who quietly stopped — read in seventy words, not a thousand. Plus the long guides for the things worth understanding properly once.",
+    href: "/blog",
+    linkText: "Read the guides",
+    screen: "chat" as const,
   },
 ];
 
@@ -52,18 +44,17 @@ export function WhatYouGet() {
       <div className="container-page">
         <Reveal>
           <p className="text-[0.75rem] font-medium uppercase tracking-[0.18em] text-ink-30">
-            What you get
+            Also in the account
           </p>
           <h2 className="mt-5 max-w-[20ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
-            Everything the first three years actually need.
+            And then the rest of the search.
           </h2>
         </Reveal>
 
         <Reveal delay={80}>
           <p className="mt-6 max-w-[58ch] text-lg leading-relaxed text-ink-70">
-            Not a course, and not a job board with a newsletter attached. The
-            four things that decide whether you get the offer — and all four
-            open the moment you make an account.
+            Getting read is the first problem, not the only one. All of this
+            opens the moment you make an account.
           </p>
         </Reveal>
 

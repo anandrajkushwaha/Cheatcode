@@ -34,7 +34,7 @@ export function ResumeTool() {
           <div>
             <Reveal>
               <p className="text-[0.75rem] font-medium uppercase tracking-[0.18em] text-white/40">
-                Where most people lose
+                Start here
               </p>
               <h2 className="mt-5 max-w-[20ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
                 No advice helps if a machine already deleted you.

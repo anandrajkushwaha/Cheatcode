@@ -30,8 +30,8 @@ export default function HomePage() {
           of that, because they are the one thing on this page that is a plan
           rather than a product.
         */}
-        <WhatYouGet />
         <ResumeTool />
+        <WhatYouGet />
         <Questions />
         <Plans />
         <Difference />

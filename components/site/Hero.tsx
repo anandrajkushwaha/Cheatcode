@@ -25,11 +25,9 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={140} immediate>
-          <p className="mx-auto mt-8 max-w-[54ch] text-lg leading-relaxed text-ink-70 sm:text-xl">
-            The people who move fast early aren&apos;t smarter. They just know
-            things nobody told you. Cheatcode is the unfair advantage for the
-            first few years of a career — your resume, the roles worth
-            applying to, and the interview, handled in one place.
+          <p className="mx-auto mt-8 max-w-[40ch] text-lg leading-relaxed text-ink-70 sm:text-xl">
+            The ones who move fast early aren&apos;t smarter. They just know
+            things nobody told you.
           </p>
         </Reveal>
 
