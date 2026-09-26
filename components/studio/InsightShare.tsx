@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Insight } from "@/lib/insights/query";
+import { EVENTS, track } from "@/lib/analytics/events";
 
 /**
  * Share an insight as a picture or as a link.
@@ -37,6 +38,11 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
 
   const caption = `${item.title}\n\nRead more on Cheatcode: ${link}`;
 
+  // Counted against the insight's own public page, so the admin's per-page
+  // share numbers line up with the path a reader would actually land on.
+  const record = (where: string) =>
+    track(EVENTS.CONTENT_SHARE, { label: `/insights/${item.id}`, location: where });
+
   async function image(): Promise<File | null> {
     const res = await fetch(card);
     if (!res.ok) return null;
@@ -45,6 +51,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
   }
 
   async function shareImage() {
+    record("image");
     setBusy(true);
     setNote(null);
     try {
@@ -59,6 +66,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
   }
 
   async function download() {
+    record("download");
     setBusy(true);
     setNote(null);
     try {
@@ -79,6 +87,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
   }
 
   async function copy() {
+    record("link");
     try {
       await navigator.clipboard.writeText(link);
       setNote("Link copied.");
@@ -137,6 +146,7 @@ export function InsightShare({ item, onClose }: { item: Insight; onClose: () => 
             href={`https://wa.me/?text=${encodeURIComponent(caption)}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => record("whatsapp")}
             className={`${btn} bg-[#25d366] text-white`}
           >
             WhatsApp

@@ -10,6 +10,7 @@ import { SITE } from "@/lib/seo/constants";
 import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
 import { FaqBlock } from "@/components/content/FaqBlock";
+import { ArticleShare } from "@/components/content/ArticleShare";
 import { ToolBlock } from "@/components/content/ToolBlock";
 import { ResumeCtaBar, ResumeCtaBlock } from "@/components/content/ResumeCta";
 import { ResumeBanner } from "@/components/content/ResumeBanner";
@@ -145,6 +146,14 @@ export default async function ArticlePage({ params }: Props) {
             <FaqBlock items={post.faq} />
 
             <ToolBlock slugs={post.related_tool_slugs} />
+
+            {/*
+              After the answer, not before it. A share row above the article
+              asks somebody to recommend a thing they have not read yet, and
+              is ignored; here it is offered at the one moment the piece has
+              already been useful.
+            */}
+            <ArticleShare title={post.title} path={`/blog/${post.slug}`} />
 
             {/*
               Below `lg` the sidebar is not beside the article, it is stacked

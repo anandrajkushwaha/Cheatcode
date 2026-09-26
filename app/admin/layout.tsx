@@ -31,6 +31,9 @@ const NAV = [
   { href: "/admin", label: "Dashboard" },
   // The website: visitors, sources, ad campaigns and the free tools.
   { href: "/admin/traffic", label: "Traffic" },
+  // Beside Traffic, and after it: Traffic counts arrivals, this one says
+  // which of our pages they arrived at — and which they never do.
+  { href: "/admin/pages", label: "Pages" },
   // Résumés before People, because the question "is the product being used"
   // comes before "by whom" — and the download count on the first tab is the
   // one number that says the answer is yes.

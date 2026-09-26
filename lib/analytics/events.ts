@@ -40,6 +40,14 @@ export const EVENTS = {
   TOC_CLICK: "toc_click", // params: label (heading)
   FAQ_OPEN: "faq_open", // params: label (question)
   RELATED_POST_CLICK: "related_post_click", // params: label (slug)
+
+  /**
+   * Somebody passed a page on. params: label (the path shared), location
+   * (where it went — whatsapp, image, link, system). Counted per page in
+   * the admin, because a page that gets shared is doing something a page
+   * with the same view count and no shares is not.
+   */
+  CONTENT_SHARE: "content_share",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
