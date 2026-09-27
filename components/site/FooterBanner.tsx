@@ -17,11 +17,9 @@ import { useAuthStatus } from "./AuthLinks";
  * signed-in visitor sees it disappear on the next frame, which is the same
  * trade the header already makes.
  *
- * Two crops, one per layout. The phone crop is its own export — a near square
- * with the sky left open at the top for the words — so it needs no wash at
- * all; the words sit straight on the photograph. The wide crop is pure
- * photograph edge to edge, so the blue block the design shows on its left is
- * the overlay's job there and only there.
+ * Two crops, one per layout: a near-square export for phones, the wide one
+ * above `sm`. Neither carries an overlay — the words sit straight on the
+ * photograph, which is what the design asks for.
  */
 export function FooterBanner() {
   const status = useAuthStatus();
@@ -46,18 +44,6 @@ export function FooterBanner() {
             sizes="(min-width: 1242px) 1202px, 100vw"
             quality={90}
             className="hidden object-cover object-right sm:block"
-          />
-
-          {/* Wide crop only. It has to reach zero inside its own box: a
-              gradient that stops part-way and then ends leaves a vertical
-              seam exactly where the element does. */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 hidden sm:block"
-            style={{
-              background:
-                "linear-gradient(to right, rgba(18,107,162,0.98) 0%, rgba(18,107,162,0.82) 40%, rgba(18,107,162,0.35) 70%, rgba(18,107,162,0) 100%)",
-            }}
           />
 
           {/* Top of the frame on a phone, where the export leaves the sky
