@@ -36,8 +36,12 @@ export const metadata: Metadata = {
 export default async function InsightsIndex() {
   const items = await getInsights(60);
 
+  // The reader is sized to finish inside the first screen, which on a page
+  // this short left the footer sitting straight under the card — its sign-up
+  // banner already halfway up the fold. The space below puts the footer back
+  // where a footer belongs: reached by scrolling, not met on arrival.
   return (
-    <div className="container-page py-6 sm:py-8">
+    <div className="container-page pt-6 pb-20 sm:pt-8 sm:pb-28">
       <PublicInsights items={items} />
     </div>
   );
