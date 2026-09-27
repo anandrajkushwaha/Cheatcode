@@ -53,6 +53,7 @@ export default async function SignInPage({
       */}
       <Image
         src="/signin-bg.webp"
+        quality={90}
         alt=""
         fill
         priority

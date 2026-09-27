@@ -76,14 +76,17 @@ export function useAuthStatus(): Status {
 // type, -0.4043px tracking, a fully round black pill at 35px of horizontal
 // padding. Held down a step on phones, where 35px each side does not fit.
 const SOLID =
-  "whitespace-nowrap rounded-full bg-black px-5 py-[9px] font-display text-[0.92rem] font-medium text-white " +
-  "tracking-[-0.025em] sm:px-[35px] sm:text-[1.01rem] " +
+  "whitespace-nowrap rounded-full bg-black px-4 py-[9px] font-display text-[0.9rem] font-medium text-white " +
+  "tracking-[-0.025em] sm:px-5 lg:px-[35px] lg:text-[1.01rem] " +
   "transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] " +
   "hover:scale-[1.03] active:scale-[0.97]";
 
+// Hidden on the narrowest phones: the wordmark, "Log in", the pill and the
+// hamburger do not fit across 360px, and "Log in" is the one of the four that
+// is also in the menu underneath.
 const QUIET =
-  "whitespace-nowrap px-4 py-[9px] font-display text-[0.92rem] tracking-[-0.025em] text-[#767676] " +
-  "transition-colors hover:text-ink sm:px-[35px] sm:text-[1.01rem]";
+  "hidden whitespace-nowrap px-3 py-[9px] font-display text-[0.92rem] tracking-[-0.025em] text-[#767676] " +
+  "transition-colors hover:text-ink min-[420px]:inline lg:px-[35px] lg:text-[1.01rem]";
 
 /**
  * @param location  Where this instance sits, for the analytics attribute the

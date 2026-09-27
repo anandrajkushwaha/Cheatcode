@@ -107,8 +107,13 @@ export function FreeTools() {
     };
 
     const paint = () => {
+      // Off the stacked layout there is nothing to shrink: both cards sit at
+      // their full size, one after the other. Writing 1 to --shrink here was
+      // leaving the first card permanently at 0.905 and 44px out of place on
+      // every phone.
+      const stacking = desktop.matches && !still.matches;
       st.style.setProperty("--in2", String(easeOut(shown)));
-      st.style.setProperty("--shrink", String(shown));
+      st.style.setProperty("--shrink", stacking ? String(shown) : "0");
     };
 
     /**
@@ -214,7 +219,7 @@ export function FreeTools() {
                         // -9.544% of its own height is the design's 44px at
                         // full size, and stays right when the card scales.
                         transform:
-                          "translateY(calc(-9.544% * var(--shrink, 1))) scale(calc(1 - 0.095 * var(--shrink, 1)))",
+                          "translateY(calc(-9.544% * var(--shrink, 0))) scale(calc(1 - 0.095 * var(--shrink, 0)))",
                         transformOrigin: "top center",
                         willChange: "transform",
                       }
@@ -236,11 +241,12 @@ export function FreeTools() {
                     }`}
                   >
                     <div
-                      className="shrink-0 overflow-hidden rounded-t-[29px] lg:w-[35.58cqw]"
+                      className="shrink-0 overflow-hidden rounded-[18px] lg:w-[35.58cqw] lg:rounded-b-none lg:rounded-t-[29px]"
                       style={{ background: t.imgBg }}
                     >
                       <Image
                         src={t.img}
+                        quality={90}
                         alt=""
                         width={427}
                         height={411}

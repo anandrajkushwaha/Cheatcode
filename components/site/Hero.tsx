@@ -35,6 +35,7 @@ export function Hero() {
       <div className="relative min-h-[36rem] w-full sm:min-h-0 sm:aspect-[1440/861]">
         <Image
           src="/hero-bg.webp"
+          quality={90}
           alt=""
           fill
           priority

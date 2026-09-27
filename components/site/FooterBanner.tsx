@@ -24,34 +24,37 @@ export function FooterBanner() {
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1242px] px-5">
       <div className="@container relative overflow-hidden rounded-[24px] bg-[#151515]">
-        <div className="relative aspect-[1202/326] min-h-[19rem] sm:min-h-0">
+        {/* On a phone the 1202×326 crop leaves a sliver of sky and nothing
+            else, so the picture becomes a backdrop and the card takes its
+            height from the words. The frame's own ratio returns at `sm`. */}
+        <div className="relative sm:aspect-[1202/326]">
           <Image
             src="/home/footer-banner.webp"
+            quality={90}
             alt=""
             fill
             sizes="(min-width: 1242px) 1202px, 100vw"
-            className="object-cover object-right"
+            className="object-cover object-[78%_center] sm:object-right"
           />
-          {/* Reads across the photograph so the type stays legible over sky. */}
           <div
             aria-hidden="true"
-            className="absolute inset-y-0 left-0 w-full sm:w-[58%]"
+            className="absolute inset-0 sm:inset-y-0 sm:left-0 sm:w-[58%]"
             style={{
               background:
-                "linear-gradient(to right, #126ba2 0%, rgba(18,107,162,0.92) 45%, rgba(18,107,162,0) 100%)",
+                "linear-gradient(to right, #126ba2 0%, rgba(18,107,162,0.92) 45%, rgba(18,107,162,0.55) 100%)",
             }}
           />
 
-          <div className="absolute inset-y-0 left-0 flex flex-col justify-center px-6 sm:px-0 sm:pl-[5.57cqw]">
+          <div className="relative px-6 py-9 sm:absolute sm:inset-y-0 sm:left-0 sm:justify-center sm:px-0 sm:pl-[5.57cqw] sm:py-0 flex flex-col">
             <h2
-              className="max-w-[48.4cqw] font-display font-medium text-white max-sm:max-w-none"
-              style={{ fontSize: "clamp(1.5rem, 3.328cqw, 2.5rem)", lineHeight: 1.18 }}
+              className="font-display font-medium text-white sm:max-w-[48.4cqw]"
+              style={{ fontSize: "clamp(1.45rem, 3.328cqw, 2.5rem)", lineHeight: 1.18 }}
             >
               Stop guessing what everyone else already knows.
             </h2>
             <p
-              className="mt-4 max-w-[38cqw] font-display text-white max-sm:max-w-none sm:mt-[2.7cqw]"
-              style={{ fontSize: "clamp(0.95rem, 1.664cqw, 1.25rem)", lineHeight: 1.35 }}
+              className="mt-3 font-display text-white/95 sm:mt-[2.7cqw] sm:max-w-[38cqw]"
+              style={{ fontSize: "clamp(0.92rem, 1.664cqw, 1.25rem)", lineHeight: 1.4 }}
             >
               One account. Resume builder, job search, mock interviews, and more. Start with
               your resume.

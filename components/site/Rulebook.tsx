@@ -218,6 +218,7 @@ export function Rulebook() {
                 <div className="relative overflow-hidden rounded-[8px] border border-white bg-black lg:aspect-[1200/477]">
                   <Image
                     src={p.img}
+                    quality={90}
                     alt=""
                     width={1200}
                     height={478}

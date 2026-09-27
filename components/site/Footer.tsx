@@ -77,6 +77,7 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
       >
         <Image
           src="/home/footer-bg.webp"
+          quality={90}
           alt=""
           fill
           sizes="100vw"

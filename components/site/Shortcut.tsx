@@ -80,6 +80,7 @@ export function Shortcut() {
               >
                 <Image
                   src={c.img}
+                  quality={90}
                   alt=""
                   width={386}
                   height={299}
