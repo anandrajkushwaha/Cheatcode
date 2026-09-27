@@ -7,10 +7,11 @@ import { useEffect, useRef } from "react";
 /**
  * "Useful tools. Free to use." — Figma 165:1909, cards 165:1943 / 165:1961.
  *
- * The section pins. While it is held, the first card rises into place, then
- * the second rises over it and the first settles to 0.905 scale, 44px higher
- * — the arrangement the design shows. Only once that is complete does the
- * page move on.
+ * The whole section pins as one composition — heading, sub-line and the first
+ * card all arrive together, exactly as the design frames them. The only thing
+ * that moves while it is held is the second card, which rises over the first
+ * while the first settles back to 0.905 scale and 44px higher. Once that is
+ * done the pin releases and the page moves on.
  *
  * The mechanism is a tall section with a `sticky` screen inside it: the extra
  * height is the scroll budget for the sequence, and how far you are through
@@ -90,7 +91,6 @@ export function FreeTools() {
       frame = 0;
       if (!desktop.matches || still.matches) {
         // Everything at its resting position; CSS handles the rest.
-        st.style.setProperty("--in1", "1");
         st.style.setProperty("--in2", "1");
         st.style.setProperty("--shrink", "1");
         return;
@@ -101,11 +101,9 @@ export function FreeTools() {
       const budget = sec.offsetHeight - (window.innerHeight - NAV);
       const p = budget <= 0 ? 1 : clamp01((NAV - sec.getBoundingClientRect().top) / budget);
 
-      // The first card arrives, then the second — with a short overlap, so the
-      // sequence reads as one movement rather than two.
-      st.style.setProperty("--in1", String(easeOut(clamp01(p / 0.4))));
-      st.style.setProperty("--in2", String(easeOut(clamp01((p - 0.45) / 0.55))));
-      st.style.setProperty("--shrink", String(clamp01((p - 0.45) / 0.55)));
+      // One movement: the second card rising, and the first giving way to it.
+      st.style.setProperty("--in2", String(easeOut(p)));
+      st.style.setProperty("--shrink", String(p));
     };
 
     const onScroll = () => {
@@ -125,12 +123,12 @@ export function FreeTools() {
   }, []);
 
   return (
-    <section ref={section} className="relative bg-paper lg:h-[290vh]">
+    <section ref={section} className="relative bg-paper lg:h-[200vh]">
       {/* The header is 4.5rem of sticky white, so pinning at top-0 parks the
           heading behind it. The pin starts below the header and the screen it
           occupies is short by the same amount. */}
-      <div className="flex flex-col items-center px-5 pt-16 pb-20 lg:sticky lg:top-[4.5rem] lg:h-[calc(100svh-4.5rem)] lg:justify-center lg:gap-[3vh] lg:py-0">
-        <div className="w-full max-w-[1200px] shrink-0">
+      <div className="flex flex-col items-center px-5 pt-16 pb-20 lg:sticky lg:top-[4.5rem] lg:h-[calc(100svh-4.5rem)] lg:justify-center lg:py-0">
+        <div className="w-full max-w-[1200px]">
           <h2
             className="text-center font-display font-medium tracking-[-0.02em] text-black"
             style={{ fontSize: "clamp(1.9rem, 3.785vw, 3.41rem)", lineHeight: 1.15 }}
@@ -148,11 +146,16 @@ export function FreeTools() {
         {/* The stage. 505 tall rather than 461 so the card behind has the 44px
             of headroom the design gives it. Clipped, so the cards rise into
             it from below instead of appearing over the heading. */}
+        {/* The stage is 505 tall against a 1200 card so the card behind has the
+            44px of headroom the design gives it — the same 1 : 2.376 ratio at
+            any size, and capped against the viewport so the group still fits
+            on a short laptop screen. Clipped, so the second card rises into it
+            rather than appearing over the heading. */}
         <div
           ref={stage}
-          className="mt-10 w-full max-w-[1200px] lg:mt-0 lg:flex lg:min-h-0 lg:flex-1 lg:items-center lg:justify-center"
+          className="mt-10 w-full max-w-[1200px] lg:mx-auto lg:mt-[4.5vh] lg:h-[min(505px,50svh)] lg:w-[min(100%,calc(min(505px,50svh)*2.37624))] lg:overflow-hidden"
         >
-          <div className="lg:relative lg:h-full lg:max-h-[505px] lg:w-full lg:overflow-hidden lg:[aspect-ratio:1200/505]">
+          <div className="lg:relative lg:size-full">
             {TOOLS.map((t, i) => (
               <div
                 key={t.id}
@@ -164,8 +167,10 @@ export function FreeTools() {
                     ? {
                         // Rises in, then settles back and smaller as the
                         // second card takes the front.
+                        // -9.544% of its own height is the design's 44px at
+                        // full size, and stays right when the card scales.
                         transform:
-                          "translateY(calc((1 - var(--in1, 1)) * 115% - 44px * var(--shrink, 1))) scale(calc(1 - 0.095 * var(--shrink, 1)))",
+                          "translateY(calc(-9.544% * var(--shrink, 1))) scale(calc(1 - 0.095 * var(--shrink, 1)))",
                         transformOrigin: "top center",
                         willChange: "transform",
                       }
