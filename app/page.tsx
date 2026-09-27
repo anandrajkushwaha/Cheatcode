@@ -1,5 +1,6 @@
 import { Nav } from "@/components/site/Nav";
 import { Hero } from "@/components/site/Hero";
+import { Shortcut } from "@/components/site/Shortcut";
 import { Problem } from "@/components/site/Problem";
 import { WhatYouGet } from "@/components/site/WhatYouGet";
 import { Plans } from "@/components/site/Plans";
@@ -21,6 +22,7 @@ export default function HomePage() {
       <Nav />
       <main id="main">
         <Hero />
+        <Shortcut />
         <Problem />
         {/*
           Order follows the sign-up decision, not the story we like telling.
