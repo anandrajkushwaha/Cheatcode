@@ -166,13 +166,17 @@ export async function getPages(
         if (s > 0 && s < 3600) a.seconds.set(key, (a.seconds.get(key) ?? 0) + s);
       } else if (r.event === "content_share") {
         a.shares += 1;
-      } else if (r.event === "article_view" && r.location === "app-reader") {
+      } else if (
+        r.event === "article_view" &&
+        (r.location === "app-reader" || r.location === "public-reader")
+      ) {
         // An insight is read inside the app's reader, which never navigates
         // to /insights/<id> and so never records a page view. Without this
         // every insight reads zero no matter how many people scrolled it.
-        // Only the in-app reader is counted here: a blog article fires
-        // article_view as well, and there it would double the page view it
-        // already has.
+        // Both readers: the same component now runs on the public /insights
+        // page too, and a story read there is a read. Only the readers are
+        // counted here — a blog article fires article_view as well, and there
+        // it would double the page view it already has.
         a.views += 1;
         if (r.visitor_id) a.people.add(r.visitor_id);
         if (r.session_id) a.sessions.add(r.session_id);

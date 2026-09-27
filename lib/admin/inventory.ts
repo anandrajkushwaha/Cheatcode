@@ -33,6 +33,7 @@ export type InventoryPage = {
 const SITE_PAGES: InventoryPage[] = [
   { path: "/", title: "Home", group: "Site" },
   { path: "/blog", title: "Guides — index", group: "Site" },
+  { path: "/insights", title: "Insights — public index", group: "Site" },
   { path: "/tools", title: "Free tools — index", group: "Tool" },
   { path: "/tools/resume-ats-checker", title: "Resume ATS checker", group: "Tool" },
   { path: "/tools/in-hand-salary-calculator", title: "In-hand salary calculator", group: "Tool" },

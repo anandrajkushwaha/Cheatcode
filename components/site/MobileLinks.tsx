@@ -12,6 +12,7 @@ import Link from "next/link";
 const LINKS = [
   { href: "/tools/resume-ats-checker", label: "ATS checker" },
   { href: "/tools/in-hand-salary-calculator", label: "Salary calculator" },
+  { href: "/insights", label: "Insights" },
   { href: "/blog", label: "Guides" },
   { href: "/tools", label: "All free tools" },
 ];

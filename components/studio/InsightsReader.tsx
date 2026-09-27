@@ -31,7 +31,23 @@ type Tab = (typeof TABS)[number]["key"];
 
 const SEEN_KEY = "cc_insights_seen";
 
-export function InsightsReader({ items, startId }: { items: Insight[]; startId: string | null }) {
+/**
+ * How many stories a signed-out visitor gets. The first is theirs to read;
+ * the two behind it are blurred, and the scroller stops there rather than
+ * carrying on into content they have not signed up for.
+ */
+const FREE_CARDS = 3;
+
+export function InsightsReader({
+  items,
+  startId,
+  locked = false,
+}: {
+  items: Insight[];
+  startId: string | null;
+  /** Public page, nobody signed in: blur from the second card and stop at the third. */
+  locked?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>("all");
   const [index, setIndex] = useState(0);
   const [seenBefore, setSeenBefore] = useState<number | null>(null);
@@ -42,6 +58,12 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
     () => items.filter((i) => tab === "all" || i.category === tab),
     [items, tab],
   );
+
+  // What is actually in the scroller. Cutting the list here rather than
+  // hiding the overflow is what makes the wall hold: ↓, j/k and the arrow
+  // buttons all clamp to `deck.length`, so there is no route past the third
+  // card to keep in sync.
+  const deck = useMemo(() => (locked ? shown.slice(0, FREE_CARDS) : shown), [shown, locked]);
 
   // What counted as "seen" is read once, then moved up to now.
   useEffect(() => {
@@ -59,10 +81,10 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
     (to: number) => {
       const el = frame.current;
       if (!el) return;
-      const i = Math.max(0, Math.min(shown.length - 1, to));
+      const i = Math.max(0, Math.min(deck.length - 1, to));
       el.scrollTo({ top: i * el.clientHeight, behavior: "smooth" });
     },
-    [shown.length],
+    [deck.length],
   );
 
   // Opened from a card on the home screen: start at that story.
@@ -110,8 +132,9 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
    */
   const counted = useRef(new Set<string>());
   useEffect(() => {
-    const item = shown[index];
-    if (!item || counted.current.has(item.id)) return;
+    const item = deck[index];
+    // A blurred card was not read, whatever the scroll position says.
+    if (!item || (locked && index > 0) || counted.current.has(item.id)) return;
     // A card only glimpsed on the way past is not a read.
     const id = window.setTimeout(() => {
       if (counted.current.has(item.id)) return;
@@ -119,11 +142,11 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
       track(EVENTS.ARTICLE_VIEW, {
         label: `/insights/${item.id}`,
         path: `/insights/${item.id}`,
-        location: "app-reader",
+        location: locked ? "public-reader" : "app-reader",
       });
     }, 1200);
     return () => window.clearTimeout(id);
-  }, [shown, index]);
+  }, [deck, index, locked]);
 
   function pick(next: Tab) {
     setTab(next);
@@ -141,7 +164,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
         </h1>
         {shown.length > 0 && (
           <p className="text-[0.78rem] tabular-nums text-ink-30">
-            {Math.min(index + 1, shown.length)} / {shown.length}
+            {Math.min(index + 1, deck.length)} / {shown.length}
           </p>
         )}
       </div>
@@ -183,12 +206,20 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
             ref={frame}
             className="h-[calc(100dvh-230px)] min-h-[360px] snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {shown.map((i, n) => {
+            {deck.map((i, n) => {
               const fresh = seenBefore !== null && seenBefore > 0 && new Date(i.at).getTime() > seenBefore;
+              // Everything after the first card, for a visitor who has not
+              // signed in. Real story, real picture, out of focus.
+              const veiled = locked && n > 0;
               return (
+                <div key={i.id} className="relative h-full snap-start snap-always">
                 <article
-                  key={i.id}
-                  className={`h-full snap-start snap-always overflow-hidden rounded-3xl border border-[#efe9cf] bg-paper ${
+                  aria-hidden={veiled || undefined}
+                  inert={veiled || undefined}
+                  style={veiled ? { filter: `blur(${n === 1 ? 6 : 9}px)` } : undefined}
+                  className={`h-full overflow-hidden rounded-3xl border border-[#efe9cf] bg-paper ${
+                    veiled ? "pointer-events-none select-none" : ""
+                  } ${
                     i.imageUrl ? "flex flex-col md:grid md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]" : "flex flex-col"
                   }`}
                 >
@@ -246,7 +277,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
                       </button>
                     </div>
 
-                    {n === 0 && shown.length > 1 && (
+                    {n === 0 && deck.length > 1 && (
                       <p className="mt-3 text-center text-[0.72rem] text-ink-30">
                         Swipe up or press ↓ for the next story
                       </p>
@@ -254,6 +285,38 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
                   </div>
                   </div>
                 </article>
+
+                {veiled && (
+                  <div className="absolute inset-0 grid place-items-center rounded-3xl bg-white/40 px-5 text-center">
+                    {/* The words sit on their own panel rather than straight
+                        on the blurred photograph — half of these cards have a
+                        dark picture behind them and the copy has to hold up on
+                        all of them. */}
+                    <div className="max-w-[26rem] rounded-2xl bg-white/90 px-7 py-8 shadow-[0_8px_40px_rgba(0,0,0,0.1)] backdrop-blur-[2px]">
+                      <p
+                        style={{ fontFamily: SERIF }}
+                        className="text-[1.5rem] font-bold italic leading-none text-[#121224] sm:text-[1.8rem]"
+                      >
+                        {shown.length - 1} more today
+                      </p>
+                      <p className="mx-auto mt-3 max-w-[38ch] text-[0.9rem] leading-relaxed text-ink-70">
+                        Hiring, pay and work rules in India — a new set every morning. Free, and it
+                        comes with the resume builder and mock interviews.
+                      </p>
+                      <a
+                        href="/signin?next=/app/insights"
+                        data-ev="cta_click"
+                        data-ev-location="insights-wall"
+                        data-ev-label="Sign up free"
+                        className="mt-6 inline-block rounded-full bg-[#16162a] px-7 py-3 text-[0.9rem] font-medium text-white transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.03] active:scale-[0.97]"
+                      >
+                        Sign up free
+                      </a>
+                      <p className="mt-3 text-[0.76rem] text-ink-30">No card needed.</p>
+                    </div>
+                  </div>
+                )}
+                </div>
               );
             })}
           </div>
@@ -272,7 +335,7 @@ export function InsightsReader({ items, startId }: { items: Insight[]; startId: 
             <button
               type="button"
               aria-label="Next story"
-              disabled={index >= shown.length - 1}
+              disabled={index >= deck.length - 1}
               onClick={() => go(index + 1)}
               className="grid size-10 place-items-center rounded-full border border-ink-15 bg-paper text-ink-50 transition-colors hover:border-ink hover:text-ink disabled:opacity-30"
             >

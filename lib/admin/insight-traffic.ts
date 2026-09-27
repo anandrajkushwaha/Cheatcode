@@ -73,9 +73,10 @@ export async function getInsightTraffic(): Promise<InsightTraffic> {
     if (!id) continue;
     const a = at(id);
     if (r.event === "content_share") a.shares += 1;
-    // Only the in-app reader. A read counted from anywhere else would be the
-    // same visit as the page view below, counted twice.
-    else if (r.location === "app-reader") a.reads += 1;
+    // The two readers: inside the app, and the public /insights page that
+    // runs the same component. Neither navigates to /insights/<id>, so no
+    // read here is also the page view counted below.
+    else if (r.location === "app-reader" || r.location === "public-reader") a.reads += 1;
     else continue;
     if (r.visitor_id) a.people.add(r.visitor_id);
   }

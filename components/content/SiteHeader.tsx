@@ -18,6 +18,14 @@ export function SiteHeader() {
         <ul className="hidden items-center gap-8 lg:flex">
           <li>
             <Link
+              href="/insights"
+              className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
+            >
+              Insights
+            </Link>
+          </li>
+          <li>
+            <Link
               href="/blog"
               className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
             >

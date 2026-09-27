@@ -20,8 +20,7 @@ import { AuthLinks } from "./AuthLinks";
  */
 const LINKS = [
   { href: "/tools", label: "Free tools" },
-  // There is no public insights index yet; the reader lives inside the app.
-  { href: "/signin?next=/app/insights", label: "Insights" },
+  { href: "/insights", label: "Insights" },
   { href: "/blog", label: "Blogs" },
 ];
 

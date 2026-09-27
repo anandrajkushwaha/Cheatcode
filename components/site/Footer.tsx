@@ -23,7 +23,7 @@ const GROUPS: Group[] = [
     links: [
       // No About page exists yet; this is the homepage until there is one.
       { href: "/", label: "About Us" },
-      { href: "/signin?next=/app/insights", label: "Insights" },
+      { href: "/insights", label: "Insights" },
       { href: "/blog", label: "Blogs" },
       { href: "/signin?next=/app/upgrade", label: "Pricing" },
       { href: "/#faq", label: "FAQs" },
