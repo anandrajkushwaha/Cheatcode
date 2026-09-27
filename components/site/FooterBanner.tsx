@@ -16,6 +16,12 @@ import { useAuthStatus } from "./AuthLinks";
  * `unknown` counts as signed out so the common case paints immediately; a
  * signed-in visitor sees it disappear on the next frame, which is the same
  * trade the header already makes.
+ *
+ * Two crops, one per layout. The phone crop is its own export — a near square
+ * with the sky left open at the top for the words — so it needs no wash at
+ * all; the words sit straight on the photograph. The wide crop is pure
+ * photograph edge to edge, so the blue block the design shows on its left is
+ * the overlay's job there and only there.
  */
 export function FooterBanner() {
   const status = useAuthStatus();
@@ -24,34 +30,27 @@ export function FooterBanner() {
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1242px] px-5">
       <div className="@container relative overflow-hidden rounded-[24px] bg-[#151515]">
-        {/* On a phone the 1202×326 crop leaves a sliver of sky and nothing
-            else, so the picture becomes a backdrop and the card takes its
-            height from the words. The frame's own ratio returns at `sm`. */}
-        <div className="relative sm:aspect-[1202/326]">
+        <div className="relative aspect-[494/484] sm:aspect-[1202/326]">
+          <Image
+            src="/home/footer-banner-mobile.webp"
+            alt=""
+            fill
+            sizes="100vw"
+            quality={90}
+            className="object-cover sm:hidden"
+          />
           <Image
             src="/home/footer-banner.webp"
-            quality={90}
             alt=""
             fill
             sizes="(min-width: 1242px) 1202px, 100vw"
-            className="object-cover object-[78%_center] sm:object-right"
+            quality={90}
+            className="hidden object-cover object-right sm:block"
           />
-          {/* Two overlays rather than one, because the two layouts want
-              opposite things. The wash has to reach zero inside its own box:
-              a gradient that stops at 0.55 and then ends leaves a vertical
-              seam exactly where the element does, which is the blue patch
-              that was showing up at 58%. Nowhere fully opaque either, so the
-              sky reads through the whole card — the softest wash that still
-              keeps the sub-line at ~5:1 against white. Dropping it entirely
-              puts that line at 2.6:1, which is under the readable floor. */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 sm:hidden"
-            style={{
-              background:
-                "linear-gradient(to right, rgba(18,107,162,0.97) 0%, rgba(18,107,162,0.9) 100%)",
-            }}
-          />
+
+          {/* Wide crop only. It has to reach zero inside its own box: a
+              gradient that stops part-way and then ends leaves a vertical
+              seam exactly where the element does. */}
           <div
             aria-hidden="true"
             className="absolute inset-0 hidden sm:block"
@@ -61,7 +60,9 @@ export function FooterBanner() {
             }}
           />
 
-          <div className="relative px-6 py-9 sm:absolute sm:inset-y-0 sm:left-0 sm:justify-center sm:px-0 sm:pl-[5.57cqw] sm:py-0 flex flex-col">
+          {/* Top of the frame on a phone, where the export leaves the sky
+              clear; vertically centred on the left once the crop goes wide. */}
+          <div className="absolute inset-x-0 top-0 flex flex-col px-[6.5cqw] pt-[7.5cqw] sm:inset-y-0 sm:right-auto sm:justify-center sm:px-0 sm:pl-[5.57cqw] sm:pt-0">
             <h2
               className="font-display font-medium text-white sm:max-w-[48.4cqw]"
               style={{ fontSize: "clamp(1.45rem, 3.328cqw, 2.5rem)", lineHeight: 1.18 }}
