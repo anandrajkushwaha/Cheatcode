@@ -95,8 +95,11 @@ export function FreeTools() {
         st.style.setProperty("--shrink", "1");
         return;
       }
-      const budget = sec.offsetHeight - window.innerHeight;
-      const p = budget <= 0 ? 1 : clamp01(-sec.getBoundingClientRect().top / budget);
+      // Matches the sticky box: it is the viewport minus the header, so the
+      // travel available to the pin is shorter by that much too.
+      const NAV = 72;
+      const budget = sec.offsetHeight - (window.innerHeight - NAV);
+      const p = budget <= 0 ? 1 : clamp01((NAV - sec.getBoundingClientRect().top) / budget);
 
       // The first card arrives, then the second — with a short overlap, so the
       // sequence reads as one movement rather than two.
@@ -123,7 +126,10 @@ export function FreeTools() {
 
   return (
     <section ref={section} className="relative bg-paper lg:h-[290vh]">
-      <div className="flex flex-col items-center px-5 pt-16 pb-20 lg:sticky lg:top-0 lg:h-svh lg:justify-center lg:gap-[3.5vh] lg:py-0">
+      {/* The header is 4.5rem of sticky white, so pinning at top-0 parks the
+          heading behind it. The pin starts below the header and the screen it
+          occupies is short by the same amount. */}
+      <div className="flex flex-col items-center px-5 pt-16 pb-20 lg:sticky lg:top-[4.5rem] lg:h-[calc(100svh-4.5rem)] lg:justify-center lg:gap-[3vh] lg:py-0">
         <div className="w-full max-w-[1200px] shrink-0">
           <h2
             className="text-center font-display font-medium tracking-[-0.02em] text-black"
