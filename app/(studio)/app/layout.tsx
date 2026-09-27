@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/supabase/app";
 import { appAuthConfigured } from "@/lib/supabase/app-env";
 import { getProfile, isPaid } from "@/lib/app/account";
 import { AgentOrb } from "@/components/app/AgentOrb";
+import { Footer } from "@/components/site/Footer";
 
 /**
  * The studio shell.
@@ -69,6 +70,10 @@ export default async function StudioLayout({
       <main id="main" className="mx-auto max-w-[1160px] px-3 py-5 sm:px-5 sm:py-6">
         {children}
       </main>
+
+      {/* The same footer the public site has, minus its sign-up card — this
+          side of the door everybody already has an account. */}
+      <Footer banner={false} />
 
       {/* Every studio screen, one corner. Free accounts can open it and look
           around; sending or talking asks for Pro. */}
