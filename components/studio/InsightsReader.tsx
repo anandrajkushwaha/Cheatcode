@@ -44,7 +44,7 @@ const FREE_CARDS = 3;
  * own — a card that runs past the fold makes the page scroll and the snap
  * scroll fight each other.
  */
-const APP_FRAME = "h-[calc(100dvh-230px)] min-h-[360px]";
+const APP_FRAME = "h-[calc(100dvh-230px)] min-h-[360px] overscroll-contain";
 
 export function InsightsReader({
   items,
@@ -215,7 +215,7 @@ export function InsightsReader({
         <div className="relative">
           <div
             ref={frame}
-            className={`${frameClassName} snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
+            className={`${frameClassName} snap-y snap-mandatory overflow-y-auto rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           >
             {deck.map((i, n) => {
               const fresh = seenBefore !== null && seenBefore > 0 && new Date(i.at).getTime() > seenBefore;
