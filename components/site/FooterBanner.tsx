@@ -36,12 +36,25 @@ export function FooterBanner() {
             sizes="(min-width: 1242px) 1202px, 100vw"
             className="object-cover object-[78%_center] sm:object-right"
           />
+          {/* Two overlays rather than one, because the two layouts want
+              opposite things. The wash has to reach zero inside its own box:
+              a gradient that stops at 0.55 and then ends leaves a vertical
+              seam exactly where the element does, which is the blue patch
+              that was showing up at 58%. */}
           <div
             aria-hidden="true"
-            className="absolute inset-0 sm:inset-y-0 sm:left-0 sm:w-[58%]"
+            className="absolute inset-0 sm:hidden"
             style={{
               background:
-                "linear-gradient(to right, #126ba2 0%, rgba(18,107,162,0.92) 45%, rgba(18,107,162,0.55) 100%)",
+                "linear-gradient(to right, rgba(18,107,162,0.97) 0%, rgba(18,107,162,0.9) 100%)",
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 hidden sm:block"
+            style={{
+              background:
+                "linear-gradient(to right, #126ba2 0%, #126ba2 52%, rgba(18,107,162,0) 66%, rgba(18,107,162,0) 100%)",
             }}
           />
 
