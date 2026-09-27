@@ -86,44 +86,87 @@ export function FreeTools() {
     const desktop = window.matchMedia("(min-width: 1024px)");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      if (!desktop.matches || still.matches) {
-        // Everything at its resting position; CSS handles the rest.
-        st.style.setProperty("--in2", "1");
-        st.style.setProperty("--shrink", "1");
-        return;
-      }
-      // Matches the sticky box: it is the viewport minus the header, so the
-      // travel available to the pin is shorter by that much too.
+    /** Where the scroll says we are, 0 → 1. */
+    let target = 1;
+    /** Where the cards actually are. Chases `target`, never jumps to it. */
+    let shown = 1;
+    let raf = 0;
+    let live = false;
+
+    const read = () => {
+      if (!desktop.matches || still.matches) return 1;
+      // The sticky box is the viewport minus the header, so the travel the pin
+      // has is shorter by the same amount.
       const NAV = 72;
       const budget = sec.offsetHeight - (window.innerHeight - NAV);
-      const p = budget <= 0 ? 1 : clamp01((NAV - sec.getBoundingClientRect().top) / budget);
+      if (budget <= 0) return 1;
+      const p = clamp01((NAV - sec.getBoundingClientRect().top) / budget);
+      // Finish a little before the pin lets go, so the section releases on a
+      // settled picture rather than mid-move.
+      return clamp01(p / 0.86);
+    };
 
-      // One movement: the second card rising, and the first giving way to it.
-      st.style.setProperty("--in2", String(easeOut(p)));
-      st.style.setProperty("--shrink", String(p));
+    const paint = () => {
+      st.style.setProperty("--in2", String(easeOut(shown)));
+      st.style.setProperty("--shrink", String(shown));
+    };
+
+    /**
+     * The cards ease toward the scroll position instead of tracking it exactly.
+     * A 1:1 mapping is what makes a pinned section feel mechanical — every
+     * notch of the wheel is a visible step. Chasing the target by a fraction
+     * each frame turns the same scroll into a glide, and it costs one
+     * subtraction per frame.
+     */
+    const tick = () => {
+      raf = 0;
+      const diff = target - shown;
+      if (Math.abs(diff) < 0.0005) {
+        shown = target;
+        paint();
+        return;
+      }
+      shown += diff * 0.14;
+      paint();
+      raf = requestAnimationFrame(tick);
     };
 
     const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(update);
+      target = read();
+      if (!raf) raf = requestAnimationFrame(tick);
     };
 
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
+    // Nothing runs while the section is nowhere near the screen.
+    const io = new IntersectionObserver(
+      ([e]) => {
+        live = e.isIntersecting;
+        if (live) onScroll();
+      },
+      { rootMargin: "20% 0px" },
+    );
+    io.observe(sec);
+
+    const onScrollGuarded = () => {
+      if (live) onScroll();
+    };
+
+    target = read();
+    shown = target;
+    paint();
+    window.addEventListener("scroll", onScrollGuarded, { passive: true });
     window.addEventListener("resize", onScroll);
     desktop.addEventListener("change", onScroll);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+      io.disconnect();
+      window.removeEventListener("scroll", onScrollGuarded);
       window.removeEventListener("resize", onScroll);
       desktop.removeEventListener("change", onScroll);
     };
   }, []);
 
   return (
-    <section ref={section} className="relative bg-paper lg:h-[200vh]">
+    <section ref={section} className="relative bg-paper lg:h-[185vh]">
       {/* The header is 4.5rem of sticky white, so pinning at top-0 parks the
           heading behind it. The pin starts below the header and the screen it
           occupies is short by the same amount. */}
@@ -149,11 +192,12 @@ export function FreeTools() {
         {/* The stage is 505 tall against a 1200 card so the card behind has the
             44px of headroom the design gives it — the same 1 : 2.376 ratio at
             any size, and capped against the viewport so the group still fits
-            on a short laptop screen. Clipped, so the second card rises into it
-            rather than appearing over the heading. */}
+            on a short laptop screen. Deliberately not clipped: clipping is
+            what was slicing the second card's text off as it came up. It
+            starts below the fold instead, so it simply scrolls into view. */}
         <div
           ref={stage}
-          className="mt-10 w-full max-w-[1200px] lg:mx-auto lg:mt-[4.5vh] lg:h-[min(505px,50svh)] lg:w-[min(100%,calc(min(505px,50svh)*2.37624))] lg:overflow-hidden"
+          className="mt-10 w-full max-w-[1200px] lg:mx-auto lg:mt-[4.5vh] lg:h-[min(505px,50svh)] lg:w-[min(100%,calc(min(505px,50svh)*2.37624))]"
         >
           <div className="lg:relative lg:size-full">
             {TOOLS.map((t, i) => (
@@ -175,7 +219,9 @@ export function FreeTools() {
                         willChange: "transform",
                       }
                     : {
-                        transform: "translateY(calc((1 - var(--in2, 1)) * 115%))",
+                        // Below the fold at rest, so it enters the way a
+                        // normal block would — up past the bottom edge.
+                        transform: "translateY(calc((1 - var(--in2, 1)) * 62vh))",
                         willChange: "transform",
                       }
                 }
