@@ -33,3 +33,7 @@ next-env.d.ts
 # scratch folder for files pending manual deletion
 /_to_delete/
 .env*
+
+# iCloud leaves undeletable duplicate dirs inside .next; builds move the old
+# tree aside instead of deleting it. Ignored so Tailwind never scans it.
+/.next-stale-*/
