@@ -29,6 +29,50 @@ const inter = localFont({
   ],
 });
 
+/**
+ * Google Sans Flex — the brand face: wordmark, navigation, headlines, buttons.
+ *
+ * Shipped as a subset of the variable font rather than the 4 MB original.
+ * The GRAD, ROND, slnt and wdth axes are pinned to the values the design uses
+ * and the weight range is cut to 300–700, which is every weight the design
+ * asks for; that alone is the difference between 4 MB and 157 KB, and about
+ * 57 KB once the CDN compresses it.
+ *
+ * WOFF rather than WOFF2 because building WOFF2 needs brotli, which is not
+ * installable here; WOFF is zlib and gets most of the way there (58 KB).
+ * Worth revisiting only if the font shows up in a performance trace.
+ */
+const googleSansFlex = localFont({
+  src: "./fonts/google-sans-flex-latin.woff",
+  weight: "300 700",
+  style: "normal",
+  display: "swap",
+  variable: "--font-gsf",
+  preload: true,
+  // next/font normally derives a metric-matched fallback by reading the file.
+  // On these instanced variable TTFs that step emits malformed CSS and the
+  // build dies in PostCSS with "Missed semicolon", so the adjustment is off
+  // and the plain fallback list below is what gets used.
+  adjustFontFallback: false,
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+});
+
+/**
+ * Playfair Display Bold Italic — the emphasis word inside a headline, and
+ * nothing else. Pinned to 700 italic because that is the only cut the design
+ * uses; a full variable family here would cost more than the word is worth.
+ */
+const playfair = localFont({
+  src: "./fonts/playfair-display-bolditalic-latin.woff",
+  weight: "700",
+  style: "italic",
+  display: "swap",
+  variable: "--font-playfair",
+  preload: true,
+  adjustFontFallback: false,
+  fallback: ["Georgia", "Times New Roman", "serif"],
+});
+
 export const metadata: Metadata = {
   ...buildMetadata({
     title: "Cheatcode — Resume, jobs and interview prep for freshers in India",
@@ -55,7 +99,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-IN" className={inter.variable} data-scroll-behavior="smooth">
+    <html
+      lang="en-IN"
+      className={`${inter.variable} ${googleSansFlex.variable}`}
+      data-scroll-behavior="smooth"
+    >
       <head>
         {/* Meta Pixel base code — in the page source, first thing in <head>. */}
         <script id="meta-pixel" dangerouslySetInnerHTML={{ __html: META_PIXEL_SNIPPET }} />

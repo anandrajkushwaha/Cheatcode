@@ -1,9 +1,28 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Tailwind v4 scans the project for class names and does not skip font
+   binaries. A .ttf dropped in app/fonts/ was being read as source, and the
+   byte soup inside it produced candidates like `color: \u{13}q:var(--…)`,
+   which killed the PostCSS build with "Missed semicolon". The fonts are WOFF
+   now, which it leaves alone, and this keeps the whole folder out of the scan
+   whatever format lands there next. */
+@source not "./fonts";
+
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
+
+  /* The two faces the brand is built on, per the Figma.
+     Google Sans Flex carries everything structural — the wordmark, headlines,
+     buttons. Playfair Display Bold Italic appears only as the emphasis word
+     inside a headline ("career."), never as body copy.
+     Each falls back to what is already loaded until its file is registered in
+     app/layout.tsx, so a missing font file degrades to Inter rather than to a
+     broken page. */
+  --font-display: var(--font-gsf), var(--font-inter), ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --font-serif: var(--font-playfair), Georgia, "Times New Roman", serif;
 
   /* Monochrome scale — the entire brand palette lives here. */
   --color-ink: #000000;

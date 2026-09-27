@@ -1,83 +1,54 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { ToolsMenu } from "./ToolsMenu";
+import Link from "next/link";
 import { AuthLinks } from "./AuthLinks";
-import { MobileLinks } from "./MobileLinks";
 
+/**
+ * The header, as drawn in Figma (node 165:4080).
+ *
+ * Solid white rather than the transparent bar that faded in on scroll: the
+ * hero behind it is now a photograph, and white type over a sunset is a
+ * contrast problem that changes with every scroll position.
+ *
+ * Three links, centred. "Become a mentor" is not in the design and has been
+ * taken out of the header — it still has its own page and a footer link.
+ */
 const LINKS = [
-  { href: "#how", label: "How it works" },
-  { href: "#mentors", label: "Mentors" },
-  { href: "/blog", label: "Guides" },
+  { href: "/tools", label: "Free tools" },
+  // There is no public insights index yet; the reader lives inside the app.
+  { href: "/app/insights", label: "Insights" },
+  { href: "/blog", label: "Blogs" },
 ];
 
 export function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        scrolled
-          ? "border-b border-ink-08 bg-paper/80 backdrop-blur-xl backdrop-saturate-150"
-          : "border-b border-transparent"
-      }`}
-    >
+    <header className="sticky top-0 z-50 bg-paper">
       <nav
-        className="container-page flex h-14 items-center justify-between gap-4"
+        className="container-page grid h-[4.5rem] grid-cols-[1fr_auto_1fr] items-center gap-4"
         aria-label="Main"
       >
-        <a
-          href="#top"
-          className="text-[0.95rem] font-semibold tracking-[-0.04em]"
+        <Link
+          href="/"
+          className="justify-self-start font-display text-[1.45rem] font-medium tracking-[-0.025em] text-black sm:text-[1.7rem]"
         >
           Cheatcode
-        </a>
+        </Link>
 
-        <ul className="hidden items-center gap-8 lg:flex">
+        <ul className="hidden items-center gap-[10px] justify-self-center lg:flex">
           {LINKS.map((link) => (
             <li key={link.href}>
-              <a
+              <Link
                 href={link.href}
-                className="text-[0.8rem] text-ink-50 transition-colors hover:text-ink"
+                className="block px-5 py-[5px] font-display text-[1.01rem] tracking-[-0.025em] text-[#767676] transition-colors hover:text-ink"
               >
                 {link.label}
-              </a>
+              </Link>
             </li>
           ))}
-          <li>
-            <ToolsMenu />
-          </li>
         </ul>
 
-        {/*
-          Three things want this corner and a 360px phone fits two. Sign-up is
-          not negotiable and "Log in" has to sit beside it — a returning user
-          who cannot find the way back is the one visitor guaranteed to want
-          something. So "Become a mentor" steps back to `sm` and up; it has its
-          own page, a link in the footer, and a section on this one, which is
-          three more entrances than the person with an account had a moment ago.
-        */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <a
-            href="/become-a-mentor"
-            data-ev="cta_click"
-            data-ev-location="nav"
-            data-ev-label="Become a mentor"
-            className="hidden whitespace-nowrap text-[0.78rem] text-ink-50 transition-colors hover:text-ink sm:inline sm:rounded-full sm:border sm:border-ink-15 sm:px-4 sm:py-2 sm:text-[0.8rem] sm:text-ink sm:hover:border-ink-30"
-          >
-            Become a mentor
-          </a>
+        <div className="flex items-center gap-1 justify-self-end">
           <AuthLinks location="nav" />
         </div>
       </nav>
-      <MobileLinks />
     </header>
   );
 }

@@ -72,13 +72,18 @@ export function useAuthStatus(): Status {
   return status;
 }
 
+// Sizes come from the header in Figma (nodes 165:4092–165:4095): 16.173px
+// type, -0.4043px tracking, a fully round black pill at 35px of horizontal
+// padding. Held down a step on phones, where 35px each side does not fit.
 const SOLID =
-  "whitespace-nowrap rounded-full bg-ink px-3.5 py-2 text-[0.78rem] font-medium text-paper " +
-  "sm:px-4 sm:text-[0.8rem] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] " +
+  "whitespace-nowrap rounded-full bg-black px-5 py-[9px] font-display text-[0.92rem] font-medium text-white " +
+  "tracking-[-0.025em] sm:px-[35px] sm:text-[1.01rem] " +
+  "transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] " +
   "hover:scale-[1.03] active:scale-[0.97]";
 
 const QUIET =
-  "whitespace-nowrap text-[0.78rem] text-ink-50 transition-colors hover:text-ink sm:text-[0.8rem]";
+  "whitespace-nowrap px-4 py-[9px] font-display text-[0.92rem] tracking-[-0.025em] text-[#767676] " +
+  "transition-colors hover:text-ink sm:px-[35px] sm:text-[1.01rem]";
 
 /**
  * @param location  Where this instance sits, for the analytics attribute the
