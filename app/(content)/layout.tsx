@@ -1,3 +1,4 @@
+import { AgentOrb } from "@/components/app/AgentOrb";
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 
@@ -14,6 +15,7 @@ export default function ContentLayout({ children }: { children: React.ReactNode 
       <Nav />
       <main id="main">{children}</main>
       <Footer />
+      <AgentOrb requireAuth />
     </>
   );
 }
