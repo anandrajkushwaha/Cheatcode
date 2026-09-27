@@ -125,7 +125,7 @@ export function Rulebook() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate overflow-hidden bg-[#fff9f2] py-16 lg:py-[6.5vw]"
+      className="relative isolate overflow-hidden bg-[#fff9f2] pt-11 pb-16 lg:pt-[4.3vw] lg:pb-[6.5vw]"
     >
       <video
         ref={videoRef}
