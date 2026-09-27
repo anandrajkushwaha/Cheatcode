@@ -40,7 +40,10 @@ export function FooterBanner() {
               opposite things. The wash has to reach zero inside its own box:
               a gradient that stops at 0.55 and then ends leaves a vertical
               seam exactly where the element does, which is the blue patch
-              that was showing up at 58%. */}
+              that was showing up at 58%. Nowhere fully opaque either, so the
+              sky reads through the whole card — the softest wash that still
+              keeps the sub-line at ~5:1 against white. Dropping it entirely
+              puts that line at 2.6:1, which is under the readable floor. */}
           <div
             aria-hidden="true"
             className="absolute inset-0 sm:hidden"
@@ -54,7 +57,7 @@ export function FooterBanner() {
             className="absolute inset-0 hidden sm:block"
             style={{
               background:
-                "linear-gradient(to right, #126ba2 0%, #126ba2 52%, rgba(18,107,162,0) 66%, rgba(18,107,162,0) 100%)",
+                "linear-gradient(to right, rgba(18,107,162,0.98) 0%, rgba(18,107,162,0.82) 40%, rgba(18,107,162,0.35) 70%, rgba(18,107,162,0) 100%)",
             }}
           />
 
