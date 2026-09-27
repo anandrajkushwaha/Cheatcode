@@ -143,7 +143,8 @@ export function SignInForm({ next }: { next: string }) {
     "w-full rounded-xl border border-ink-15 px-4 py-3 text-[16px] outline-none focus:border-ink-30 sm:text-[0.95rem]";
 
   return (
-    <div className="w-full max-w-sm">
+    // Width is the card's job now — this sits inside one on the sign-in page.
+    <div className="w-full">
       <h1 className="text-[1.7rem] font-semibold leading-tight tracking-[-0.03em]">
         {mode === "otp" ? "Enter the code" : "Sign in to Cheatcode"}
       </h1>

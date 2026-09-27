@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/supabase/app";
 import { appAuthConfigured } from "@/lib/supabase/app-env";
@@ -40,14 +41,38 @@ export default async function SignInPage({
   if (await getSessionUser()) redirect(target);
 
   return (
-    <main className="flex min-h-dvh flex-col">
-      <div className="container-page py-8">
-        <Link href="/" className="text-[0.95rem] font-semibold tracking-[-0.04em]">
+    <main className="relative flex min-h-dvh flex-col overflow-hidden">
+      {/*
+        The photograph is the page, and the card floats on it.
+
+        `priority` because this is the largest thing above the fold on the one
+        screen standing between an ad click and an account — a background that
+        fades in late reads as a page still loading, and people leave sign-in
+        pages faster than any other. `object-cover` means a phone gets the
+        middle of the frame rather than a letterboxed strip.
+      */}
+      <Image
+        src="/signin-bg.webp"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="-z-10 object-cover"
+      />
+
+      <div className="container-page py-7">
+        <Link
+          href="/"
+          className="text-[0.95rem] font-semibold tracking-[-0.04em] text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]"
+        >
           Cheatcode
         </Link>
       </div>
-      <div className="container-page flex flex-1 items-center justify-center pb-24">
-        <SignInForm next={target} />
+
+      <div className="flex flex-1 items-center justify-center px-4 pb-16 pt-2 sm:pb-24">
+        <div className="w-full max-w-[34rem] rounded-[1.75rem] bg-paper p-7 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.45)] sm:p-10">
+          <SignInForm next={target} />
+        </div>
       </div>
     </main>
   );
