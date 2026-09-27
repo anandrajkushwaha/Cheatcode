@@ -101,7 +101,7 @@ export default function RootLayout({
   return (
     <html
       lang="en-IN"
-      className={`${inter.variable} ${googleSansFlex.variable}`}
+      className={`${inter.variable} ${googleSansFlex.variable} ${playfair.variable}`}
       data-scroll-behavior="smooth"
     >
       <head>
