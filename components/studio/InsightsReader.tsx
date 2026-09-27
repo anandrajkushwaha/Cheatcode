@@ -38,15 +38,26 @@ const SEEN_KEY = "cc_insights_seen";
  */
 const FREE_CARDS = 3;
 
+/**
+ * How tall the card frame is, inside the app's own shell. The public page
+ * carries a site header and a footer that the app does not, so it passes its
+ * own — a card that runs past the fold makes the page scroll and the snap
+ * scroll fight each other.
+ */
+const APP_FRAME = "h-[calc(100dvh-230px)] min-h-[360px]";
+
 export function InsightsReader({
   items,
   startId,
   locked = false,
+  frameClassName = APP_FRAME,
 }: {
   items: Insight[];
   startId: string | null;
   /** Public page, nobody signed in: blur from the second card and stop at the third. */
   locked?: boolean;
+  /** Height of the snapping frame, for shells with different chrome. */
+  frameClassName?: string;
 }) {
   const [tab, setTab] = useState<Tab>("all");
   const [index, setIndex] = useState(0);
@@ -204,7 +215,7 @@ export function InsightsReader({
         <div className="relative">
           <div
             ref={frame}
-            className="h-[calc(100dvh-230px)] min-h-[360px] snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className={`${frameClassName} snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-3xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           >
             {deck.map((i, n) => {
               const fresh = seenBefore !== null && seenBefore > 0 && new Date(i.at).getTime() > seenBefore;

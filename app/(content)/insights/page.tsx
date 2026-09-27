@@ -37,7 +37,7 @@ export default async function InsightsIndex() {
   const items = await getInsights(60);
 
   return (
-    <div className="container-page py-8 sm:py-10">
+    <div className="container-page py-6 sm:py-8">
       <PublicInsights items={items} />
     </div>
   );
