@@ -7,7 +7,6 @@ import { Problem } from "@/components/site/Problem";
 import { Questions } from "@/components/site/Questions";
 import { LatestGuides } from "@/components/site/LatestGuides";
 import { Faq } from "@/components/site/Faq";
-import { FinalCta } from "@/components/site/FinalCta";
 import { Footer } from "@/components/site/Footer";
 
 // Regenerated every 5 minutes so newly published guides appear here on their own.
@@ -26,7 +25,6 @@ export default function HomePage() {
         <Questions />
         <LatestGuides />
         <Faq />
-        <FinalCta />
       </main>
       <Footer />
     </>

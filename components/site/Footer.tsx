@@ -65,21 +65,34 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
     <footer className="relative">
       {banner && <FooterBanner />}
 
-      <div className={`relative bg-[#040404] ${banner ? "-mt-[6.6vw] lg:-mt-[95px]" : ""}`}>
-        <div className={banner ? "pt-[10vw] lg:pt-[150px]" : "pt-9"}>
-          <div className="relative overflow-hidden rounded-t-[31px]">
-            <Image
-              src="/home/footer-bg.webp"
-              alt=""
-              fill
-              sizes="100vw"
-              className="object-cover object-center"
-            />
-            {/* The photograph is dark but not evenly so; this keeps the small
-                type readable wherever the grass catches light. */}
-            <div aria-hidden="true" className="absolute inset-0 bg-[#040404]/45" />
+      {/* The photograph starts at the very top of this block and the card
+          straddles its edge — in the design there is no dark band between the
+          two, and no rounded corner on the grass. The overlap is 97px against
+          the 1435 frame, held in vw below `lg` so it tracks the card as that
+          shrinks. */}
+      <div
+        className={`relative overflow-hidden bg-[#040404] ${
+          banner ? "-mt-[6.8vw] lg:-mt-[97px]" : ""
+        }`}
+      >
+        <Image
+          src="/home/footer-bg.webp"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        {/* Light touch: the grass is meant to read as grass. Just enough to
+            stop the small type dissolving where the light catches it. */}
+        <div aria-hidden="true" className="absolute inset-0 bg-[#040404]/30" />
 
-            <div className="relative mx-auto w-full max-w-[1200px] px-5 pt-14 pb-8 lg:pt-[58px]">
+        <div>
+          <div>
+            <div
+              className={`relative mx-auto w-full max-w-[1200px] px-5 pb-8 ${
+                banner ? "pt-[11.5vw] lg:pt-[153px]" : "pt-14 lg:pt-[58px]"
+              }`}
+            >
               <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)] lg:gap-8">
                 {/* ------------------------------------------------ brand */}
                 <div>
