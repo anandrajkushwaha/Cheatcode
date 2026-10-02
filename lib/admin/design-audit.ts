@@ -71,13 +71,6 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
   const db = createAppAdminClient();
   if (!db) return { missing: true };
 
-  const { data, error } = await db
-    .from("resume_drafts")
-    .select("id,template,content,design")
-    .not("design", "is", null);
-
-  if (error) return { missing: true };
-
   const out: DesignAudit = {
     withDesign: 0,
     untouched: 0,
@@ -90,50 +83,72 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
   };
   const per = new Map<string, { total: number; edited: number }>();
 
-  for (const row of (data ?? []) as Row[]) {
-    const design = row.design as Design | null;
-    if (!design?.pages?.length) continue;
-    // A stub the editor wrote and nobody ever saw.
-    if (JSON.stringify(design).length < 200) continue;
-    out.withDesign += 1;
+  /**
+   * In chunks, because a design carries its photo inside it as a base64 data
+   * URL of up to 3MB. Fifty of those arriving in one response is a hundred
+   * megabytes held at once in a serverless function for the sake of counting
+   * them. A chunk is read, folded into the totals and dropped.
+   */
+  const CHUNK = 10;
+  for (let from = 0; ; from += CHUNK) {
+    const { data, error } = await db
+      .from("resume_drafts")
+      .select("id,template,content,design")
+      .not("design", "is", null)
+      .order("id")
+      .range(from, from + CHUNK - 1);
 
-    const template = row.template ?? "—";
-    const p = per.get(template) ?? { total: 0, edited: 0 };
-    p.total += 1;
+    if (error) return { missing: true };
+    const rows = (data ?? []) as Row[];
+    if (rows.length === 0) break;
 
-    const content = cleanResume(row.content);
-    const fresh = seedDesign(content, row.template);
+    for (const row of rows) {
+      const design = row.design as Design | null;
+      if (!design?.pages?.length) continue;
+      // A stub the editor wrote and nobody ever saw.
+      if (JSON.stringify(design).length < 200) continue;
+      out.withDesign += 1;
 
-    if (shape(design) === shape(fresh)) {
-      out.untouched += 1;
-    } else if (skeleton(design) === skeleton(fresh)) {
-      out.textOnly += 1;
-      p.edited += 1;
-    } else {
-      out.edited += 1;
-      p.edited += 1;
-    }
+      const template = row.template ?? "—";
+      const p = per.get(template) ?? { total: 0, edited: 0 };
+      p.total += 1;
 
-    // Words on the canvas that the structured copy does not have anywhere.
-    if (shape(design) !== shape(fresh)) {
-      const have = JSON.stringify(content).toLowerCase();
-      const orphan = words(design).some(
-        (w) => w.length > 25 && !have.includes(w.slice(0, 25).toLowerCase()),
-      );
-      if (orphan) out.textAhead += 1;
-    }
+      const content = cleanResume(row.content);
+      const fresh = seedDesign(content, row.template);
 
-    for (const page of design.pages) {
-      if (page.elements.some((e) => e.y + e.h > A4.h + 1)) {
-        out.clipped += 1;
-        break;
+      if (shape(design) === shape(fresh)) {
+        out.untouched += 1;
+      } else if (skeleton(design) === skeleton(fresh)) {
+        out.textOnly += 1;
+        p.edited += 1;
+      } else {
+        out.edited += 1;
+        p.edited += 1;
       }
-    }
-    if (design.pages.some((pg) => pg.elements.some((e) => e.type === "image"))) {
-      out.withPhoto += 1;
+
+      // Words on the canvas that the structured copy does not have anywhere.
+      if (shape(design) !== shape(fresh)) {
+        const have = JSON.stringify(content).toLowerCase();
+        const orphan = words(design).some(
+          (w) => w.length > 25 && !have.includes(w.slice(0, 25).toLowerCase()),
+        );
+        if (orphan) out.textAhead += 1;
+      }
+
+      for (const page of design.pages) {
+        if (page.elements.some((e) => e.y + e.h > A4.h + 1)) {
+          out.clipped += 1;
+          break;
+        }
+      }
+      if (design.pages.some((pg) => pg.elements.some((e) => e.type === "image"))) {
+        out.withPhoto += 1;
+      }
+
+      per.set(template, p);
     }
 
-    per.set(template, p);
+    if (rows.length < CHUNK) break;
   }
 
   out.byTemplate = [...per.entries()]

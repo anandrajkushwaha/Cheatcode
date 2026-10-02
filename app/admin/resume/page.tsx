@@ -57,9 +57,13 @@ const MODES: { id: ResumeMode; label: string; note: string }[] = [
 export default async function AdminResume({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string; tpl?: string }>;
+  searchParams: Promise<{ show?: string; tpl?: string; audit?: string }>;
 }) {
-  const { show, tpl } = await searchParams;
+  const { show, tpl, audit: auditParam } = await searchParams;
+  // Off by default. The audit reads every saved design, photos and all, to
+  // compare it against a fresh seed — worth a few seconds when somebody asks
+  // for it, not on every visit to this screen.
+  const wantsAudit = auditParam === "1";
   const mode: ResumeMode = MODES.some((m) => m.id === show) ? (show as ResumeMode) : "downloaded";
 
   const [totals, templates, recent, signals, list, audit] = await Promise.all([
@@ -68,7 +72,7 @@ export default async function AdminResume({
     getRecentDownloads(40),
     getResumeSignals(),
     getResumeList(mode, 200),
-    auditDesigns(),
+    wantsAudit ? auditDesigns() : Promise.resolve(null),
   ]);
 
   if (!totals.ok) {
@@ -262,7 +266,15 @@ export default async function AdminResume({
             title="Canvas designs"
             note="Which saved designs hold work that exists nowhere else. A design the editor wrote and nobody touched can be re-derived; one that differs cannot, because the canvas never writes back to the structured résumé."
           >
-            {"missing" in audit ? (
+            {!audit ? (
+              <p className="text-[0.85rem] leading-relaxed text-ink-50">
+                Reads every saved design and compares it with a fresh seed.
+                Takes a few seconds.{" "}
+                <Link href="?audit=1" className="font-medium text-ink underline">
+                  Run the audit
+                </Link>
+              </p>
+            ) : "missing" in audit ? (
               <Empty>Cannot read the drafts table.</Empty>
             ) : (
               <dl className="space-y-2.5 text-[0.84rem]">
