@@ -282,7 +282,12 @@ export default async function AdminResume({
                 <Row
                   label="Never touched"
                   value={num(audit.untouched)}
-                  hint="identical to a fresh seed — safe to drop"
+                  hint="identical to a fresh seed"
+                />
+                <Row
+                  label="Only the measured heights moved"
+                  value={num(audit.heightDriftOnly)}
+                  hint="the renderer wrote those, not the person — safe to drop"
                 />
                 <Row
                   label="Words changed only"

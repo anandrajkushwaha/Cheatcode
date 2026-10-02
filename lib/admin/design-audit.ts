@@ -22,6 +22,8 @@ import { A4, type Design, type Element } from "@/lib/app/design";
 export type DesignAudit = {
   withDesign: number;
   untouched: number;
+  /** Differs from a fresh seed only in measured heights — effectively untouched. */
+  heightDriftOnly: number;
   /** Only the words changed — no element added, removed, moved or resized. */
   textOnly: number;
   /** Geometry, element count or styling differs: real canvas work. */
@@ -36,24 +38,40 @@ export type DesignAudit = {
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Everything about an element except its identity. */
+/**
+ * Height is deliberately missing from every comparison below.
+ *
+ * The canvas measures each auto-height box after it paints and writes the
+ * real rendered height back into `el.h`. That happens the first time a design
+ * is ever displayed, before the person has touched anything, and the measured
+ * value never equals the seeder's estimate (a flat 0.52em per glyph). Compare
+ * on height and every saved design in the table reads as hand-edited, which
+ * is exactly the wrong answer.
+ */
 function fingerprint(el: Element): string {
-  const geo = [el.type, r1(el.x), r1(el.y), r1(el.w), r1(el.h), r1(el.rot)].join("|");
+  const geo = [el.type, r1(el.x), r1(el.y), r1(el.w), r1(el.rot)].join("|");
   const rest = { ...el } as Record<string, unknown>;
   delete rest.id;
   delete rest.group;
   for (const k of ["x", "y", "w", "h", "rot"]) delete rest[k];
+  delete rest.autoHeight;
   return geo + "|" + JSON.stringify(rest);
 }
 
 const shape = (d: Design) => d.pages.map((p) => p.elements.map(fingerprint).join("\n")).join("\n--\n");
+
+/** Including height, to tell "only the measurements moved" from "identical". */
+const withHeights = (d: Design) =>
+  d.pages
+    .map((p) => p.elements.map((e) => fingerprint(e) + "|h" + r1(e.h)).join("\n"))
+    .join("\n--\n");
 
 /** Geometry only, so "same boxes, different words" is distinguishable. */
 const skeleton = (d: Design) =>
   d.pages
     .map((p) =>
       p.elements
-        .map((e) => [e.type, r1(e.x), r1(e.y), r1(e.w), r1(e.h)].join("|"))
+        .map((e) => [e.type, r1(e.x), r1(e.y), r1(e.w)].join("|"))
         .join("\n"),
     )
     .join("\n--\n");
@@ -74,6 +92,7 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
   const out: DesignAudit = {
     withDesign: 0,
     untouched: 0,
+    heightDriftOnly: 0,
     textOnly: 0,
     edited: 0,
     textAhead: 0,
@@ -116,8 +135,12 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
       const content = cleanResume(row.content);
       const fresh = seedDesign(content, row.template);
 
-      if (shape(design) === shape(fresh)) {
+      const same = shape(design) === shape(fresh);
+      if (same && withHeights(design) === withHeights(fresh)) {
         out.untouched += 1;
+      } else if (same) {
+        // Identical but for the heights the renderer measured on first paint.
+        out.heightDriftOnly += 1;
       } else if (skeleton(design) === skeleton(fresh)) {
         out.textOnly += 1;
         p.edited += 1;
@@ -126,11 +149,22 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
         p.edited += 1;
       }
 
-      // Words on the canvas that the structured copy does not have anywhere.
-      if (shape(design) !== shape(fresh)) {
+      /**
+       * Words on the canvas that exist nowhere else.
+       *
+       * Measured against the structured résumé *and* against a fresh seed of
+       * it: the seeder writes its own section headings, labels and — for an
+       * empty résumé — placeholder copy, none of which is in `content`. Those
+       * are not text anybody lost, and counting them made this read 46.
+       */
+      if (!same) {
         const have = JSON.stringify(content).toLowerCase();
+        const seeded = new Set(words(fresh).map((w) => w.toLowerCase()));
         const orphan = words(design).some(
-          (w) => w.length > 25 && !have.includes(w.slice(0, 25).toLowerCase()),
+          (w) =>
+            w.length > 25 &&
+            !seeded.has(w.toLowerCase()) &&
+            !have.includes(w.slice(0, 25).toLowerCase()),
         );
         if (orphan) out.textAhead += 1;
       }
