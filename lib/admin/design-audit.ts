@@ -33,6 +33,12 @@ export type DesignAudit = {
   /** Designs with something hanging past the bottom of its sheet — clipped today. */
   clipped: number;
   withPhoto: number;
+  /** Drafts where 80%+ of elements still sit exactly where the seeder put them. */
+  mostlyInPlace: number;
+  /** Drafts where under half do. These need a parse, not an index map. */
+  heavilyRearranged: number;
+  /** Median share of elements still at their seeded position, 0–100. */
+  medianMatch: number;
   byTemplate: { template: string; total: number; edited: number }[];
 };
 
@@ -98,8 +104,12 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
     textAhead: 0,
     clipped: 0,
     withPhoto: 0,
+    mostlyInPlace: 0,
+    heavilyRearranged: 0,
+    medianMatch: 0,
     byTemplate: [],
   };
+  const matches: number[] = [];
   const per = new Map<string, { total: number; edited: number }>();
 
   /**
@@ -169,6 +179,29 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
         if (orphan) out.textAhead += 1;
       }
 
+      /**
+       * How much of the document is still where the seeder left it.
+       *
+       * This is what decides how a design can be harvested. An element still
+       * at its seeded x/y/w can be mapped back to the field that produced it
+       * by index; one that has been dragged cannot, and its text has to be
+       * read and re-parsed instead. The share tells us which of those two
+       * jobs the migration mostly is.
+       */
+      const seeded = new Set(
+        fresh.pages.flatMap((pg) =>
+          pg.elements.map((e) => [e.type, r1(e.x), r1(e.y), r1(e.w)].join("|")),
+        ),
+      );
+      const all = design.pages.flatMap((pg) => pg.elements);
+      const inPlace = all.filter((e) =>
+        seeded.has([e.type, r1(e.x), r1(e.y), r1(e.w)].join("|")),
+      ).length;
+      const share = all.length ? (inPlace / all.length) * 100 : 0;
+      matches.push(share);
+      if (share >= 80) out.mostlyInPlace += 1;
+      if (share < 50) out.heavilyRearranged += 1;
+
       for (const page of design.pages) {
         if (page.elements.some((e) => e.y + e.h > A4.h + 1)) {
           out.clipped += 1;
@@ -183,6 +216,11 @@ export async function auditDesigns(): Promise<DesignAudit | { missing: true }> {
     }
 
     if (rows.length < CHUNK) break;
+  }
+
+  if (matches.length) {
+    matches.sort((a, b) => a - b);
+    out.medianMatch = Math.round(matches[Math.floor(matches.length / 2)]);
   }
 
   out.byTemplate = [...per.entries()]

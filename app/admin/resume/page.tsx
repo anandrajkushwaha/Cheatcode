@@ -310,6 +310,20 @@ export default async function AdminResume({
                   hint="content past 297mm"
                 />
                 <Row label="With a photo" value={num(audit.withPhoto)} />
+                <Row
+                  label="Still mostly where the seeder put it"
+                  value={num(audit.mostlyInPlace)}
+                  hint="80%+ of boxes unmoved — harvests by index"
+                />
+                <Row
+                  label="Heavily rearranged"
+                  value={num(audit.heavilyRearranged)}
+                  hint="under half unmoved — needs a parse"
+                />
+                <Row
+                  label="Median boxes unmoved"
+                  value={`${audit.medianMatch}%`}
+                />
               </dl>
             )}
           </Panel>
