@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Panel, Stat, Empty, num } from "@/components/admin/ui";
+import { auditDesigns } from "@/lib/admin/design-audit";
 import {
   getRecentDownloads,
   getResumeList,
@@ -61,12 +62,13 @@ export default async function AdminResume({
   const { show, tpl } = await searchParams;
   const mode: ResumeMode = MODES.some((m) => m.id === show) ? (show as ResumeMode) : "downloaded";
 
-  const [totals, templates, recent, signals, list] = await Promise.all([
+  const [totals, templates, recent, signals, list, audit] = await Promise.all([
     getResumeTotals(),
     getTemplateRows(),
     getRecentDownloads(40),
     getResumeSignals(),
     getResumeList(mode, 200),
+    auditDesigns(),
   ]);
 
   if (!totals.ok) {
@@ -253,6 +255,45 @@ export default async function AdminResume({
                   </li>
                 ))}
               </ul>
+            )}
+          </Panel>
+
+          <Panel
+            title="Canvas designs"
+            note="Which saved designs hold work that exists nowhere else. A design the editor wrote and nobody touched can be re-derived; one that differs cannot, because the canvas never writes back to the structured résumé."
+          >
+            {"missing" in audit ? (
+              <Empty>Cannot read the drafts table.</Empty>
+            ) : (
+              <dl className="space-y-2.5 text-[0.84rem]">
+                <Row label="Drafts with a saved design" value={num(audit.withDesign)} />
+                <Row
+                  label="Never touched"
+                  value={num(audit.untouched)}
+                  hint="identical to a fresh seed — safe to drop"
+                />
+                <Row
+                  label="Words changed only"
+                  value={num(audit.textOnly)}
+                  hint="same boxes, different text"
+                />
+                <Row
+                  label="Moved, resized or restyled"
+                  value={num(audit.edited)}
+                  hint="real canvas work"
+                />
+                <Row
+                  label="Holding text the résumé has lost"
+                  value={num(audit.textAhead)}
+                  hint="must be harvested, not re-seeded"
+                />
+                <Row
+                  label="Clipped by the page edge today"
+                  value={num(audit.clipped)}
+                  hint="content past 297mm"
+                />
+                <Row label="With a photo" value={num(audit.withPhoto)} />
+              </dl>
             )}
           </Panel>
 
