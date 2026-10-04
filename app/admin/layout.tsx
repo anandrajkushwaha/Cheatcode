@@ -42,6 +42,9 @@ const NAV = [
   // an unanswered one is somebody who paid and heard nothing.
   { href: "/admin/resume-requests", label: "Reviews queue" },
   { href: "/admin/users", label: "People" },
+  // After People because it answers the next question: People says how many
+  // signed up, this says who they are — read out of their own résumés.
+  { href: "/admin/user-analytics", label: "User analytics" },
   // Next to People because it is the same list, filtered to the ones who
   // tried to pay — which is the only demand signal there is until checkout
   // exists.
