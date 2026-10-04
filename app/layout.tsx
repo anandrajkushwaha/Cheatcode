@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { MetaPixel } from "@/components/MetaPixel";
+import { IAB_ESCAPE_SNIPPET } from "@/lib/analytics/iab-escape";
 import { META_PIXEL_SNIPPET } from "@/lib/analytics/meta-snippet";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -105,6 +106,10 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <head>
+        {/* Before the pixel, and before anything else: a visitor arriving from
+            a Meta ad is inside Meta's webview, where Google refuses to sign
+            them in. This gets them out, or tells them how. */}
+        <script id="iab-escape" dangerouslySetInnerHTML={{ __html: IAB_ESCAPE_SNIPPET }} />
         {/* Meta Pixel base code — in the page source, first thing in <head>. */}
         <script id="meta-pixel" dangerouslySetInnerHTML={{ __html: META_PIXEL_SNIPPET }} />
       </head>
