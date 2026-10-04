@@ -1,6 +1,8 @@
 import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
+import { TEMPLATES } from "@/lib/app/resume-templates";
 import { cleanResume, type Resume } from "@/lib/app/resume-schema";
+import { sampleFor } from "@/lib/app/design-sample";
 
 /**
  * Who the people using this actually are.
@@ -9,6 +11,13 @@ import { cleanResume, type Resume } from "@/lib/app/resume-schema";
  * nobody fills in a profile, but everybody who builds a résumé types their
  * name, city, phone and job title into it — so the résumé is the better
  * source for every field here, and the profile is only the fallback.
+ *
+ * One trap had to be closed first. Picking a template fills a thin draft with
+ * `starterContent` — a complete sample résumé, somebody else's name, jobs and
+ * city, saved straight into `content` so the template opens with something to
+ * write over. Read naively, those nine invented people appear on this screen
+ * as users, with phone numbers and an age. Every draft is therefore checked
+ * against its own template's sample before a single field is believed.
  *
  * Nothing on this screen is invented. A field with no source shows a dash.
  * The single exception is the age, which is marked as an estimate wherever
@@ -45,8 +54,11 @@ export type PersonCard = {
   drafts: number;
   atsScore: number | null;
   gaps: Gap[];
-  /** Where the identity fields came from, so the screen can say so. */
-  source: "resume" | "profile" | "none";
+  /**
+   * Where the identity fields came from, so the screen can say so.
+   * `sample` means they picked a template and never replaced its words.
+   */
+  source: "resume" | "profile" | "sample" | "none";
 };
 
 export type UserAnalytics = {
@@ -56,6 +68,8 @@ export type UserAnalytics = {
   cities: { label: string; count: number }[];
   commonGaps: { label: string; count: number }[];
   withResume: number;
+  /** Picked a template, wrote nothing of their own. */
+  sampleOnly: number;
 };
 
 /* ------------------------------------------------------------------ domain */
@@ -159,6 +173,40 @@ function gapsOf(result: unknown): Gap[] {
     .sort((a, b) => (a.status === b.status ? b.weight - a.weight : a.status === "fail" ? -1 : 1));
 }
 
+/* ----------------------------------------------------------------- sample */
+
+/**
+ * Is this document still the sample the template arrived with?
+ *
+ * Judged on identity, not on the body: somebody who starts writing replaces
+ * the name and the contact line long before they finish rewriting the jobs,
+ * and somebody who has not started has left all of it. Matching whole fields
+ * against that template's own sample avoids the obvious trap of a string
+ * blocklist — half the sample people live in Bengaluru, and so do a lot of
+ * real ones.
+ */
+const SAMPLE_NAMES = new Set<string>();
+for (const t of TEMPLATES) {
+  const n = sampleFor(t.id).full_name;
+  if (n) SAMPLE_NAMES.add(n.trim().toLowerCase());
+}
+
+function isSample(r: Resume, templateId: string | null): boolean {
+  const email = (r.email ?? "").trim().toLowerCase();
+  // Reserved by RFC 2606 and used by every sample here. Never a real address.
+  if (email.endsWith("@example.com")) return true;
+
+  const name = (r.full_name ?? "").trim().toLowerCase();
+  if (name && SAMPLE_NAMES.has(name)) return true;
+
+  if (templateId) {
+    const s = sampleFor(templateId);
+    if (name && name === (s.full_name ?? "").trim().toLowerCase()) return true;
+    if (email && email === (s.email ?? "").trim().toLowerCase()) return true;
+  }
+  return false;
+}
+
 /* ------------------------------------------------------------------ build */
 
 const first = <T,>(...vals: (T | null | undefined)[]): T | null => {
@@ -186,6 +234,7 @@ type ProfileRow = {
 
 type DraftRow = {
   user_id: string;
+  template: string | null;
   content: unknown;
   ats_score: number | null;
   ats_result: unknown;
@@ -210,7 +259,7 @@ export async function getUserAnalytics(
 
   const { data: drafts, error: dErr } = await db
     .from("resume_drafts")
-    .select("user_id,content,ats_score,ats_result,is_primary,updated_at")
+    .select("user_id,template,content,ats_score,ats_result,is_primary,updated_at")
     .order("updated_at", { ascending: false })
     .limit(limit * 3);
   if (dErr) return { missing: true };
@@ -228,7 +277,14 @@ export async function getUserAnalytics(
 
   for (const p of (profiles ?? []) as ProfileRow[]) {
     const draft = best.get(p.id) ?? null;
-    const r = draft ? cleanResume(draft.content) : null;
+    const raw = draft ? cleanResume(draft.content) : null;
+
+    // The template's own sample, still untouched. None of it is theirs — not
+    // the name, not the city, not the jobs, and not the graduation year the
+    // age would have been worked out from. It is dropped whole.
+    const sample = Boolean(raw && isSample(raw, draft?.template ?? null));
+    const r = sample ? null : raw;
+
     const hasResume = Boolean(r && (r.full_name || r.roles.length || r.education.length));
 
     const name = first(r?.full_name, p.full_name);
@@ -262,9 +318,15 @@ export async function getUserAnalytics(
       joined: p.created_at,
       lastActive: draft?.updated_at ?? null,
       drafts: counts.get(p.id) ?? 0,
-      atsScore: draft?.ats_score ?? null,
-      gaps: gapsOf(draft?.ats_result),
-      source: hasResume ? "resume" : name || email || phone ? "profile" : "none",
+      atsScore: sample ? null : (draft?.ats_score ?? null),
+      gaps: sample ? [] : gapsOf(draft?.ats_result),
+      source: hasResume
+        ? "resume"
+        : name || email || phone
+          ? "profile"
+          : sample
+            ? "sample"
+            : "none",
     });
   }
 
@@ -283,5 +345,6 @@ export async function getUserAnalytics(
     cities: tally(people.map((x) => x.city)).slice(0, 10),
     commonGaps: tally(people.flatMap((x) => x.gaps.map((g) => g.label))).slice(0, 8),
     withResume: people.filter((x) => x.source === "resume").length,
+    sampleOnly: people.filter((x) => x.source === "sample").length,
   };
 }

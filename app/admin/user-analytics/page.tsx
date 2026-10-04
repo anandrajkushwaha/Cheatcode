@@ -31,9 +31,8 @@ export default async function AdminUserAnalytics() {
     );
   }
 
-  const { people, stages, domains, cities, commonGaps, withResume } = data;
+  const { people, stages, domains, cities, commonGaps, withResume, sampleOnly } = data;
   const withPhone = people.filter((p) => p.phone).length;
-  const withCity = people.filter((p) => p.city).length;
 
   return (
     <div className="space-y-6">
@@ -41,9 +40,12 @@ export default async function AdminUserAnalytics() {
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.02em]">User analytics</h1>
         <p className="mt-1 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
           Read from what people actually typed — their résumé first, their profile only where
-          the résumé is empty. A field nobody filled shows a dash rather than a guess. Age is
-          the exception and is always marked an estimate: it is worked out from the graduation
-          year, because nothing here asks for a date of birth.
+          the résumé is empty. A field nobody filled shows a dash rather than a guess. Picking
+          a template fills the draft with a sample résumé so there is something to write over —
+          those nine invented people are detected and dropped whole, so none of their names,
+          cities or phone numbers reach this screen. Age is the one derived figure and is always
+          marked an estimate: it comes from the graduation year, because nothing here asks for a
+          date of birth.
         </p>
       </div>
 
@@ -55,7 +57,11 @@ export default async function AdminUserAnalytics() {
           hint={people.length ? `${Math.round((withResume / people.length) * 100)}% have a résumé with details` : undefined}
         />
         <Stat label="Gave a phone number" value={num(withPhone)} />
-        <Stat label="Gave a city" value={num(withCity)} />
+        <Stat
+          label="Still on the sample"
+          value={num(sampleOnly)}
+          hint="picked a template, wrote nothing — nothing of theirs is shown"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
