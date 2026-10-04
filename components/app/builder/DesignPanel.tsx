@@ -39,7 +39,7 @@ export function DesignPanel({
   photo: string | null;
   onPhoto: (next: string | null) => void;
 }) {
-  const [tab, setTab] = useState<"template" | "style">("template");
+  const [tab, setTab] = useState<"templates" | "style">("templates");
   const [q, setQ] = useState("");
   const current = templateById(templateId);
   const takesPhoto = showsPhoto(current);
@@ -69,7 +69,10 @@ export function DesignPanel({
       />
       <div className="flex h-full w-full max-w-[26rem] flex-col border-l border-ink-08 bg-paper shadow-[0_0_40px_rgba(0,0,0,0.12)]">
         <header className="flex h-14 items-center gap-3 border-b border-ink-08 px-4">
-          <p className="flex-1 text-[0.95rem] font-semibold">Design</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.95rem] font-semibold leading-tight">Design</p>
+            <p className="truncate text-[0.74rem] text-ink-30">{current.name}</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -80,7 +83,7 @@ export function DesignPanel({
         </header>
 
         <div className="grid grid-cols-2 gap-1 border-b border-ink-08 p-1.5">
-          {(["template", "style"] as const).map((k) => (
+          {(["templates", "style"] as const).map((k) => (
             <button
               key={k}
               type="button"
@@ -89,13 +92,13 @@ export function DesignPanel({
                 tab === k ? "bg-ink font-medium text-paper" : "text-ink-50 hover:text-ink"
               }`}
             >
-              {k}
+              {k === "style" ? "Colour & type" : "Templates"}
             </button>
           ))}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {tab === "template" ? (
+          {tab === "templates" ? (
             <>
               <input
                 value={q}

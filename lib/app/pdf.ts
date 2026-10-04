@@ -1,5 +1,5 @@
 import "server-only";
-import puppeteer, { type Browser } from "puppeteer-core";
+import puppeteer, { type Browser, type Page } from "puppeteer-core";
 
 /**
  * A PDF, printed by a real browser.
@@ -63,28 +63,27 @@ async function launch(): Promise<Browser> {
   return shared;
 }
 
+/**
+ * Wait for the fonts, not just for the page.
+ *
+ * `load` means the stylesheet arrived; it does not mean the faces it points
+ * at have been decoded and applied. Printing — or measuring — a beat too
+ * early silently uses the fallback font, every line wraps somewhere else,
+ * and the PDF is a different document from the one on screen. Five seconds
+ * is a ceiling, not a wait: it resolves as soon as the fonts are ready.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 5000))]),
+  );
+}
+
 export async function htmlToPdf(html: string): Promise<Uint8Array> {
   const browser = await launch();
   const page = await browser.newPage();
   try {
     await page.setContent(html, { waitUntil: "load", timeout: 25_000 });
-
-    /**
-     * Wait for the fonts, not just for the page.
-     *
-     * `load` means the stylesheet arrived; it does not mean the faces it
-     * points at have been decoded and applied. Printing a beat too early
-     * silently produces the fallback font, every line wraps somewhere else,
-     * and the PDF is a different document from the one on screen. Five seconds
-     * is a ceiling, not a wait — it resolves as soon as the fonts are ready.
-     */
-    await page.evaluate(
-      () =>
-        Promise.race([
-          document.fonts.ready,
-          new Promise((resolve) => setTimeout(resolve, 5000)),
-        ]),
-    );
+    await settled(page);
 
     return await page.pdf({
       printBackground: true,
@@ -97,6 +96,50 @@ export async function htmlToPdf(html: string): Promise<Uint8Array> {
   } finally {
     // The page closes, the browser stays. Closing the browser would throw away
     // the several seconds it took to start, on every single download.
+    await page.close().catch(() => {});
+  }
+}
+
+/**
+ * The same, for a document that has to be measured before it can be drawn.
+ *
+ * The flow renderer cannot know where its pages break until a browser has
+ * told it how tall every paragraph came out, so printing it is two passes in
+ * one tab: load the hidden measuring layer, read the heights back, hand them
+ * to `build`, then load what that returns and print it.
+ *
+ * Both passes happen in *this* browser, on this page, with these fonts —
+ * which is the entire point. Measuring in the editor and printing on the
+ * server would be two measurements, and two measurements of the same
+ * paragraph are how a download stops matching the preview it came from.
+ */
+export async function htmlToPdfMeasured(
+  probeHtml: string,
+  build: (heights: Record<string, number>) => string | Promise<string>,
+): Promise<Uint8Array> {
+  const browser = await launch();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(probeHtml, { waitUntil: "load", timeout: 25_000 });
+    await settled(page);
+
+    const heights = await page.evaluate(() => {
+      // 96dpi: the CSS pixel the browser lays out in, converted to the
+      // millimetres the paginator thinks in.
+      const MM = 96 / 25.4;
+      const out: Record<string, number> = {};
+      document.querySelectorAll<HTMLElement>("[data-block]").forEach((el) => {
+        const id = el.dataset.block;
+        if (id) out[id] = el.getBoundingClientRect().height / MM;
+      });
+      return out;
+    });
+
+    await page.setContent(await build(heights), { waitUntil: "load", timeout: 25_000 });
+    await settled(page);
+
+    return await page.pdf({ printBackground: true, preferCSSPageSize: true, timeout: 25_000 });
+  } finally {
     await page.close().catch(() => {});
   }
 }

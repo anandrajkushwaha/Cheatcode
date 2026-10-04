@@ -75,6 +75,8 @@ export function Builder({
   const [design, setDesign] = useState(false);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [pages, setPages] = useState(1);
+  const [getting, setGetting] = useState(false);
+  const [trouble, setTrouble] = useState<string | null>(null);
 
   const past = useRef<Resume[]>([]);
   const dirty = useRef(false);
@@ -164,6 +166,64 @@ export function Builder({
     set(v);
   };
 
+  /**
+   * Everything on screen, written down, before anything reads it back.
+   *
+   * The download is printed from the row, not from this tab — so a résumé
+   * saved eight hundred milliseconds from now is a résumé that prints
+   * without the sentence somebody just typed. The debounce is right for
+   * typing and wrong for the moment somebody asks for the file.
+   */
+  const flush = useCallback(async () => {
+    dirty.current = false;
+    designDirty.current = false;
+    setState("saving");
+    const res = await fetch("/api/app/resume/draft", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: draftId,
+        content: resume,
+        template,
+        styles: { ...initialStyles, doc },
+        photo,
+      }),
+    });
+    setState(res.ok ? "saved" : "idle");
+    return res.ok;
+  }, [draftId, resume, template, doc, photo, initialStyles]);
+
+  const download = useCallback(async () => {
+    setGetting(true);
+    setTrouble(null);
+    try {
+      await flush();
+      const res = await fetch("/api/app/resume/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // `flow` is what asks for the document this preview is showing,
+        // rather than the canvas design the row may also still hold.
+        body: JSON.stringify({ id: draftId, flow: true }),
+      });
+      if (!res.ok) throw new Error("The PDF could not be built.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(resume.full_name || title || "Resume").replace(/[^\p{L}\p{N} ._-]/gu, "").trim() || "Resume"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoked a beat later: Safari has not finished reading the blob when
+      // the click returns, and revoking immediately gives an empty file.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) {
+      setTrouble(e instanceof Error ? e.message : "That did not work.");
+    } finally {
+      setGetting(false);
+    }
+  }, [flush, draftId, resume.full_name, title]);
+
   // Nothing is lost to a closed tab in the second and a half we might owe.
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -217,20 +277,42 @@ export function Builder({
         <span className="hidden text-[0.78rem] text-ink-30 sm:inline">
           {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : ""}
         </span>
-        <button type="button" onClick={undo}
-          className="rounded-lg border border-ink-15 px-2.5 py-1 text-[0.78rem] text-ink-50 transition-colors hover:border-ink hover:text-ink">
-          Undo
+        <button type="button" onClick={undo} aria-label="Undo" title="Undo"
+          className="rounded-lg border border-ink-15 p-1.5 text-ink-50 transition-colors hover:border-ink hover:text-ink">
+          <Undo />
         </button>
-        <button type="button" onClick={() => setDesign(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-ink-15 px-3 py-1.5 text-[0.78rem] transition-colors hover:border-ink">
+
+        {/* The one control that is not obvious from the form, so it says what
+            it does rather than only naming itself: the swatch is the colour
+            in use, the sliders are the promise that it can be changed. */}
+        <button
+          type="button"
+          onClick={() => setDesign(true)}
+          title="Design — pick a template, change the colour, font, size and spacing"
+          aria-label="Design — pick a template, change the colour, font, size and spacing"
+          className="flex items-center gap-2 rounded-lg border border-ink-15 bg-ink-04 px-2.5 py-1.5 text-[0.78rem] font-medium transition-colors hover:border-ink"
+        >
+          <Sliders />
+          <span>Design</span>
           <span
             aria-hidden="true"
-            className="h-2.5 w-2.5 rounded-full"
+            className="h-3 w-3 rounded-full ring-1 ring-black/10"
             style={{ background: doc.accent ?? templateById(template).theme.accent ?? "#111" }}
           />
-          Design
+        </button>
+
+        <button type="button" onClick={download} disabled={getting}
+          className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-[0.78rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40">
+          <Down />
+          <span>{getting ? "Preparing…" : "Download"}</span>
         </button>
       </header>
+
+      {trouble && (
+        <p className="border-b border-ink-08 bg-[#fdf2f0] px-4 py-2 text-[0.8rem] text-[#c0392b]">
+          {trouble} You can try again, or print the preview from your browser.
+        </p>
+      )}
 
       {/* ------------------------------------------------- mobile switcher */}
       <div className="sticky top-14 z-20 grid grid-cols-2 gap-1 border-b border-ink-08 bg-paper p-1.5 lg:hidden">
@@ -324,10 +406,27 @@ export function Builder({
                 />
               </div>
             </div>
-            <p className="pb-6 text-center text-[0.76rem] text-ink-30">
-              {templateById(template).name} · {pages} page{pages === 1 ? "" : "s"}
-              {pages > 2 && " · most recruiters read one"}
-            </p>
+            <div className="flex flex-col items-center gap-3 pb-7">
+              {/* The other way in, at the place somebody is actually looking
+                  when they decide they want a different one. A caption that
+                  names the template and does nothing is a caption that makes
+                  people go hunting in the top bar. */}
+              <button
+                type="button"
+                onClick={() => setDesign(true)}
+                className="group flex items-center gap-1.5 text-center text-[0.76rem] text-ink-30 transition-colors hover:text-ink"
+              >
+                <span>
+                  {templateById(template).name} · {pages} page{pages === 1 ? "" : "s"}
+                  {pages > 2 && " · most recruiters read one"}
+                </span>
+                <span className="whitespace-nowrap underline underline-offset-2">Change</span>
+              </button>
+              <button type="button" onClick={download} disabled={getting}
+                className="rounded-full bg-ink px-5 py-2.5 text-[0.86rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40">
+                {getting ? "Preparing your PDF…" : "Download PDF"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -343,5 +442,45 @@ export function Builder({
         onPhoto={mark(setPhoto)}
       />
     </div>
+  );
+}
+
+/* ----------------------------------------------------------------- icons */
+
+const stroke = {
+  viewBox: "0 0 20 20",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.6,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  className: "h-[15px] w-[15px] shrink-0",
+  "aria-hidden": true,
+};
+
+function Sliders() {
+  return (
+    <svg {...stroke}>
+      <path d="M3 6h9M15 6h2M3 14h2M8 14h9" />
+      <circle cx="13.5" cy="6" r="1.8" />
+      <circle cx="6.5" cy="14" r="1.8" />
+    </svg>
+  );
+}
+
+function Down() {
+  return (
+    <svg {...stroke}>
+      <path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M3.5 15.5h13" />
+    </svg>
+  );
+}
+
+function Undo() {
+  return (
+    <svg {...stroke}>
+      <path d="M7 5 3.5 8.5 7 12" />
+      <path d="M3.5 8.5H12a4.5 4.5 0 0 1 0 9h-2" />
+    </svg>
   );
 }

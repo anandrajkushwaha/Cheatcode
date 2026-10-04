@@ -368,7 +368,12 @@ export function buildBlocks(
         id: `${id}:h`,
         path,
         column,
-        gapBefore: out.some((b) => b.column === column && !b.id.startsWith("header")) ? sectionGap : 0,
+        // Air above every section except the first thing in its column. The
+        // header counts as something: a heading butted straight up against
+        // the name is the one place a sidebar reads as broken, and excluding
+        // it here is what made the first heading in a sidebar touch the
+        // contact line above it.
+        gapBefore: out.some((b) => b.column === column) ? sectionGap : 0,
         keepWithNext: true,
         node: <Heading t={t} aside={aside}>{TITLES[key]}</Heading>,
       });

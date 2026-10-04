@@ -4,6 +4,7 @@ import { designHtml, pdfFileName } from "@/lib/app/design-html";
 import { designIsEmpty } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
 import { htmlToPdf } from "@/lib/app/pdf";
+import { flowPdf } from "@/lib/app/flow/html";
 import { countDownload } from "@/lib/app/resume-store";
 
 /**
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ ok: false, error: "Not signed in" }, { status: 401 });
 
-  let body: { id?: string; shareId?: string };
+  let body: { id?: string; shareId?: string; flow?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -54,12 +55,33 @@ export async function POST(request: Request) {
     }
 
     const title = source.title || "Resume";
-    const design =
-      source.design && !designIsEmpty(source.design)
-        ? source.design
-        : seedDesign(source.content, source.template);
 
-    const pdf = await htmlToPdf(await designHtml(design, title));
+    /**
+     * Which document to print.
+     *
+     * Whichever one the person was looking at. The builder asks for `flow`
+     * and gets the component its own preview is painted with; the canvas
+     * editor asks for nothing and gets its positioned design. There is no
+     * clever rule here on purpose — a server guessing which of two editors
+     * somebody last used is a server that occasionally hands them a file
+     * they have never seen.
+     */
+    const pdf = body.flow
+      ? await flowPdf({
+          resume: source.content,
+          templateId: source.template,
+          styles: source.styles,
+          photo: source.photo,
+          title,
+        })
+      : await htmlToPdf(
+          await designHtml(
+            source.design && !designIsEmpty(source.design)
+              ? source.design
+              : seedDesign(source.content, source.template),
+            title,
+          ),
+        );
 
     /**
      * Recorded here, after the PDF exists and before it is handed over.
