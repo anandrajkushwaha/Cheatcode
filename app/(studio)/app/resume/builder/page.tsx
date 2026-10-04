@@ -7,6 +7,8 @@ import { DEFAULT_TEMPLATE } from "@/lib/app/resume-templates";
 import { designIsEmpty } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
 import { designTextLength, isThin, starterContent } from "@/lib/app/starter-content";
+import { cleanResume } from "@/lib/app/resume-schema";
+import { Builder } from "@/components/app/builder/Builder";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,12 @@ export const dynamic = "force-dynamic";
  * 1160px column would be a canvas nobody can work on. It therefore breaks out
  * of the studio container rather than sitting in it.
  */
-export default async function StudioResumeBuilderPage() {
+export default async function StudioResumeBuilderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ classic?: string; v2?: string }>;
+}) {
+  const { classic, v2 } = await searchParams;
   const [draft, resume, user] = await Promise.all([
     getPrimaryDraft(),
     getPrimaryResume(),
@@ -67,6 +74,34 @@ export default async function StudioResumeBuilderPage() {
   const design = hasOwnDesign
     ? draft.design!
     : seedDesign(starterContent(draft.content, template), template);
+
+  /**
+   * The form is the editor now. `?classic=1` still opens the canvas.
+   *
+   * It was going to be held back for the fifty-eight people whose résumé
+   * only exists as a canvas design — their `content` stopped being updated
+   * the day they started dragging, so the form shows them an older version
+   * of themselves. That was the right call for a product with a back
+   * catalogue and the wrong one for this: there are no returning users yet,
+   * and making every new person use the editor that breaks in order to
+   * protect fifty-eight who can rebuild in ten minutes is a bad trade.
+   *
+   * The canvas stays reachable rather than deleted, so nothing those drafts
+   * hold is lost while their designs are harvested back into `content`.
+   */
+  const useForm = classic !== "1";
+  void v2;
+
+  if (useForm) {
+    return (
+      <Builder
+        draftId={draft.id}
+        initial={cleanResume(draft.content)}
+        templateId={template}
+        title={draft.title}
+      />
+    );
+  }
 
   return (
     // No wrapper. The editor is `fixed inset-0` and covers the whole screen on
