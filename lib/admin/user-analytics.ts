@@ -32,6 +32,9 @@ export type Gap = {
   weight: number;
 };
 
+/** Where the identity on a card came from. Best available wins. */
+export type Source = "resume" | "design" | "upload" | "profile" | "sample" | "none";
+
 export type PersonCard = {
   userId: string;
   name: string | null;
@@ -58,7 +61,7 @@ export type PersonCard = {
    * Where the identity fields came from, so the screen can say so.
    * `sample` means they picked a template and never replaced its words.
    */
-  source: "resume" | "profile" | "sample" | "none";
+  source: Source;
 };
 
 export type UserAnalytics = {
@@ -70,6 +73,8 @@ export type UserAnalytics = {
   withResume: number;
   /** Picked a template, wrote nothing of their own. */
   sampleOnly: number;
+  /** Identity recovered from a résumé that only exists on the canvas. */
+  fromDesign: number;
 };
 
 /* ------------------------------------------------------------------ domain */
@@ -173,6 +178,67 @@ function gapsOf(result: unknown): Gap[] {
     .sort((a, b) => (a.status === b.status ? b.weight - a.weight : a.status === "fail" ? -1 : 1));
 }
 
+/* ------------------------------------------------------- the canvas, read */
+
+/**
+ * Pulling a person out of a résumé that only exists as positioned boxes.
+ *
+ * The builder stops writing back to `content` the moment somebody edits on
+ * the canvas, so for everybody who designed their résumé and took the PDF
+ * away, the structured copy is frozen at whatever it was before they started
+ * and the real document is a list of text elements. Those people are exactly
+ * the ones worth knowing about — they finished — and reading `content` for
+ * them returns a half-empty record.
+ *
+ * Only what can be recognised for certain is taken. An email and a phone
+ * number are patterns and cannot be mistaken for anything else. The name is
+ * the largest line on the first page, which is how every one of these
+ * templates is built. Job title and city are not guessed from here: there is
+ * no way to tell a city from a company from a degree in a bare list of
+ * strings, and a wrong city is worse than an empty one.
+ */
+type TextEl = { type: string; text?: string; size?: number; y?: number };
+
+const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]{2,}/;
+const PHONE = /(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}\b|\+\d{1,3}[\s-]?\d[\d\s-]{7,13}\d/;
+
+function readDesign(design: unknown): { name: string | null; email: string | null; phone: string | null } {
+  const pages = (design as { pages?: { elements?: TextEl[] }[] } | null)?.pages;
+  if (!Array.isArray(pages) || pages.length === 0) return { name: null, email: null, phone: null };
+
+  const all: TextEl[] = [];
+  for (const pg of pages) for (const el of pg.elements ?? []) if (el?.type === "text" && el.text) all.push(el);
+  const blob = all.map((e) => e.text).join("\n");
+
+  const email = blob.match(EMAIL)?.[0] ?? null;
+  const phone = blob.match(PHONE)?.[0]?.trim() ?? null;
+
+  // The name: biggest type on sheet one, and only if it reads like a name
+  // rather than a heading somebody set large.
+  const firstPage = (pages[0].elements ?? []).filter((e) => e?.type === "text" && e.text);
+  let name: string | null = null;
+  let best = 0;
+  for (const el of firstPage) {
+    const line = (el.text ?? "").split("\n")[0].trim();
+    const size = Number(el.size ?? 0);
+    if (!line || size <= best) continue;
+    const words = line.split(/\s+/);
+    const plausible =
+      words.length >= 2 &&
+      words.length <= 5 &&
+      line.length <= 48 &&
+      !EMAIL.test(line) &&
+      !/\d/.test(line) &&
+      line !== line.toUpperCase();
+    if (plausible) {
+      best = size;
+      name = line;
+    }
+  }
+
+  return { name, email, phone };
+}
+
 /* ----------------------------------------------------------------- sample */
 
 /**
@@ -257,6 +323,24 @@ export async function getUserAnalytics(
     .limit(limit);
   if (pErr) return { missing: true };
 
+  /**
+   * Résumés people uploaded to be scanned. Parsed once by a model and never
+   * edited — the file says so: "so its score stays honest". For anybody who
+   * came for the ATS check and never opened the builder, this is the only
+   * record of who they are, and it is a good one.
+   */
+  const { data: uploads } = await db
+    .from("resumes")
+    .select("user_id,parsed,ats_score,ats_result,created_at")
+    .not("parsed", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit * 2);
+
+  const parsedByUser = new Map<string, { parsed: unknown; ats_score: number | null; ats_result: unknown }>();
+  for (const u of (uploads ?? []) as { user_id: string; parsed: unknown; ats_score: number | null; ats_result: unknown }[]) {
+    if (!parsedByUser.has(u.user_id)) parsedByUser.set(u.user_id, u);
+  }
+
   const { data: drafts, error: dErr } = await db
     .from("resume_drafts")
     .select("user_id,template,content,ats_score,ats_result,is_primary,updated_at")
@@ -287,20 +371,28 @@ export async function getUserAnalytics(
 
     const hasResume = Boolean(r && (r.full_name || r.roles.length || r.education.length));
 
-    const name = first(r?.full_name, p.full_name);
-    const email = first(r?.email, p.email);
-    const phone = first(r?.phone, p.phone);
-    const city = first(r?.location, p.preferred_cities?.[0]);
+    // The uploaded file, parsed. Real, and untouched since the day it landed.
+    const up = parsedByUser.get(p.id);
+    const u = up ? cleanResume(up.parsed) : null;
+    const hasUpload = Boolean(u && (u.full_name || u.roles.length || u.education.length));
+
+    const name = first(r?.full_name, u?.full_name, p.full_name);
+    const email = first(r?.email, u?.email, p.email);
+    const phone = first(r?.phone, u?.phone, p.phone);
+    const city = first(r?.location, u?.location, p.preferred_cities?.[0]);
     const profession = first(
       r?.headline,
       r?.target_role,
       r?.roles.find((x) => x.title)?.title,
+      u?.headline,
+      u?.target_role,
+      u?.roles.find((x) => x.title)?.title,
       p.current_title,
       p.headline,
       p.target_roles?.[0],
     );
-    const years = first(r?.years_experience ?? null, p.years_experience);
-    const grad = graduationYear(r);
+    const years = first(r?.years_experience ?? null, u?.years_experience ?? null, p.years_experience);
+    const grad = graduationYear(r) ?? graduationYear(u);
 
     people.push({
       userId: p.id,
@@ -318,16 +410,64 @@ export async function getUserAnalytics(
       joined: p.created_at,
       lastActive: draft?.updated_at ?? null,
       drafts: counts.get(p.id) ?? 0,
-      atsScore: sample ? null : (draft?.ats_score ?? null),
-      gaps: sample ? [] : gapsOf(draft?.ats_result),
+      atsScore: (sample ? null : draft?.ats_score) ?? up?.ats_score ?? null,
+      gaps: sample ? gapsOf(up?.ats_result) : gapsOf(draft?.ats_result ?? up?.ats_result),
       source: hasResume
         ? "resume"
-        : name || email || phone
-          ? "profile"
-          : sample
-            ? "sample"
-            : "none",
+        : hasUpload
+          ? "upload"
+          : name || email || phone
+            ? "profile"
+            : sample
+              ? "sample"
+              : "none",
     });
+  }
+
+  /**
+   * Last pass: the people whose résumé only exists on the canvas.
+   *
+   * Designs are fetched here and not with everything else because each one
+   * carries its photograph inside it as a base64 string of up to three
+   * megabytes. Pulling four hundred of those to read a handful of names
+   * would be a hundred megabytes for nothing, so only the cards that are
+   * still missing a name, an email or a phone ask for one, ten at a time.
+   */
+  const needy = people.filter((x) => !x.name || !x.email || !x.phone).map((x) => x.userId);
+  const byId = new Map(people.map((x) => [x.userId, x]));
+
+  for (let i = 0; i < needy.length; i += 10) {
+    const slice = needy.slice(i, i + 10);
+    const { data: rows } = await db
+      .from("resume_drafts")
+      .select("user_id,design")
+      .in("user_id", slice)
+      .not("design", "is", null)
+      .order("updated_at", { ascending: false });
+
+    for (const row of (rows ?? []) as { user_id: string; design: unknown }[]) {
+      const card = byId.get(row.user_id);
+      if (!card || (card.name && card.email && card.phone)) continue;
+
+      const found = readDesign(row.design);
+      let used = false;
+      if (!card.name && found.name) {
+        card.name = found.name;
+        used = true;
+      }
+      if (!card.email && found.email) {
+        card.email = found.email;
+        used = true;
+      }
+      if (!card.phone && found.phone) {
+        card.phone = found.phone;
+        used = true;
+      }
+      // Only claim the canvas as the source when it supplied the identity.
+      if (used && (card.source === "none" || card.source === "sample" || card.source === "profile")) {
+        card.source = "design";
+      }
+    }
   }
 
   const tally = (vals: (string | null)[]) => {
@@ -346,5 +486,6 @@ export async function getUserAnalytics(
     commonGaps: tally(people.flatMap((x) => x.gaps.map((g) => g.label))).slice(0, 8),
     withResume: people.filter((x) => x.source === "resume").length,
     sampleOnly: people.filter((x) => x.source === "sample").length,
+    fromDesign: people.filter((x) => x.source === "design").length,
   };
 }

@@ -128,6 +128,8 @@ export function PeopleCards({ people }: { people: PersonCard[] }) {
               <div className="mt-3 flex items-center justify-between gap-3 border-t border-ink-08 pt-3">
                 <p className="text-[0.76rem] text-ink-30">
                   {p.drafts} résumé{p.drafts === 1 ? "" : "s"}
+                  {p.source === "upload" && " · from the résumé they uploaded"}
+                  {p.source === "design" && " · read off their designed résumé"}
                   {p.source === "profile" && " · from profile only"}
                   {p.source === "sample" && " · still the template's sample"}
                   {p.source === "none" && " · nothing filled in"}

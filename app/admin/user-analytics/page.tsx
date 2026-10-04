@@ -31,8 +31,7 @@ export default async function AdminUserAnalytics() {
     );
   }
 
-  const { people, stages, domains, cities, commonGaps, withResume, sampleOnly } = data;
-  const withPhone = people.filter((p) => p.phone).length;
+  const { people, stages, domains, cities, commonGaps, withResume, sampleOnly, fromDesign } = data;
 
   return (
     <div className="space-y-6">
@@ -43,7 +42,9 @@ export default async function AdminUserAnalytics() {
           the résumé is empty. A field nobody filled shows a dash rather than a guess. Picking
           a template fills the draft with a sample résumé so there is something to write over —
           those nine invented people are detected and dropped whole, so none of their names,
-          cities or phone numbers reach this screen. Age is the one derived figure and is always
+          cities or phone numbers reach this screen. Where somebody designed their résumé on the
+          canvas and took the PDF away, the structured copy stopped being updated — so the name,
+          email and phone are read back off the design itself. Age is the one derived figure and is always
           marked an estimate: it comes from the graduation year, because nothing here asks for a
           date of birth.
         </p>
@@ -56,7 +57,11 @@ export default async function AdminUserAnalytics() {
           value={num(withResume)}
           hint={people.length ? `${Math.round((withResume / people.length) * 100)}% have a résumé with details` : undefined}
         />
-        <Stat label="Gave a phone number" value={num(withPhone)} />
+        <Stat
+          label="Recovered from the canvas"
+          value={num(fromDesign)}
+          hint="their résumé exists only as a design — read off it"
+        />
         <Stat
           label="Still on the sample"
           value={num(sampleOnly)}
