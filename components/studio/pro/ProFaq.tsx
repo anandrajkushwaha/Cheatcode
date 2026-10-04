@@ -23,7 +23,7 @@ type Item = { q: string; a: string };
 const FAQ: Item[] = [
   {
     q: "What is Cheatcode Pro?",
-    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, AI mock interviews with a written report, and a real person reviewing your resume. The resume builder and every template stay free on every account; Pro is ₹99 a month.",
+    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, AI mock interviews with a written report, and an expert review of your resume. The resume builder and every template stay free on every account; Pro is ₹99 a month.",
   },
   {
     q: "Who can benefit from Cheatcode Pro?",

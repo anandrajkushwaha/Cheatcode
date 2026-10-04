@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * Ask a person to read your resume.
+ * Ask an expert to review your resume.
  *
  * Pro only, checked here rather than only on the screen — the screen decides
  * what to show, this decides what is allowed, and those have to be two

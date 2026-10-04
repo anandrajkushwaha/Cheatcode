@@ -62,7 +62,7 @@ export default function AtsCheckerPage() {
           Resume ATS checker
         </h1>
         <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-ink-70">
-          Before a person reads your resume, software does. Upload the file you
+          Before a recruiter reads your resume, software does. Upload the file you
           are already sending and see what comes out the other side — the score,
           and the exact lines costing you it.
         </p>

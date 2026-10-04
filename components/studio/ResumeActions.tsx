@@ -68,7 +68,7 @@ export function ResumeActions({
               className="inline-flex items-center gap-2 rounded-full border border-ink-15 bg-paper px-5 py-2.5 text-[0.85rem] font-medium transition-colors hover:border-ink"
             >
               <EyeIcon />
-              Request a review
+              Get an expert review
             </button>
           ))}
       </div>
@@ -96,8 +96,8 @@ export function ResumeActions({
 
       {open === "review" && (
         <Dialog
-          title="Have a person read it"
-          detail="Attach the PDF you actually send. Someone reads it against the job you are applying for and writes back by email."
+          title="Have an expert review it"
+          detail="Attach the PDF you actually send. An expert reads it against the job you are applying for and writes back by email."
           onClose={() => setOpen(null)}
         >
           <ReviewForm defaultRole={defaultRole} email={email} onDone={() => setOpen(null)} />
@@ -229,9 +229,9 @@ function ReviewForm({
         )}
 
         <span className="mt-1.5 block text-[0.73rem] leading-relaxed text-ink-30">
-          We review the file itself — half of what is wrong with a resume is
-          only visible in the PDF: layout, spacing, where page two ends. PDF,
-          DOCX or TXT, under 10MB.
+          The review is of the file itself — half of what is wrong with a
+          resume is only visible in the PDF: layout, spacing, where page two
+          ends. PDF, DOCX or TXT, under 10MB.
         </span>
       </div>
 
@@ -251,8 +251,8 @@ function ReviewForm({
       </button>
 
       <p className="text-[0.75rem] leading-relaxed text-ink-30">
-        We review the file you attach, exactly as it is — so send the version
-        you are actually sending out. The reply comes by email
+        An expert reviews the file you attach, exactly as it is — so send the
+        version you are actually sending out. The reply comes by email
         {email ? ` to ${email}` : ""}.
       </p>
     </div>

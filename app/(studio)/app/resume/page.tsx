@@ -71,10 +71,10 @@ export default async function StudioResumePage() {
         <ProTeaser
           from="resume-review"
           eyebrow="Pro"
-          title="Have a person read your resume"
-          detail="Not a score and not a checklist — someone reads it against the job you are applying for and writes back."
+          title="Have an expert review your resume"
+          detail="Not a score and not a checklist — an expert reads it against the job you are applying for and writes back in plain words."
           points={[
-            "A real person reads it, not a parser",
+            "Read by an expert, not by a parser",
             "Written against the exact role you are applying for",
             "Emailed back to you, usually within two working days",
           ]}
