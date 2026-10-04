@@ -16,9 +16,18 @@ import { useEffect, useRef, useState } from "react";
 const BASE =
   "w-full rounded-xl border border-ink-15 bg-paper px-3.5 py-2.5 text-[16px] outline-none transition-colors placeholder:text-ink-30 focus:border-ink-50 sm:text-[0.92rem]";
 
+/**
+ * A label, and the hint that belongs to it.
+ *
+ * The hint is allowed to wrap onto its own line rather than being squeezed
+ * against the label. In a two-up grid on a laptop the column is about 190
+ * pixels wide, and "Role you're going for" next to "aims the résumé" came out
+ * as two half-words colliding in the middle — which reads as a rendering bug
+ * rather than as help.
+ */
 export function Label({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
-    <div className="mb-1.5 flex items-baseline justify-between gap-3">
+    <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
       <span className="text-[0.82rem] font-medium text-ink">{children}</span>
       {hint && <span className="text-[0.74rem] text-ink-30">{hint}</span>}
     </div>

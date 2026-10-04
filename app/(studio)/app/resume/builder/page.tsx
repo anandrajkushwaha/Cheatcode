@@ -98,6 +98,8 @@ export default async function StudioResumeBuilderPage({
         draftId={draft.id}
         initial={cleanResume(draft.content)}
         templateId={template}
+        initialStyles={draft.styles}
+        initialPhoto={draft.photo}
         title={draft.title}
       />
     );

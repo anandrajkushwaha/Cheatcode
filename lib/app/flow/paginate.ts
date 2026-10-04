@@ -30,6 +30,19 @@ export type Measured = {
 export type Page = { ids: string[] };
 
 /**
+ * How tall a page's column is.
+ *
+ * A number for the ordinary case, and a function when the first page is
+ * shorter than the rest — which is what a full-width header above two
+ * columns means. Expressing it as a function rather than a `firstPage`
+ * argument keeps the rule in one place: the paginator asks how much room
+ * page *n* has and never has to know why the answer differs.
+ */
+export type PageHeight = number | ((pageIndex: number) => number);
+
+const roomOn = (h: PageHeight, i: number): number => (typeof h === "number" ? h : h(i));
+
+/**
  * Greedy, top to bottom, with one look backwards.
  *
  * When a block does not fit, the break goes above it — and then walks back
@@ -38,7 +51,7 @@ export type Page = { ids: string[] };
  * everything above is glued, the page takes it anyway rather than looping,
  * because a block that cannot fit on any page still has to go somewhere.
  */
-export function paginate(blocks: Measured[], pageHeight: number): Page[] {
+export function paginate(blocks: Measured[], pageHeight: PageHeight): Page[] {
   if (blocks.length === 0) return [{ ids: [] }];
 
   const pages: Page[] = [];
@@ -55,7 +68,7 @@ export function paginate(blocks: Measured[], pageHeight: number): Page[] {
     const gap = current.length ? b.gapBefore : 0;
     const needs = gap + b.h;
 
-    if (used + needs <= pageHeight || current.length === 0) {
+    if (used + needs <= roomOn(pageHeight, pages.length) || current.length === 0) {
       current.push(b);
       used += needs;
       continue;
@@ -94,7 +107,7 @@ export function paginate(blocks: Measured[], pageHeight: number): Page[] {
 export function paginatePair(
   aside: Measured[],
   main: Measured[],
-  pageHeight: number,
+  pageHeight: PageHeight,
 ): { aside: Page[]; main: Page[] } {
   const a = paginate(aside, pageHeight);
   const m = paginate(main, pageHeight);

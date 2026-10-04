@@ -71,12 +71,39 @@ export type PhotoFit = {
 
 export const DEFAULT_PHOTO_FIT: PhotoFit = { scale: 1, x: 0, y: 0, frame: 1, frameX: 0, frameY: 0 };
 
+/**
+ * What somebody changed about the *document*, rather than about one field.
+ *
+ * Four knobs, and the shortness of the list is the design. A résumé has one
+ * accent colour, one typeface, one size and one spacing; everything else a
+ * person might want to adjust is either the template's job or a per-field
+ * override. Opening more than this turns a form into a word processor, which
+ * is the thing the rebuild was for getting away from.
+ *
+ * Every value is a multiplier or a name, never a measurement: the template
+ * still owns the proportions, and `scale` of 1.1 makes the whole document ten
+ * percent larger rather than setting a point size that a different template
+ * would read as something else.
+ */
+export type DocStyle = {
+  /** `#rrggbb`. Replaces the template's own accent everywhere at once. */
+  accent?: string;
+  /** A family name from `FONTS`. */
+  font?: string;
+  /** Type scale. 1 is the template's own. */
+  scale?: number;
+  /** Spacing. 1 is the template's own. */
+  density?: number;
+};
+
 export type Presentation = {
   fields: Record<string, FieldStyle>;
   /** Sections switched off. Section keys from resume-templates.ts. */
   hidden: string[];
   /** Absent until somebody adjusts the photo. */
   photoFit?: PhotoFit;
+  /** Absent until somebody moves one of the four document sliders. */
+  doc?: DocStyle;
 };
 
 export const EMPTY_PRESENTATION: Presentation = { fields: {}, hidden: [] };
@@ -201,8 +228,35 @@ export function cleanPresentation(value: unknown): Presentation {
     : [];
 
   const photoFit = cleanFit((value as { photoFit?: unknown }).photoFit);
+  const doc = cleanDoc((value as { doc?: unknown }).doc);
 
-  return { fields, hidden, ...(photoFit ? { photoFit } : {}) };
+  return { fields, hidden, ...(photoFit ? { photoFit } : {}), ...(doc ? { doc } : {}) };
+}
+
+/**
+ * The four document knobs, or nothing.
+ *
+ * Out-of-range is dropped rather than clamped, for the reason given above
+ * `cleanPresentation`: a scale of 40 is a bug or a probe, and quietly turning
+ * it into 1.2 hides which one. The ranges are what a résumé survives — below
+ * 0.85 the type stops being readable in print, above 1.2 a one-page document
+ * becomes two without anybody asking for it.
+ */
+function cleanDoc(value: unknown): DocStyle | null {
+  if (!value || typeof value !== "object") return null;
+  const d = value as Record<string, unknown>;
+  const out: DocStyle = {};
+
+  if (typeof d.accent === "string" && HEX.test(d.accent)) out.accent = d.accent.toLowerCase();
+  if (typeof d.font === "string" && fontStack(d.font)) out.font = d.font;
+  for (const k of ["scale", "density"] as const) {
+    const v = d[k];
+    const [lo, hi] = k === "scale" ? [0.85, 1.2] : [0.8, 1.3];
+    if (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi) {
+      out[k] = Math.round(v * 100) / 100;
+    }
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 function cleanFit(value: unknown): PhotoFit | null {

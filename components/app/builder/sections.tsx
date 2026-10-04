@@ -23,7 +23,7 @@ export function Personal({ r, patch }: { r: Resume; patch: Patch }) {
       <div className={grid}>
         <Text label="Full name" value={r.full_name ?? ""} placeholder="Your name as on your ID"
           onChange={(v) => patch((x) => ({ ...x, full_name: v }))} />
-        <Text label="Headline" hint="under 12 words" value={r.headline ?? ""}
+        <Text label="Headline" hint="12 words" value={r.headline ?? ""}
           placeholder="Product Designer · 4 years · Bengaluru"
           onChange={(v) => patch((x) => ({ ...x, headline: v }))} />
         <Text label="Email" type="email" value={r.email ?? ""} validate={isEmail}
@@ -34,7 +34,7 @@ export function Personal({ r, patch }: { r: Resume; patch: Patch }) {
           onChange={(v) => patch((x) => ({ ...x, phone: v }))} />
         <Text label="City" value={r.location ?? ""} placeholder="Bengaluru"
           onChange={(v) => patch((x) => ({ ...x, location: v }))} />
-        <Text label="Role you're going for" hint="aims the résumé" value={r.target_role ?? ""}
+        <Text label="Target role" hint="aims the résumé" value={r.target_role ?? ""}
           placeholder="Senior Product Designer"
           onChange={(v) => patch((x) => ({ ...x, target_role: v }))} />
       </div>
