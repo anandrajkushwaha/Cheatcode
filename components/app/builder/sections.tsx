@@ -27,10 +27,10 @@ export function Personal({ r, patch }: { r: Resume; patch: Patch }) {
           placeholder="Product Designer · 4 years · Bengaluru"
           onChange={(v) => patch((x) => ({ ...x, headline: v }))} />
         <Text label="Email" type="email" value={r.email ?? ""} validate={isEmail}
-          placeholder="you@example.com"
+          placeholder="youremail@gmail.com"
           onChange={(v) => patch((x) => ({ ...x, email: v }))} />
         <Text label="Phone" type="tel" value={r.phone ?? ""} validate={isPhone}
-          placeholder="98765 43210"
+          placeholder="9876543210"
           onChange={(v) => patch((x) => ({ ...x, phone: v }))} />
         <Text label="City" value={r.location ?? ""} placeholder="Bengaluru"
           onChange={(v) => patch((x) => ({ ...x, location: v }))} />

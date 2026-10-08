@@ -2,7 +2,7 @@ import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { TEMPLATES } from "@/lib/app/resume-templates";
 import { cleanResume, type Resume } from "@/lib/app/resume-schema";
-import { sampleFor } from "@/lib/app/design-sample";
+import { SAMPLE_CONTACT, sampleFor } from "@/lib/app/design-sample";
 
 /**
  * Who the people using this actually are.
@@ -259,8 +259,18 @@ for (const t of TEMPLATES) {
 
 function isSample(r: Resume, templateId: string | null): boolean {
   const email = (r.email ?? "").trim().toLowerCase();
-  // Reserved by RFC 2606 and used by every sample here. Never a real address.
-  if (email.endsWith("@example.com")) return true;
+  const phone = (r.phone ?? "").replace(/\D/g, "");
+  /**
+   * The address and number every template ships with.
+   *
+   * This was `endsWith("@example.com")`, which stopped being true the day the
+   * samples moved to one shared placeholder address — and a test that silently
+   * stops matching does not fail, it just starts counting eight invented
+   * people as users. Compared against the constant the sample is built from,
+   * so the two cannot drift apart again.
+   */
+  if (email && email === SAMPLE_CONTACT.email) return true;
+  if (phone && phone === SAMPLE_CONTACT.phone) return true;
 
   const name = (r.full_name ?? "").trim().toLowerCase();
   if (name && SAMPLE_NAMES.has(name)) return true;

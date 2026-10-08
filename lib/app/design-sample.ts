@@ -706,20 +706,47 @@ type Person = {
 };
 
 /**
+ * One phone number and one address, shared by all eight.
+ *
+ * They used to have eight invented addresses and eight invented numbers,
+ * which looked more like real data and was worse for it: the sample is a
+ * placeholder somebody is meant to replace, and "priya.nair@example.com"
+ * reads as a value rather than as a blank waiting to be filled. These two
+ * say what they are at a glance, in the template and in the gallery card.
+ *
+ * Both are also the standard throwaways — 9876543210 is the number every
+ * Indian form uses as its example, and this address belongs to nobody — so
+ * neither can reach a real person if a sample résumé is ever sent.
+ */
+const SAMPLE_EMAIL = "youremail@gmail.com";
+const SAMPLE_PHONE = "9876543210";
+
+/**
  * Eight of them, alternating portrait so the faces alternate down the grid,
  * and cycling the three tracks so neighbouring cards differ in their words as
- * well as in their name.
+ * well as in their name. Only the name, the city and the words differ — the
+ * contact line is the same placeholder on every one.
  */
 const PEOPLE: Person[] = [
-  { full_name: "Priya Nair", email: "priya.nair@example.com", phone: "+91 98200 41185", location: "Bengaluru", track: PRODUCT, portrait: PORTRAIT_A },
-  { full_name: "Rohan Mehta", email: "rohan.mehta@example.com", phone: "+91 98111 27340", location: "Gurugram", track: BUSINESS, portrait: PORTRAIT_B },
-  { full_name: "Ananya Iyer", email: "ananya.iyer@example.com", phone: "+91 99870 55219", location: "Pune", track: DATA, portrait: PORTRAIT_A },
-  { full_name: "Kabir Sharma", email: "kabir.sharma@example.com", phone: "+91 90045 71862", location: "Hyderabad", track: PRODUCT, portrait: PORTRAIT_B },
-  { full_name: "Meera Joshi", email: "meera.joshi@example.com", phone: "+91 98330 60417", location: "Mumbai", track: BUSINESS, portrait: PORTRAIT_A },
-  { full_name: "Arjun Rao", email: "arjun.rao@example.com", phone: "+91 97400 13286", location: "Chennai", track: DATA, portrait: PORTRAIT_B },
-  { full_name: "Sara Fernandes", email: "sara.fernandes@example.com", phone: "+91 98670 24951", location: "Goa", track: PRODUCT, portrait: PORTRAIT_A },
-  { full_name: "Vikram Chandra", email: "vikram.chandra@example.com", phone: "+91 99100 38672", location: "Delhi", track: DATA, portrait: PORTRAIT_B },
+  { full_name: "Priya Nair", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Bengaluru", track: PRODUCT, portrait: PORTRAIT_A },
+  { full_name: "Rohan Mehta", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Gurugram", track: BUSINESS, portrait: PORTRAIT_B },
+  { full_name: "Ananya Iyer", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Pune", track: DATA, portrait: PORTRAIT_A },
+  { full_name: "Kabir Sharma", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Hyderabad", track: PRODUCT, portrait: PORTRAIT_B },
+  { full_name: "Meera Joshi", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Mumbai", track: BUSINESS, portrait: PORTRAIT_A },
+  { full_name: "Arjun Rao", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Chennai", track: DATA, portrait: PORTRAIT_B },
+  { full_name: "Sara Fernandes", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Goa", track: PRODUCT, portrait: PORTRAIT_A },
+  { full_name: "Vikram Chandra", email: SAMPLE_EMAIL, phone: SAMPLE_PHONE, location: "Delhi", track: DATA, portrait: PORTRAIT_B },
 ];
+
+/**
+ * The sample's contact details, for anything that has to recognise them.
+ *
+ * Exported because the admin screens need to tell a résumé somebody has
+ * written from one still carrying the template's placeholder, and that test
+ * has to be the same string as the one the template puts there. Two copies
+ * of it is how a sample stops being counted as a sample.
+ */
+export const SAMPLE_CONTACT = { email: SAMPLE_EMAIL, phone: SAMPLE_PHONE } as const;
 
 /**
  * A sample résumé for one template, stable for a given id.
