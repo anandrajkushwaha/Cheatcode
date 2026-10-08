@@ -7,11 +7,11 @@ export const dynamic = "force-dynamic";
  * Government jobs, from the inside.
  *
  * This screen exists to answer one question the public page cannot: an empty
- * /government-jobs means either "nothing ingested yet" or "the migration was
- * never run", and those look identical to a visitor while meaning opposite
- * things. Everything else here — what each source last did, how many rows
- * exist — is in service of the same thing: being able to tell whether the
- * feature is quiet or broken.
+ * /government-jobs means "nothing ingested yet", "the migration was never
+ * run", or "ingestion is paused on purpose", and all three look identical to
+ * a visitor while meaning different things. Everything else here — what each
+ * source last did, how many rows exist — is in service of the same thing:
+ * being able to tell whether the feature is quiet, paused or broken.
  */
 export default async function AdminGovt() {
   const status = await getGovtStatus();
@@ -36,16 +36,30 @@ export default async function AdminGovt() {
   }
 
   const live = status.sources.filter((s) => s.active).length;
+  // Paused is a fact about the data, not a flag: when every board is off, no
+  // run — scheduled or manual — can read or publish anything.
+  const paused = live === 0;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Government jobs</h1>
         <p className="mt-2 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-          The recruitment boards we watch, and what each run found. It runs itself every morning
-          at 7:05; this button does exactly the same thing now. A board whose page holds no
-          recruitment notices writes &ldquo;empty&rdquo; and publishes nothing, so a wrong URL costs a
-          quiet row here rather than bad data on a public page.
+          {paused ? (
+            <>
+              Ingestion is paused. Every board is switched off and the scheduled run has been
+              removed, so nothing is being read and nothing new can be published until the
+              publishing gate is trustworthy. Rows that were published by the earlier runs were
+              moved to <code>retired</code> rather than deleted — they are off the public pages
+              but still here to inspect.
+            </>
+          ) : (
+            <>
+              The recruitment boards we watch, and what each run found. A board whose page holds
+              no recruitment notices writes &ldquo;empty&rdquo; and publishes nothing, so a wrong
+              URL costs a quiet row here rather than bad data on a public page.
+            </>
+          )}
         </p>
       </div>
 
@@ -64,13 +78,19 @@ export default async function AdminGovt() {
         ))}
       </dl>
 
-      <GovtRunButton />
+      <GovtRunButton paused={paused} />
 
-      {status.exams === 0 && (
+      {status.exams === 0 && !paused && (
         <p className="rounded-xl border border-dashed border-ink-15 px-4 py-3.5 text-[0.85rem] leading-relaxed text-ink-50">
           Tables are there and empty. Nothing has been ingested yet, which is why{" "}
           <code>/government-jobs</code> shows its empty state — that is the feature being quiet,
           not broken.
+        </p>
+      )}
+      {paused && status.published === 0 && (
+        <p className="rounded-xl border border-dashed border-ink-15 px-4 py-3.5 text-[0.85rem] leading-relaxed text-ink-50">
+          Nothing is published, so <code>/government-jobs</code> shows its empty state to
+          everybody. That is the pause working, not a fault.
         </p>
       )}
 

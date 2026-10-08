@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/seo/constants";
-import { getClosingSoon, getNoticesResult } from "@/lib/govt/query";
+import { getClosingSoon, getClosed, getNoticesResult, getUndated } from "@/lib/govt/query";
 import { KIND_LABEL, NOTICE_KINDS } from "@/lib/govt/types";
-import { Deadline, NoticeColumn, StatusPill } from "@/components/govt/bits";
+import { CLOSING_SOON_DAYS } from "@/lib/govt/lifecycle";
+import { ExamCard, NoticeColumn } from "@/components/govt/bits";
 
 export const revalidate = 120;
 
@@ -16,18 +17,18 @@ export const revalidate = 120;
  * the part of those sites that works.
  *
  * What is different sits underneath: every row links to an exam page rather
- * than to a PDF, so arriving from "SSC CGL result" lands somewhere that also
- * says when the exam is and whether the answer key is out.
+ * than to a PDF, and nothing claims a date, a status or a vacancy count that
+ * nobody could point at a sentence for.
  */
 export const metadata: Metadata = {
   title: "Government Jobs 2026 — Sarkari Naukri, Results, Admit Cards | Cheatcode",
   description:
-    "Latest government job notifications, results, admit cards, answer keys and syllabus, taken from the official recruitment boards and linked back to them. Free, no sign-up.",
+    "Government job notifications, results, admit cards, answer keys and syllabus, taken from the official recruitment boards and linked back to them. Free, no sign-up.",
   alternates: { canonical: `${SITE.url}/government-jobs` },
   openGraph: {
     title: "Government Jobs — Cheatcode",
     description:
-      "Latest sarkari job notifications, results and admit cards, from the official boards.",
+      "Sarkari job notifications, results and admit cards, from the official boards.",
     url: `${SITE.url}/government-jobs`,
     siteName: SITE.name,
     type: "website",
@@ -35,20 +36,23 @@ export const metadata: Metadata = {
 };
 
 export default async function GovernmentJobsHub() {
-  const [results, closing] = await Promise.all([
+  const [results, closing, undated, closed] = await Promise.all([
     Promise.all(
       NOTICE_KINDS.map(async (k) => ({ kind: k, ...(await getNoticesResult(k, 10)) })),
     ),
     getClosingSoon(6),
+    getUndated(1),
+    getClosed(1),
   ]);
 
   const columns = results.map(({ kind, notices }) => ({ kind, notices }));
   const empty = columns.every((c) => c.notices.length === 0);
-  // One reason for all six, because all six read the same table.
   const problem = results.find((r) => r.error);
 
   return (
-    <div className="container-page pb-20 pt-8 sm:pb-28 sm:pt-10">
+    /* Room at the foot for the floating assistant, which otherwise sits on top
+       of the last row of the last column with nothing to scroll past it. */
+    <div className="container-page pb-32 pt-8 sm:pb-28 sm:pt-10">
       <header className="max-w-[60ch]">
         <h1 className="text-[1.7rem] font-semibold tracking-[-0.035em] sm:text-[2.1rem]">
           Government jobs
@@ -57,11 +61,16 @@ export default async function GovernmentJobsHub() {
           Notifications, results, admit cards and answer keys — taken from the recruitment boards
           themselves, and linked back to them. Nothing here asks you to sign up.
         </p>
+        <p className="mt-2 text-[0.86rem] text-ink-30">
+          After private-sector openings instead?{" "}
+          <Link href="/jobs" className="underline underline-offset-4 hover:text-ink">
+            Private jobs are here
+          </Link>
+          .
+        </p>
       </header>
 
       {empty ? (
-        /* A first-run state rather than six empty boxes. Six boxes each saying
-           "nothing yet" reads as broken; one sentence reads as early. */
         <div className="mt-8 rounded-2xl border border-dashed border-ink-15 p-8 text-center">
           <p className="text-[0.95rem] font-medium">
             {problem ? "Not available right now" : "Nothing published yet"}
@@ -76,36 +85,50 @@ export default async function GovernmentJobsHub() {
         <>
           {closing.length > 0 && (
             <section className="mt-8">
-              <h2 className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+              <h2 className="mb-1 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
                 Closing soon
               </h2>
-              <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <p className="mb-3 text-[0.82rem] text-ink-30">
+                Applications closing in the next {CLOSING_SOON_DAYS} days, nearest first.
+              </p>
+              <ul className="grid items-start gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {closing.map((e) => (
                   <li key={e.id}>
-                    <Link
-                      href={`/government-jobs/${e.slug}`}
-                      className="flex h-full flex-col gap-2 rounded-2xl border border-ink-08 bg-paper p-4 transition-colors hover:border-ink-30"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="text-[0.76rem] font-medium uppercase tracking-[0.1em] text-ink-30">
-                          {e.organisation}
-                        </span>
-                        <StatusPill exam={e} />
-                      </div>
-                      <span className="text-[0.95rem] font-medium leading-snug">{e.name}</span>
-                      {e.shown.has("application_end") && <Deadline end={e.applicationEnd} />}
-                    </Link>
+                    <ExamCard exam={e} />
                   </li>
                 ))}
               </ul>
             </section>
           )}
 
-          <div className="mt-10 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {/* `items-start` is the whole fix for the three tall blank panels:
+              a grid cell stretches to the tallest row unless told not to. */}
+          <div className="mt-10 grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {columns.map(({ kind, notices }) => (
               <NoticeColumn key={kind} kind={kind} title={KIND_LABEL[kind]} notices={notices} />
             ))}
           </div>
+
+          {(undated.length > 0 || closed.length > 0) && (
+            <nav className="mt-8 flex flex-wrap gap-2">
+              {undated.length > 0 && (
+                <Link
+                  href="/government-jobs/dates-not-stated"
+                  className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
+                >
+                  Recruitments with no stated closing date
+                </Link>
+              )}
+              {closed.length > 0 && (
+                <Link
+                  href="/government-jobs/closed"
+                  className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
+                >
+                  Closed recruitments
+                </Link>
+              )}
+            </nav>
+          )}
         </>
       )}
 

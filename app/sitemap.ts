@@ -58,6 +58,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily" as const,
       priority: 0.8,
     })),
+    /* The three lifecycle views. They are derived from the same deadline the
+       badges read, so they always have something to say once anything is
+       published, and they are the shapes people search for ("last date
+       today", "form closed"). Withdrawn listings are excluded upstream by
+       getExamSlugs, which only returns published and closed rows. */
+    ...(["closing-soon", "closed", "dates-not-stated"] as const).map((seg) => ({
+      url: `${SITE.url}/government-jobs/${seg}`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    })),
     ...exams.map((e) => ({
       url: `${SITE.url}/government-jobs/${e.slug}`,
       lastModified: new Date(e.updatedAt),

@@ -7,10 +7,6 @@
     {
       "path": "/api/jobs/ingest",
       "schedule": "17 4 * * *"
-    },
-    {
-      "path": "/api/govt/ingest",
-      "schedule": "35 1 * * *"
     }
   ]
 }

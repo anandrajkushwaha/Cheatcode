@@ -10,8 +10,12 @@ import type { RunResult } from "@/lib/govt/ingest";
  * Deliberately shows what each board did rather than a success tick. The
  * useful answer on a first run is never "it worked" — it is which of the ten
  * URLs turned out to be the wrong page, and that is only visible per board.
+ *
+ * While ingestion is paused the button is disabled rather than hidden: a run
+ * would be a no-op anyway (the ingest only picks up active sources), and a
+ * disabled control with a reason beside it is clearer than a missing one.
  */
-export function GovtRunButton() {
+export function GovtRunButton({ paused = false }: { paused?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RunResult | null>(null);
@@ -41,14 +45,15 @@ export function GovtRunButton() {
       <button
         type="button"
         onClick={() => void run()}
-        disabled={busy}
+        disabled={busy || paused}
         className="rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         {busy ? "Reading the boards…" : "Run now"}
       </button>
-      <p className="mt-2 text-[0.78rem] text-ink-30">
-        Reads every board in one go, newest-checked last. Takes up to two minutes the first time —
-        a browser has to be downloaded before anything can be rendered.
+      <p className="mt-2 max-w-[68ch] text-[0.78rem] text-ink-30">
+        {paused
+          ? "Paused. Every board is switched off, so a run would read nothing and publish nothing. Switch a source back on in govt_sources once the publishing gate can be trusted."
+          : "Reads every board in one go, newest-checked last. Takes up to two minutes the first time — a browser has to be downloaded before anything can be rendered."}
       </p>
 
       {result && (

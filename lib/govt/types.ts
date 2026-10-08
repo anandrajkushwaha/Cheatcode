@@ -74,6 +74,9 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "qualification",
   "state",
   "search",
+  "closing-soon",
+  "closed",
+  "dates-not-stated",
 ]);
 
 /**
@@ -152,7 +155,7 @@ export type Exam = {
   dateNote: string | null;
   selectionProcess: string[];
   about: string | null;
-  status: "draft" | "published" | "closed" | "withdrawn";
+  status: "draft" | "published" | "closed" | "withdrawn" | "retired";
   /**
    * Which fields we can show.
    *
@@ -167,46 +170,21 @@ export type Exam = {
 
 export type ExamWithNotices = Exam & { notices: Notice[] };
 
-/** Days until a date, or null. Negative means it has passed. */
-export function daysUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  const then = Date.parse(`${iso}T00:00:00Z`);
-  if (Number.isNaN(then)) return null;
-  const now = new Date();
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Math.round((then - today) / 86_400_000);
-}
-
-export type Status = "open" | "closing" | "closed" | "upcoming" | "unknown";
-
 /**
- * What the pill says.
+ * The closing date we are allowed to show, or null.
  *
- * `unknown` is a real answer and the one that keeps this honest: plenty of
- * notifications do not state a closing date, and a page that assumed "open"
- * for those would be telling somebody they still have time.
+ * The lifecycle engine must never see a date the row cannot stand behind:
+ * a value sitting in `application_end` with no entry in `evidence` was not
+ * read off a notification, and deriving "Open" from it would be inventing a
+ * deadline rather than reporting one. One accessor, so every caller asks the
+ * same question.
  */
-export function statusOf(exam: {
-  applicationStart: string | null;
+export function verifiedDeadline(exam: {
   applicationEnd: string | null;
-  status: string;
-}): Status {
-  if (exam.status === "closed") return "closed";
-  const end = daysUntil(exam.applicationEnd);
-  const start = daysUntil(exam.applicationStart);
-  if (start !== null && start > 0) return "upcoming";
-  if (end === null) return "unknown";
-  if (end < 0) return "closed";
-  return end <= 7 ? "closing" : "open";
+  shown: Set<string>;
+}): string | null {
+  return exam.shown.has("application_end") ? exam.applicationEnd : null;
 }
-
-export const STATUS_LABEL: Record<Status, string> = {
-  open: "Open",
-  closing: "Closing soon",
-  closed: "Closed",
-  upcoming: "Opening soon",
-  unknown: "Dates not stated",
-};
 
 /** 20 Oct 2026. The format every one of these notifications uses. */
 export function formatDate(iso: string | null): string | null {

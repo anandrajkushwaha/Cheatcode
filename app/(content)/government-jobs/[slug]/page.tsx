@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SITE } from "@/lib/seo/constants";
 import { getExam } from "@/lib/govt/query";
-import { formatDate, statusOf, type ExamWithNotices } from "@/lib/govt/types";
+import { formatDate, verifiedDeadline, type ExamWithNotices } from "@/lib/govt/types";
+import { lifecycleOf } from "@/lib/govt/lifecycle";
 import { Deadline, StatusPill } from "@/components/govt/bits";
 import { Lifecycle } from "@/components/govt/Lifecycle";
 
@@ -23,6 +24,13 @@ export async function generateMetadata({
   const { slug } = await params;
   const exam = await getExam(slug);
   if (!exam) return { title: "Not found | Cheatcode", robots: { index: false, follow: false } };
+  // A withdrawn listing answers, but must not stay in the index.
+  if (exam.status === "retired") {
+    return {
+      title: "Listing withdrawn — Government jobs | Cheatcode",
+      robots: { index: false, follow: true },
+    };
+  }
 
   // Written the way somebody types it into Google, and only with facts we
   // have: a title promising a vacancy count we do not hold is the kind of
@@ -62,7 +70,38 @@ export default async function ExamPage({ params }: { params: Promise<{ slug: str
   const exam = await getExam(slug);
   if (!exam) notFound();
 
-  const status = statusOf(exam);
+  /**
+   * A listing we took down.
+   *
+   * It answers rather than 404s, because the URL was published and indexed
+   * and somebody has arrived on it. What it must not do is pretend to be a
+   * recruitment: no apply button, no dates, no facts — just what happened and
+   * the way back.
+   */
+  if (exam.status === "retired") {
+    return (
+      <div className="container-page pb-32 pt-10 sm:pb-28">
+        <div className="mx-auto max-w-[56ch] rounded-2xl border border-ink-08 bg-paper p-7 text-center">
+          <h1 className="text-[1.25rem] font-semibold tracking-[-0.02em]">
+            This listing has been withdrawn
+          </h1>
+          <p className="mt-3 text-[0.9rem] leading-relaxed text-ink-50">
+            We published this entry automatically and could not verify that it described a
+            specific recruitment, so we have taken it down rather than leave it up. Nothing has
+            been removed from any official website.
+          </p>
+          <Link
+            href="/government-jobs"
+            className="mt-5 inline-flex rounded-full bg-ink px-5 py-2.5 text-[0.86rem] font-medium text-paper transition-opacity hover:opacity-90"
+          >
+            Browse government jobs
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const lifecycle = lifecycleOf(verifiedDeadline(exam));
   const applyUrl =
     exam.applyUrl ?? exam.notices.find((n) => n.kind === "job")?.officialUrl ?? null;
 
@@ -170,12 +209,12 @@ export default async function ExamPage({ params }: { params: Promise<{ slug: str
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   className={`block rounded-full px-5 py-3 text-center text-[0.9rem] font-medium transition-opacity hover:opacity-90 ${
-                    status === "closed"
+                    lifecycle === "closed"
                       ? "border border-ink-15 text-ink-50"
                       : "bg-ink text-paper"
                   }`}
                 >
-                  {status === "closed" ? "View the notification" : "Apply on the official website"}
+                  {lifecycle === "closed" ? "View the notification" : "Apply on the official website"}
                 </a>
                 <p className="mt-3 text-[0.76rem] leading-relaxed text-ink-30">
                   This opens the recruiting authority&apos;s own site. Cheatcode is not a government

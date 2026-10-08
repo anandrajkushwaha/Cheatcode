@@ -1,13 +1,6 @@
 import Link from "next/link";
-import {
-  KIND_SLUG,
-  STATUS_LABEL,
-  daysUntil,
-  formatDate,
-  statusOf,
-  type Notice,
-  type Status,
-} from "@/lib/govt/types";
+import { KIND_SLUG, formatDate, verifiedDeadline, type Notice } from "@/lib/govt/types";
+import { LIFECYCLE_LABEL, daysLeft, lifecycleOf, type Lifecycle } from "@/lib/govt/lifecycle";
 
 /**
  * The small pieces every government-jobs screen is built from.
@@ -16,25 +9,33 @@ import {
  * client means a list of forty notices ships no JavaScript at all.
  */
 
-const PILL: Record<Status, string> = {
+const PILL: Record<Lifecycle, string> = {
   open: "border-[#1a7f37]/30 bg-[#f2fbf4] text-[#1a7f37]",
-  closing: "border-[#fdaa29]/50 bg-[#fffaf0] text-[#8a5a12]",
+  closing_soon: "border-[#fdaa29]/50 bg-[#fffaf0] text-[#8a5a12]",
   closed: "border-ink-15 bg-ink-04 text-ink-50",
-  upcoming: "border-ink-15 bg-paper text-ink-50",
   unknown: "border-ink-15 bg-paper text-ink-30",
 };
 
+/**
+ * The deadline state, and only ever the deadline state.
+ *
+ * It reads the date through `verifiedDeadline`, so a value nobody could point
+ * at a sentence for shows as "Dates not stated" rather than quietly becoming
+ * "Open". The distinction matters more here than anywhere: "Open" on a
+ * government-jobs page is read as "you can still apply", and the one thing
+ * worse than no deadline is a deadline we made up.
+ */
 export function StatusPill({
   exam,
 }: {
-  exam: { applicationStart: string | null; applicationEnd: string | null; status: string };
+  exam: { applicationEnd: string | null; shown: Set<string> };
 }) {
-  const s = statusOf(exam);
+  const s = lifecycleOf(verifiedDeadline(exam));
   return (
     <span
       className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${PILL[s]}`}
     >
-      {STATUS_LABEL[s]}
+      {LIFECYCLE_LABEL[s]}
     </span>
   );
 }
@@ -49,7 +50,7 @@ export function StatusPill({
  * write.
  */
 export function Deadline({ end }: { end: string | null }) {
-  const left = daysUntil(end);
+  const left = daysLeft(end);
   if (left === null) return null;
   if (left < 0) return <span className="text-[0.78rem] text-ink-30">Closed {formatDate(end)}</span>;
   if (left === 0) return <span className="text-[0.78rem] font-medium text-[#c0392b]">Last day today</span>;
@@ -121,6 +122,18 @@ export function NoticeRow({ notice }: { notice: Notice }) {
 }
 
 /** A hub column, or a section of one. */
+/**
+ * A hub column.
+ *
+ * `self-start` on the section and `items-start` on the grid are the fix for
+ * the thing that made this page look broken: in a CSS grid every cell
+ * stretches to the tallest row by default, so a column with two rows was
+ * drawn 760 pixels tall beside the column with nine, and the page carried
+ * three enormous panels of white. A card is as tall as what is in it.
+ *
+ * An empty column shows one line and no "See all". A link to a page that is
+ * also empty is a dead end dressed up as navigation.
+ */
 export function NoticeColumn({
   title,
   kind,
@@ -130,21 +143,25 @@ export function NoticeColumn({
   kind: keyof typeof KIND_SLUG;
   notices: Notice[];
 }) {
+  const empty = notices.length === 0;
+
   return (
-    <section className="rounded-2xl border border-ink-08 bg-paper p-4 sm:p-5">
+    <section className="self-start rounded-2xl border border-ink-08 bg-paper p-4 sm:p-5">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="text-[0.95rem] font-semibold tracking-[-0.01em]">{title}</h2>
-        <Link
-          href={`/government-jobs/${KIND_SLUG[kind]}`}
-          className="text-[0.76rem] text-ink-30 transition-colors hover:text-ink"
-        >
-          See all
-        </Link>
+        {!empty && (
+          <Link
+            href={`/government-jobs/${KIND_SLUG[kind]}`}
+            className="text-[0.76rem] text-ink-30 transition-colors hover:text-ink"
+          >
+            See all
+          </Link>
+        )}
       </div>
 
-      {notices.length === 0 ? (
-        <p className="py-6 text-[0.84rem] leading-relaxed text-ink-30">
-          Nothing here yet. This fills as notifications are published.
+      {empty ? (
+        <p className="text-[0.82rem] leading-relaxed text-ink-30">
+          Nothing published in this section yet.
         </p>
       ) : (
         <ul>
@@ -154,5 +171,49 @@ export function NoticeColumn({
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * One recruitment, as a card. Used by Closing soon and the dated lists.
+ *
+ * Shows only what the row can stand behind — the organisation and the name
+ * always, the deadline and the vacancy count when each has provenance. A card
+ * with two facts on it is better than a card with five, three of which were
+ * guessed.
+ */
+export function ExamCard({
+  exam,
+}: {
+  exam: {
+    slug: string;
+    organisation: string;
+    name: string;
+    vacancies: number | null;
+    applicationEnd: string | null;
+    shown: Set<string>;
+  };
+}) {
+  return (
+    <Link
+      href={`/government-jobs/${exam.slug}`}
+      className="flex h-full flex-col gap-2 rounded-2xl border border-ink-08 bg-paper p-4 transition-colors hover:border-ink-30"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[0.74rem] font-medium uppercase tracking-[0.1em] text-ink-30">
+          {exam.organisation}
+        </span>
+        <StatusPill exam={exam} />
+      </div>
+      <span className="text-[0.94rem] font-medium leading-snug">{exam.name}</span>
+      <span className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Deadline end={verifiedDeadline(exam)} />
+        {exam.shown.has("vacancies") && exam.vacancies && (
+          <span className="text-[0.78rem] text-ink-50">
+            {exam.vacancies.toLocaleString("en-IN")} posts
+          </span>
+        )}
+      </span>
+    </Link>
   );
 }

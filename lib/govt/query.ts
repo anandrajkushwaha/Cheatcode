@@ -1,11 +1,13 @@
 import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import {
+  verifiedDeadline,
   type Exam,
   type ExamWithNotices,
   type Notice,
   type NoticeKind,
 } from "@/lib/govt/types";
+import { lifecycleOf } from "@/lib/govt/lifecycle";
 
 /**
  * Reading government notices.
@@ -218,7 +220,14 @@ async function examsById(ids: string[]) {
   return map;
 }
 
-/** One exam and every notice attached to it, oldest stage first. */
+/**
+ * One exam and every notice attached to it, oldest stage first.
+ *
+ * `retired` rows are fetched too, and the page says so rather than 404ing.
+ * These URLs were published and are indexed; somebody arriving from a search
+ * is better served by "this listing was withdrawn, here is the directory"
+ * than by a page that denies it ever existed.
+ */
 export async function getExam(slug: string): Promise<ExamWithNotices | null> {
   const db = createAppAdminClient();
   if (!db) return null;
@@ -227,7 +236,7 @@ export async function getExam(slug: string): Promise<ExamWithNotices | null> {
     .from("govt_exams")
     .select(EXAM_COLS)
     .eq("slug", slug)
-    .in("status", ["published", "closed"])
+    .in("status", ["published", "closed", "retired"])
     .maybeSingle();
 
   if (error || !data) return null;
@@ -237,7 +246,7 @@ export async function getExam(slug: string): Promise<ExamWithNotices | null> {
     .from("govt_notices")
     .select(NOTICE_COLS)
     .eq("exam_id", exam.id)
-    .in("status", ["published", "stale"])
+    .in("status", exam.status === "retired" ? ["published", "stale", "retired"] : ["published", "stale"])
     .order("published_on", { ascending: true, nullsFirst: false });
 
   return {
@@ -267,26 +276,71 @@ export async function getExamSlugs(): Promise<{ slug: string; updatedAt: string 
 }
 
 /**
- * Recruitments still open, soonest deadline first.
+ * Recruitments by where they are in their deadline, derived not stored.
  *
- * Rows with no stated closing date are deliberately excluded rather than
- * sorted last: this list's whole claim is "these close soon", and a row that
- * cannot support that claim does not belong in it.
+ * The lifecycle is worked out at read time by the same function the badges
+ * use, so a row cannot be in the Closing soon list while its own badge says
+ * Open. The database narrows; `lifecycleOf` decides.
+ *
+ * Rows with no verified closing date never reach any of these buckets. They
+ * are not "open" and not "closed" — nobody knows — and `getUndated` is where
+ * they live, labelled as exactly that.
  */
-export async function getClosingSoon(limit = 10): Promise<Exam[]> {
+async function publishedExams(limit: number): Promise<Exam[]> {
   const db = createAppAdminClient();
   if (!db) return [];
 
-  const today = new Date().toISOString().slice(0, 10);
   const { data } = await db
     .from("govt_exams")
     .select(EXAM_COLS)
     .eq("status", "published")
-    .gte("application_end", today)
-    .order("application_end", { ascending: true })
+    .order("application_end", { ascending: true, nullsFirst: false })
     .limit(limit);
 
   return ((data ?? []) as unknown as ExamRow[]).map(toExam);
+}
+
+/** Closing within CLOSING_SOON_DAYS, nearest deadline first. */
+export async function getClosingSoon(limit = 12): Promise<Exam[]> {
+  const all = await publishedExams(400);
+  return all
+    .filter((e) => lifecycleOf(verifiedDeadline(e)) === "closing_soon")
+    .slice(0, limit);
+}
+
+/** Verified deadline still ahead, beyond the closing-soon window. */
+export async function getOpen(limit = 40): Promise<Exam[]> {
+  const all = await publishedExams(400);
+  return all.filter((e) => lifecycleOf(verifiedDeadline(e)) === "open").slice(0, limit);
+}
+
+/**
+ * Closed, kept rather than deleted.
+ *
+ * A deadline passing is not a reason to remove a page: the searches continue
+ * for months, the page has whatever authority it earned, and a 404 serves
+ * somebody worse than a page that says "this closed on 20 Oct" and points at
+ * what is open now.
+ */
+export async function getClosed(limit = 60): Promise<Exam[]> {
+  const all = await publishedExams(400);
+  return all
+    .filter((e) => lifecycleOf(verifiedDeadline(e)) === "closed")
+    .reverse()
+    .slice(0, limit);
+}
+
+/**
+ * Published, and we do not know when it closes.
+ *
+ * Deliberately its own list rather than folded into Latest Jobs. Most of
+ * these notices are real; what is missing is a date nobody has verified, and
+ * showing them beside a heading that says "open" would be making the claim
+ * for them.
+ */
+export async function getUndated(limit = 60): Promise<Exam[]> {
+  const all = await publishedExams(400);
+  return all.filter((e) => lifecycleOf(verifiedDeadline(e)) === "unknown").slice(0, limit);
 }
 
 /* ----------------------------------------------------------------- admin */
