@@ -41,6 +41,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        they are the queries people type — while an exam page is listed only
        once it exists, so a sitemap never promises Google a page that 404s. */
     {
+      url: `${SITE.url}/jobs`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.9,
+    },
+    {
       url: `${SITE.url}/government-jobs`,
       lastModified: now,
       changeFrequency: "daily" as const,

@@ -1,5 +1,5 @@
 import "server-only";
-import { createAppServerClient } from "@/lib/supabase/app";
+import { createAppAdminClient, createAppServerClient } from "@/lib/supabase/app";
 
 export type JobRow = {
   id: string;
@@ -54,6 +54,56 @@ export async function searchJobs(
 ): Promise<{ jobs: JobRow[]; total: number; error?: string }> {
   const supabase = await createAppServerClient();
   if (!supabase) return { jobs: [], total: 0, error: "Accounts aren't configured." };
+  return run(call(supabase), search);
+}
+
+/**
+ * The same search, for the page outside the sign-in wall.
+ *
+ * `jobs` is granted to `authenticated` and `search_jobs` is executable by
+ * `authenticated` — so the ordinary client returns nothing at all to a
+ * signed-out visitor, silently and with no error. Rather than opening the
+ * table and the function to `anon` (two more grants, in a migration that has
+ * to be run before the page can ship), the public page reads with the service
+ * key, the way the government-jobs pages do.
+ *
+ * Safe because the function itself only ever returns active postings, and
+ * this wrapper takes no caller-supplied SQL — the same arguments the signed-in
+ * page sends, from a URL.
+ */
+export async function searchJobsPublic(
+  search: JobSearch,
+): Promise<{ jobs: JobRow[]; total: number; error?: string }> {
+  const supabase = createAppAdminClient();
+  if (!supabase) return { jobs: [], total: 0, error: "Accounts aren't configured." };
+  return run(call(supabase), search);
+}
+
+/**
+ * The call, adapted.
+ *
+ * `run` is handed a function rather than a client on purpose: the two clients
+ * carry different generics, and a structural type wide enough for both sends
+ * the compiler into "type instantiation is excessively deep". One narrow
+ * adapter at each call site is cheaper than that, and it keeps the arguments
+ * and the error handling in one place where they can only be written once.
+ */
+type Rpc = (args: Record<string, unknown>) => Promise<{
+  data: unknown;
+  error: { message: string } | null;
+}>;
+
+const call = (supabase: { rpc: (fn: string, args: Record<string, unknown>) => unknown }): Rpc =>
+  (args) =>
+    supabase.rpc("search_jobs", args) as Promise<{
+      data: unknown;
+      error: { message: string } | null;
+    }>;
+
+async function run(
+  rpc: Rpc,
+  search: JobSearch,
+): Promise<{ jobs: JobRow[]; total: number; error?: string }> {
 
   const page = Math.max(1, Math.floor(search.page ?? 1));
 
@@ -83,7 +133,7 @@ export async function searchJobs(
   if (search.maxAgeDays != null) args.p_max_age_days = search.maxAgeDays;
   if (search.sort && search.sort !== "recent") args.p_sort = search.sort;
 
-  const { data, error } = await supabase.rpc("search_jobs", args);
+  const { data, error } = await rpc(args);
 
   if (error) {
     // The function only exists after 30_jobs.sql has been run. Saying so
@@ -117,9 +167,26 @@ export async function searchJobs(
 export async function countJobs(): Promise<number> {
   const supabase = await createAppServerClient();
   if (!supabase) return 0;
-  const { count } = await supabase
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("is_active", true);
-  return count ?? 0;
+  return count(supabase.from("jobs").select("id", { count: "exact", head: true }).eq("is_active", true));
 }
+
+/** The same count, read with the service key. See searchJobsPublic. */
+export async function countJobsPublic(): Promise<number> {
+  const supabase = createAppAdminClient();
+  if (!supabase) return 0;
+  return count(supabase.from("jobs").select("id", { count: "exact", head: true }).eq("is_active", true));
+}
+
+/**
+ * Awaits a built count query.
+ *
+ * It takes the query rather than the client for the same reason `run` takes a
+ * function: each client builds it with its own generics, and a parameter type
+ * wide enough to accept both of them is what sends the compiler into "type
+ * instantiation is excessively deep".
+ */
+async function count(query: PromiseLike<{ count: number | null }>): Promise<number> {
+  const { count: n } = await query;
+  return n ?? 0;
+}
+

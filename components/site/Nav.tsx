@@ -18,8 +18,16 @@ import { AuthLinks } from "./AuthLinks";
  * focus in, and no way to end up with a menu open over content you cannot
  * reach.
  */
+/**
+ * Govt and Private sit together, in that order, because that is the first cut
+ * an Indian job seeker makes before anything else — sarkari or private. Both
+ * are open to a signed-out visitor; the private board had been behind the
+ * sign-in wall for months, which meant the one page on this site with
+ * thousands of real dated rows was the one nobody could see.
+ */
 const LINKS = [
   { href: "/government-jobs", label: "Govt jobs" },
+  { href: "/jobs", label: "Private jobs" },
   { href: "/tools", label: "Free tools" },
   { href: "/insights", label: "Insights" },
   { href: "/blog", label: "Blogs" },
