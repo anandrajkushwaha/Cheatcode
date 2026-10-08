@@ -47,6 +47,9 @@ export const FEATURES = [
   "interview_feedback",
   // The morning news run. No user behind it — userId is always null.
   "insights",
+  // Reading a recruitment board's page and deciding which links are notices.
+  // Also unattended, also always null.
+  "govt_ingest",
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];
@@ -63,6 +66,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   interview_questions: "Writing mock interview questions",
   interview_feedback: "Marking a mock interview",
   insights: "Writing Insights (daily news)",
+  govt_ingest: "Reading government recruitment boards",
 };
 
 /** Who and what a call belongs to. Required, so a call cannot go unattributed. */

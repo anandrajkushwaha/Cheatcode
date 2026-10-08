@@ -76,6 +76,44 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "search",
 ]);
 
+/**
+ * The address a recruitment will live at, forever.
+ *
+ * Minted once and never recomputed, because a slug that changes when a title
+ * is tidied is a dead Google result — and Google is the entire reason these
+ * pages exist. Reserved words are refused outright: the six kind pages are
+ * static routes sitting beside `[slug]`, so an exam minted at `results` would
+ * be a published row that no URL can ever reach, erroring nowhere.
+ *
+ * Here rather than in the ingest run because it is pure, it belongs beside
+ * the list it checks against, and a function this consequential should be
+ * testable without a database and a browser.
+ */
+export function makeSlug(
+  organisation: string,
+  name: string,
+  year: number | null,
+): string | null {
+  const base = `${organisation} ${name}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .split("-")
+    .filter(Boolean)
+    .slice(0, 8)
+    .join("-");
+
+  // The name has to contribute something. Without this, a notice whose exam
+  // could not be named falls back to the organisation alone — "ssc" — and the
+  // next unnamed SSC notice finds that row and attaches to it, until one page
+  // called "SSC" holds forty unrelated notices. Better no exam than a wrong
+  // one: the caller leaves exam_id null and the notice still publishes.
+  if (!base.includes("-") || base.length < 3) return null;
+
+  const slug = year && !base.includes(String(year)) ? `${base}-${year}` : base;
+  return RESERVED_SLUGS.has(slug) ? null : slug.slice(0, 80);
+}
+
 export type Notice = {
   id: string;
   kind: NoticeKind;

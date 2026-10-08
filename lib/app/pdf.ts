@@ -31,7 +31,15 @@ import puppeteer, { type Browser, type Page } from "puppeteer-core";
 
 let shared: Browser | null = null;
 
-async function launch(): Promise<Browser> {
+/**
+ * The shared browser.
+ *
+ * Exported because the government-jobs harvester needs a real browser for the
+ * same reason this file does, and starting a second one would double the cold
+ * start and the memory on a function that already has little of either. One
+ * Chrome per container, whoever asked for it first.
+ */
+export async function launch(): Promise<Browser> {
   // A warm container gets the browser it already started. Chrome takes several
   // seconds to boot, and on a page somebody presses twice that is the whole
   // difference between fast and broken.
