@@ -198,3 +198,118 @@ export function formatDate(iso: string | null): string | null {
     timeZone: "UTC",
   });
 }
+
+/* ------------------------------------------------------------------ vocab
+ *
+ * The closed lists the admin form offers and the API validates against. One
+ * copy, imported by both, because a form that offers "Graduation" while the
+ * check expects "graduate" produces a row that silently matches no filter —
+ * published, visible, and missing from every list it should be in.
+ *
+ * Here rather than in query.ts because the form is a client component and
+ * query.ts is server-only.
+ */
+
+/** Matches the comment on govt_exams.qualification_levels. */
+export const QUALIFICATIONS = [
+  "10th",
+  "12th",
+  "iti",
+  "diploma",
+  "graduate",
+  "pg",
+  "engineering",
+  "medical",
+] as const;
+
+export type Qualification = (typeof QUALIFICATIONS)[number];
+
+export const QUALIFICATION_LABEL: Record<Qualification, string> = {
+  "10th": "10th pass",
+  "12th": "12th pass",
+  iti: "ITI",
+  diploma: "Diploma",
+  graduate: "Graduate",
+  pg: "Post-graduate",
+  engineering: "Engineering",
+  medical: "Medical",
+};
+
+/** Matches the check constraint on govt_exams.organisation_type. */
+export const ORGANISATION_TYPES = [
+  "central",
+  "state",
+  "bank",
+  "railway",
+  "defence",
+  "psu",
+  "court",
+  "university",
+] as const;
+
+export type OrganisationType = (typeof ORGANISATION_TYPES)[number];
+
+/** The fee categories these notifications actually print. */
+export const FEE_CATEGORIES = ["general", "obc", "ews", "sc", "st", "female", "ph"] as const;
+
+/**
+ * The six fields that may not be shown without a note of where they came from.
+ *
+ * Being wrong about any of these costs somebody money or a career
+ * opportunity: a wrong last date means a form never filled, a wrong fee means
+ * a payment that bounces, a wrong age bar means somebody eligible who never
+ * applied. A title or an organisation carries no such cost and is not gated.
+ *
+ * Read by the public query (to decide what to render) and by the admin API
+ * (to decide what to demand a source for).
+ */
+export const GATED_FIELDS = [
+  "application_start",
+  "application_end",
+  "fee_by_category",
+  "vacancies",
+  "age_min",
+  "age_max",
+] as const;
+
+export type GatedField = (typeof GATED_FIELDS)[number];
+
+/** States and union territories, for the filters and the form. */
+export const STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Delhi",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jammu and Kashmir",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Ladakh",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Puducherry",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Lakshadweep",
+] as const;

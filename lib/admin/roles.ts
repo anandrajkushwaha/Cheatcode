@@ -49,7 +49,10 @@ export const SECTIONS: readonly Section[] = [
   {
     key: "govt",
     label: "Government jobs",
-    detail: "The recruitment sources we watch, what each run found, and anything a reader reported as wrong.",
+    detail:
+      "Post and edit everything on the public Government jobs pages — latest jobs, results, " +
+      "admit cards, answer keys, syllabus, admission — and the recruitment pages behind them. " +
+      "Published goes live immediately. Cannot delete.",
     pages: ["/admin/govt"],
     apis: ["/api/admin/govt"],
   },

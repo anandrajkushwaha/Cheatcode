@@ -1,6 +1,7 @@
 import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import {
+  GATED_FIELDS,
   verifiedDeadline,
   type Exam,
   type ExamWithNotices,
@@ -78,19 +79,11 @@ type NoticeRow = {
  * money or a career opportunity, so each is shown only if the extractor (or
  * the admin form) recorded where it came from.
  */
-const GATED = [
-  "application_start",
-  "application_end",
-  "fee_by_category",
-  "vacancies",
-  "age_min",
-  "age_max",
-] as const;
 
 function shownFields(evidence: Record<string, unknown> | null): Set<string> {
   const out = new Set<string>();
   if (!evidence) return out;
-  for (const key of GATED) if (evidence[key]) out.add(key);
+  for (const key of GATED_FIELDS) if (evidence[key]) out.add(key);
   return out;
 }
 
