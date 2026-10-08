@@ -34,6 +34,8 @@ export type SourceResult = {
   added: number;
   status: "ok" | "empty" | "unchanged" | "error";
   error?: string;
+  /** Set when the board was read by pattern because the model call failed. */
+  note?: string;
 };
 
 export type RunResult = {
@@ -175,7 +177,7 @@ async function one(
     }
 
     await stamp({
-      last_status: result.notices.length ? "ok" : "empty",
+      last_status: result.degraded ? "ok (no model)" : result.notices.length ? "ok" : "empty",
       last_count: result.notices.length,
       last_error: null,
       last_hash: page.hash,
@@ -187,6 +189,10 @@ async function one(
       found: result.notices.length,
       added,
       status: result.notices.length ? "ok" : "empty",
+      // Said out loud rather than hidden: these notices were read off the link
+      // text because the model call failed, so they have no exam name and will
+      // not have grouped onto a recruitment page.
+      ...(result.degraded ? { note: `read without the model — ${result.degraded}` } : {}),
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

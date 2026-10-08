@@ -1,6 +1,7 @@
 import "server-only";
 import { llmJson } from "@/lib/app/llm";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
+import { byPattern } from "@/lib/govt/patterns";
 
 /**
  * Which of these links is a recruitment notice, and what kind.
@@ -93,7 +94,9 @@ const CHUNK = 40;
 export async function classify(
   pageTitle: string,
   links: { url: string; text: string }[],
-): Promise<{ ok: true; notices: Classified[] } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; notices: Classified[]; degraded?: string } | { ok: false; error: string }
+> {
   if (links.length === 0) return { ok: true, notices: [] };
 
   const chunks: { url: string; text: string }[][] = [];
@@ -108,13 +111,16 @@ export async function classify(
     else failures.push(result.error);
   }
 
-  // Every chunk failed: the board genuinely did not get read, and saying so
-  // is the point of the error. Some failed: keep what came back rather than
-  // throwing away eight good notices because a ninth chunk timed out.
-  if (failures.length === chunks.length) return { ok: false, error: failures[0] };
+  // Every chunk failed. Rather than losing the board, fall back to reading
+  // the link text directly — see `byPattern`.
+  if (failures.length === chunks.length) {
+    const guessed = byPattern(links);
+    return guessed.length
+      ? { ok: true, notices: guessed, degraded: failures[0] }
+      : { ok: false, error: failures[0] };
+  }
   return { ok: true, notices: all };
 }
-
 async function classifyChunk(
   pageTitle: string,
   links: { url: string; text: string }[],

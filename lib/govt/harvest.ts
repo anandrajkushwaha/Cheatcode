@@ -47,6 +47,43 @@ const NOISE =
  * took sixty seconds out of the first real run and left four boards unread.
  */
 export async function harvest(url: string, timeoutMs = 20_000): Promise<Harvested> {
+  try {
+    return await read(url, timeoutMs);
+  } catch (e) {
+    /**
+     * A host that does not resolve is usually one subdomain out.
+     *
+     * Three of the ten seeded URLs failed with ERR_NAME_NOT_RESOLVED, and all
+     * three were a `www.` I had added or left off by hand —
+     * www.bpsc.bihar.gov.in does not exist, bpsc.bihar.gov.in does. Guessing
+     * the right one per board is a thing to get wrong once per board forever;
+     * trying the other spelling once is a thing to get right everywhere.
+     *
+     * Only for DNS. A timeout or a refusal is the host answering (or
+     * deliberately not), and hammering it with a second spelling is rude and
+     * pointless.
+     */
+    const dns = e instanceof Error && /ERR_NAME_NOT_RESOLVED/.test(e.message);
+    const other = dns ? swapWww(url) : null;
+    if (!other) throw e;
+    return read(other, timeoutMs);
+  }
+}
+
+/** `https://www.x.gov.in/` ⇄ `https://x.gov.in/`, or null when neither applies. */
+function swapWww(url: string): string | null {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.startsWith("www.")
+      ? u.hostname.slice(4)
+      : `www.${u.hostname}`;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function read(url: string, timeoutMs: number): Promise<Harvested> {
   const browser = await launch();
   const page = await browser.newPage();
 

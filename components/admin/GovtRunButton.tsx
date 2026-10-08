@@ -66,6 +66,7 @@ export function GovtRunButton() {
                 <li key={s.source}>
                   <span className="font-medium text-ink">{s.source}</span> — {s.status}
                   {s.status !== "unchanged" && ` · ${s.checked} links read, ${s.found} notices`}
+                  {s.note && <span className="text-[#8a5a12]"> · {s.note}</span>}
                   {s.error && <span className="text-[#c0392b]"> · {s.error}</span>}
                 </li>
               ))}
