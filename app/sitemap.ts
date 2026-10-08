@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/seo/constants";
 import { getAllPostSlugs, getCategories } from "@/lib/queries/posts";
 import { getPublishedBanks } from "@/lib/interview/bank";
+import { getExamSlugs } from "@/lib/govt/query";
+import { KIND_SLUG, NOTICE_KINDS } from "@/lib/govt/types";
 
 /**
  * One sitemap, every URL, at /sitemap.xml.
@@ -17,10 +19,11 @@ export const revalidate = 600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  const [posts, categories, banks] = await Promise.all([
+  const [posts, categories, banks, exams] = await Promise.all([
     getAllPostSlugs(),
     getCategories(),
     getPublishedBanks(),
+    getExamSlugs(),
   ]);
 
   return [
@@ -33,6 +36,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+
+    /* Government jobs. The hub and the six kind pages are always submitted —
+       they are the queries people type — while an exam page is listed only
+       once it exists, so a sitemap never promises Google a page that 404s. */
+    {
+      url: `${SITE.url}/government-jobs`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.9,
+    },
+    ...NOTICE_KINDS.map((k) => ({
+      url: `${SITE.url}/government-jobs/${KIND_SLUG[k]}`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    })),
+    ...exams.map((e) => ({
+      url: `${SITE.url}/government-jobs/${e.slug}`,
+      lastModified: new Date(e.updatedAt),
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    })),
     // The question bank. Only published pages are ever returned, so a draft
     // can never be submitted to Google before somebody has read it.
     // The index only once it lists something — see its generateMetadata.

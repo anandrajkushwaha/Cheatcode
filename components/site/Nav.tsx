@@ -19,6 +19,7 @@ import { AuthLinks } from "./AuthLinks";
  * reach.
  */
 const LINKS = [
+  { href: "/government-jobs", label: "Govt jobs" },
   { href: "/tools", label: "Free tools" },
   { href: "/insights", label: "Insights" },
   { href: "/blog", label: "Blogs" },
