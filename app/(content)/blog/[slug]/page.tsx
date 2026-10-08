@@ -152,7 +152,10 @@ export default async function ArticlePage({ params }: Props) {
               dangerouslySetInnerHTML={{ __html: body }}
             />
 
-            <FaqBlock items={post.faq} />
+            {/* An article whose body already has its own FAQ section keeps that
+                one; the block would print the same questions twice. The FAQ
+                markup below is emitted either way. */}
+            {!hasFaqSection(post.content_html) && <FaqBlock items={post.faq} />}
 
             <ToolBlock slugs={post.related_tool_slugs} />
 
@@ -336,4 +339,9 @@ export default async function ArticlePage({ params }: Props) {
       {post.faq?.length > 0 && <JsonLd data={faqJsonLd(post.faq)} />}
     </>
   );
+}
+
+/** Whether the body carries its own "FAQ" / "Frequently asked questions" H2. */
+function hasFaqSection(html: string): boolean {
+  return /<h2[^>]*>[^<]*(faq|frequently asked)/i.test(html);
 }
