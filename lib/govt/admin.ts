@@ -1,6 +1,7 @@
 import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
+import { classifyGovtError } from "@/lib/govt/db-error";
 
 /**
  * Reading the government tables as the person who posts to them.
@@ -65,41 +66,62 @@ export type ExamDraft = PanelExam & {
   evidenceUrl: string | null;
 };
 
-type Fail = { ok: false; setup: boolean; error: string };
+type Fail = { ok: false; setup: boolean; error: string; detail?: string };
 
 /**
- * A missing table and an empty table are different sentences.
+ * Nothing here is allowed to say "run the migration" on a guess.
  *
- * The public hub learned this the hard way — it told visitors "nothing
- * published yet" on a deployment where the SQL had never been run. The admin
- * screen is where that difference has to be legible, so it is detected here
- * rather than guessed from a row count.
+ * A missing table and a missing column are different sentences and different
+ * files to run, and the panel told somebody the wrong one once already. The
+ * classifier knows the difference; this only carries its verdict.
  */
-function missingTable(error: { code?: string; message: string }): boolean {
-  return (
-    error.code === "42P01" ||
-    error.code === "PGRST205" ||
-    /does not exist/i.test(error.message) ||
-    /could not find the table/i.test(error.message)
-  );
-}
-
 function fail(error: { code?: string; message: string }): Fail {
-  const setup = missingTable(error);
+  const kind = classifyGovtError(error);
+  // The raw text travels with the verdict. When the verdict is wrong — and it
+  // was once — the only thing that shortens the next round trip is the line
+  // the database actually said.
   return {
     ok: false,
-    setup,
-    error: setup
-      ? "The government tables aren't in this database yet — run supabase/schemas/100_govt_notices.sql, then 104 and 105."
-      : error.message,
+    setup: kind.kind !== "other",
+    error: kind.message,
+    detail: error.code ? `${error.message} (${error.code})` : error.message,
   };
+}
+
+/**
+ * Read with `posted_by`, and read without it if the column is not there yet.
+ *
+ * The panel has to work on a database where 105 has not been run — otherwise
+ * the screen that would have told you to run 105 is itself the screen that
+ * cannot load. One retry, only for a missing column, and the caller is told
+ * so it can say so on the page.
+ */
+async function selectTolerant<T>(
+  run: (columns: string) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>,
+  full: string,
+  withoutPostedBy: string,
+): Promise<{ rows: T[]; legacy: boolean; error: { code?: string; message: string } | null }> {
+  const first = await run(full);
+  if (!first.error) return { rows: (first.data ?? []) as T[], legacy: false, error: null };
+  if (classifyGovtError(first.error).kind !== "missing_column") {
+    return { rows: [], legacy: false, error: first.error };
+  }
+
+  const second = await run(withoutPostedBy);
+  if (second.error) return { rows: [], legacy: true, error: second.error };
+  return { rows: (second.data ?? []) as T[], legacy: true, error: null };
 }
 
 const NOTICE_COLS =
   "id, kind, title, summary, published_on, official_url, status, exam_id, source_id, posted_by, created_at";
 
+/** The same read on a database where 105 has not been run yet. */
+const NOTICE_COLS_LEGACY = NOTICE_COLS.replace(", posted_by", "");
+
 const EXAM_LIST_COLS =
   "id, slug, organisation, name, year, status, application_end, vacancies, source_id, posted_by, created_at";
+
+const EXAM_LIST_COLS_LEGACY = EXAM_LIST_COLS.replace(", posted_by", "");
 
 type NoticeRow = {
   id: string;
@@ -140,7 +162,7 @@ function toPanelExam(r: ExamRow): PanelExam {
     applicationEnd: r.application_end,
     vacancies: r.vacancies,
     manual: r.source_id === null,
-    postedBy: r.posted_by,
+    postedBy: r.posted_by ?? null,
     createdAt: r.created_at,
   };
 }
@@ -155,6 +177,8 @@ export type Panel = {
   retired: number;
   /** Boards still switched on. Zero means the monitor is paused. */
   activeSources: number;
+  /** True when 105 has not been run: everything works, nothing records who. */
+  legacy: boolean;
 };
 
 /**
@@ -175,23 +199,32 @@ export async function getPanel(filter: {
     return { ok: false, setup: true, error: "Supabase isn't configured on this deployment." };
   }
 
-  let q = db.from("govt_notices").select(NOTICE_COLS).order("created_at", { ascending: false });
-  if (filter.kind) q = q.eq("kind", filter.kind);
-  if (filter.status) q = q.eq("status", filter.status);
+  const noticeRead = await selectTolerant<NoticeRow>(
+    (columns) => {
+      let q = db.from("govt_notices").select(columns).order("created_at", { ascending: false });
+      if (filter.kind) q = q.eq("kind", filter.kind);
+      if (filter.status) q = q.eq("status", filter.status);
+      return q.limit(filter.limit ?? 100);
+    },
+    NOTICE_COLS,
+    NOTICE_COLS_LEGACY,
+  );
+  if (noticeRead.error) return fail(noticeRead.error);
+  const rows = noticeRead.rows;
 
-  const { data, error } = await q.limit(filter.limit ?? 100);
-  if (error) return fail(error);
-
-  const rows = (data ?? []) as NoticeRow[];
-
-  const [{ data: examData, error: examError }, counts, sources] = await Promise.all([
-    db.from("govt_exams").select(EXAM_LIST_COLS).order("created_at", { ascending: false }).limit(200),
+  const [examRead, counts, sources] = await Promise.all([
+    selectTolerant<ExamRow>(
+      (columns) =>
+        db.from("govt_exams").select(columns).order("created_at", { ascending: false }).limit(200),
+      EXAM_LIST_COLS,
+      EXAM_LIST_COLS_LEGACY,
+    ),
     kindCounts(),
     db.from("govt_sources").select("id").eq("active", true),
   ]);
-  if (examError) return fail(examError);
+  if (examRead.error) return fail(examRead.error);
 
-  const exams = ((examData ?? []) as ExamRow[]).map(toPanelExam);
+  const exams = examRead.rows.map(toPanelExam);
   const byId = new Map(exams.map((e) => [e.id, e]));
 
   return {
@@ -210,7 +243,7 @@ export async function getPanel(filter: {
         examName: exam?.name ?? null,
         examSlug: exam?.slug ?? null,
         manual: r.source_id === null,
-        postedBy: r.posted_by,
+        postedBy: r.posted_by ?? null,
         createdAt: r.created_at,
       };
     }),
@@ -219,6 +252,7 @@ export async function getPanel(filter: {
     drafts: counts.drafts,
     retired: counts.retired,
     activeSources: (sources.data ?? []).length,
+    legacy: noticeRead.legacy || examRead.legacy,
   };
 }
 
@@ -266,9 +300,13 @@ export async function getPanelNotice(id: string): Promise<PanelNotice | null> {
   const db = createAppAdminClient();
   if (!db) return null;
 
-  const { data } = await db.from("govt_notices").select(NOTICE_COLS).eq("id", id).maybeSingle();
-  if (!data) return null;
-  const r = data as NoticeRow;
+  const read = await db.from("govt_notices").select(NOTICE_COLS).eq("id", id).maybeSingle();
+  const row =
+    read.error && classifyGovtError(read.error).kind === "missing_column"
+      ? await db.from("govt_notices").select(NOTICE_COLS_LEGACY).eq("id", id).maybeSingle()
+      : read;
+  if (!row.data) return null;
+  const r = row.data as NoticeRow;
 
   let examName: string | null = null;
   let examSlug: string | null = null;
@@ -295,7 +333,7 @@ export async function getPanelNotice(id: string): Promise<PanelNotice | null> {
     examName,
     examSlug,
     manual: r.source_id === null,
-    postedBy: r.posted_by,
+    postedBy: r.posted_by ?? null,
     createdAt: r.created_at,
   };
 }

@@ -9,6 +9,7 @@ import {
   type NoticeKind,
 } from "@/lib/govt/types";
 import { lifecycleOf } from "@/lib/govt/lifecycle";
+import { classifyGovtError } from "@/lib/govt/db-error";
 
 /**
  * Reading government notices.
@@ -380,12 +381,11 @@ export async function getGovtStatus(): Promise<GovtStatus> {
     .order("organisation", { ascending: true });
 
   if (error) {
-    const missing =
-      error.code === "42P01" ||
-      error.code === "PGRST205" ||
-      /does not exist/i.test(error.message) ||
-      /could not find the table/i.test(error.message);
-    return { ok: false, setup: missing, error: error.message };
+    // Classified rather than pattern-matched: "does not exist" is also what a
+    // missing column says, and sending somebody to re-run a migration they
+    // have already run is the one error message worse than none.
+    const kind = classifyGovtError(error);
+    return { ok: false, setup: kind.kind !== "other", error: kind.message };
   }
 
   const head = async (table: string, filter?: (q: ReturnType<typeof countQuery>) => unknown) => {

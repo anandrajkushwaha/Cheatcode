@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/admin/guard";
 import { adminDisplayName } from "@/lib/admin/who";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { refreshGovt } from "@/lib/govt/refresh";
+import { insertTolerant } from "@/lib/govt/db-error";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
 
 export const dynamic = "force-dynamic";
@@ -188,16 +189,15 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, id: body.id });
   }
 
-  const { data, error } = await db
-    .from("govt_notices")
-    .insert({ ...fields, posted_by: await adminDisplayName(session), last_seen_at: new Date().toISOString() })
-    .select("id")
-    .single();
+  const { data, error } = await insertTolerant<{ id: string }>(
+    (row) => db.from("govt_notices").insert(row).select("id").single(),
+    { ...fields, posted_by: await adminDisplayName(session), last_seen_at: new Date().toISOString() },
+  );
 
   if (error) return bad(friendly(error.message), 500);
 
   refreshGovt(examSlug);
-  return Response.json({ ok: true, id: (data as { id: string }).id });
+  return Response.json({ ok: true, id: data?.id });
 }
 
 /**

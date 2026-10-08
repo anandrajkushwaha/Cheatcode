@@ -37,9 +37,19 @@ export default async function AdminGovt({
     return (
       <div className="space-y-5">
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Government jobs</h1>
-        <p className="rounded-xl border border-ink-15 px-4 py-3.5 text-[0.85rem] leading-relaxed text-ink-50">
-          {panel.error}
-        </p>
+        <div className="rounded-xl border border-ink-15 px-4 py-3.5 text-[0.85rem] leading-relaxed text-ink-50">
+          <p>{panel.error}</p>
+          {panel.detail && (
+            <p className="mt-2 font-mono text-[0.72rem] text-ink-30">{panel.detail}</p>
+          )}
+          <p className="mt-3 text-[0.8rem]">
+            To see what this database actually has, run this in the SQL editor:{" "}
+            <code className="text-[0.76rem]">
+              select table_name from information_schema.tables where table_schema=&apos;public&apos; and
+              table_name like &apos;govt%&apos;;
+            </code>
+          </p>
+        </div>
       </div>
     );
   }
@@ -72,6 +82,15 @@ export default async function AdminGovt({
           </Link>
         </div>
       </div>
+
+      {panel.legacy && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[0.82rem] leading-relaxed text-amber-900">
+          Posting works, but this database has not had{" "}
+          <code>supabase/schemas/105_govt_manual_posting.sql</code> run, so nothing records who
+          posted what. If you have just run it, the API is still serving a cached schema — run{" "}
+          <code>notify pgrst, &apos;reload schema&apos;;</code> in the SQL editor.
+        </p>
+      )}
 
       {/* The six tabs, as they would look to a reader. A zero here is a tab
           that exists on the public site with nothing on it, which is the most

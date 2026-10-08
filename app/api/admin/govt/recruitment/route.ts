@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/admin/guard";
 import { adminDisplayName } from "@/lib/admin/who";
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { refreshGovt } from "@/lib/govt/refresh";
+import { insertTolerant } from "@/lib/govt/db-error";
 import {
   FEE_CATEGORIES,
   GATED_FIELDS,
@@ -287,16 +288,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data, error } = await db
-    .from("govt_exams")
-    .insert({ ...fields, slug, posted_by: who })
-    .select("id, slug")
-    .single();
+  const { data, error } = await insertTolerant<{ id: string; slug: string }>(
+    (row) => db.from("govt_exams").insert(row).select("id, slug").single(),
+    { ...fields, slug, posted_by: who },
+  );
   if (error) return bad(friendly(error.message), 500);
 
-  const row = data as { id: string; slug: string };
-  refreshGovt(row.slug);
-  return Response.json({ ok: true, id: row.id, slug: row.slug });
+  refreshGovt(data?.slug ?? slug);
+  return Response.json({ ok: true, id: data?.id, slug: data?.slug ?? slug });
 }
 
 /**
