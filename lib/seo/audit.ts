@@ -77,6 +77,15 @@ export function keywordKey(k: string): string {
     .join(" ");
 }
 
+/**
+ * Lower case, punctuation as spaces. "In-Hand" and "in hand", "UI/UX" and
+ * "ui ux" are the same search to Google and must be the same here, or the
+ * audit flags a keyword that is plainly in the title.
+ */
+export function plain(s: string): string {
+  return ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+}
+
 /** Internal /blog/<slug> targets in a body, without fragments or query strings. */
 export function blogLinks(html: string): string[] {
   const out: string[] = [];
@@ -120,6 +129,7 @@ export function auditPosts(rows: AuditPost[]): SiteAudit {
     const text = textOf(html);
     const words = text ? text.split(" ").length : 0;
     const kw = (r.focus_keyword ?? "").trim().toLowerCase();
+    const kwPlain = plain(kw);
     const seoTitle = (r.seo_title ?? "").trim();
     const desc = (r.seo_description ?? "").trim();
     const h2 = (html.match(/<h2[\s>]/gi) ?? []).length;
@@ -141,10 +151,10 @@ export function auditPosts(rows: AuditPost[]): SiteAudit {
       );
     }
     if (dead.length) add("dead-links", "high", `Links to articles that do not exist: ${dead.join(", ")}.`);
-    if (kw && !r.title.toLowerCase().includes(kw) && !seoTitle.toLowerCase().includes(kw)) {
+    if (kw && !plain(r.title).includes(kwPlain) && !plain(seoTitle).includes(kwPlain)) {
       add("kw-title", "high", `Focus keyword "${kw}" is in neither the title nor the SEO title.`);
     }
-    if (kw && !text.split(" ").slice(0, 120).join(" ").toLowerCase().includes(kw)) {
+    if (kw && !plain(text.split(" ").slice(0, 120).join(" ")).includes(kwPlain)) {
       add("kw-intro", "medium", "Focus keyword is not in the first 120 words — answer the query up top.");
     }
     if (!seoTitle) add("seo-title-missing", "high", "No SEO title.");

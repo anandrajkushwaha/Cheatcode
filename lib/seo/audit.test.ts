@@ -72,3 +72,18 @@ test("duplicates, dead links, orphans and thin pages are flagged", () => {
   // Worst first.
   assert.equal(posts[0].slug, "b");
 });
+
+test("punctuation does not hide a keyword", () => {
+  const { posts } = auditPosts([
+    post({
+      slug: "x",
+      focus_keyword: "25 lpa in hand salary",
+      title: "25 LPA In-Hand Salary in India",
+      seo_title: "25 LPA In-Hand Salary in India (2026): Monthly Take-Home",
+      content_html: body('<a href="/blog/y">y</a>').replace("resume format", "25 LPA in-hand salary"),
+    }),
+  ]);
+  const codes = posts[0].issues.map((i) => i.code);
+  assert.ok(!codes.includes("kw-title"));
+  assert.ok(!codes.includes("kw-intro"));
+});
