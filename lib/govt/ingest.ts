@@ -1,8 +1,11 @@
 import "server-only";
+import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { harvest } from "@/lib/govt/harvest";
 import { classify, type Classified } from "@/lib/govt/classify";
-import { makeSlug } from "@/lib/govt/types";
+import { KIND_SLUG, NOTICE_KINDS, makeSlug } from "@/lib/govt/types";
+
+const KIND_SLUGS = NOTICE_KINDS.map((k) => KIND_SLUG[k]);
 
 /**
  * One morning's run of the government-jobs monitor.
@@ -82,12 +85,40 @@ export async function runGovtIngest(db: SupabaseClient): Promise<RunResult> {
     done.push(await one(db, source));
   }
 
+  const added = done.reduce((n, d) => n + d.added, 0);
+  if (added > 0) refresh();
+
   return {
     ok: done.every((d) => d.status !== "error"),
     sources: done,
-    added: done.reduce((n, d) => n + d.added, 0),
+    added,
     remaining: queue.length - done.length,
   };
+}
+
+/**
+ * Throw away the cached pages, now that there is something new on them.
+ *
+ * Without this the ingest works perfectly and nobody can tell. These pages
+ * are rendered once at build time and then re-rendered on a ten-minute timer,
+ * so a run that publishes eleven notices at 7:02 leaves /government-jobs
+ * serving the empty page it was built with — and the empty state says
+ * "nothing published yet", which is exactly the wrong thing to be telling
+ * somebody when eleven notices have just landed.
+ *
+ * Called only when something was actually added. A quiet morning should not
+ * throw away a perfectly good cached page for nothing.
+ */
+function refresh(): void {
+  try {
+    revalidatePath("/government-jobs");
+    for (const slug of KIND_SLUGS) revalidatePath(`/government-jobs/${slug}`);
+    revalidatePath("/sitemap.xml");
+  } catch {
+    // revalidatePath needs a request context, and there are callers — a
+    // script, a test — that have none. A cache that stays warm a few minutes
+    // longer is not worth failing a run that otherwise succeeded over.
+  }
 }
 
 /** One board, start to finish. Never throws: a bad board is a row, not a 500. */

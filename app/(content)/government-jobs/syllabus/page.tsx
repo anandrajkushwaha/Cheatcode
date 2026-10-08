@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SITE } from "@/lib/seo/constants";
 import { KindScreen } from "@/components/govt/KindScreen";
 
-export const revalidate = 600;
+export const revalidate = 120;
 
 export const metadata: Metadata = {
   title: "Government Exam Syllabus 2026 and Exam Pattern | Cheatcode",

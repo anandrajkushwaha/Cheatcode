@@ -5,7 +5,7 @@ import { getClosingSoon, getNoticesResult } from "@/lib/govt/query";
 import { KIND_LABEL, NOTICE_KINDS } from "@/lib/govt/types";
 import { Deadline, NoticeColumn, StatusPill } from "@/components/govt/bits";
 
-export const revalidate = 600;
+export const revalidate = 120;
 
 /**
  * The front door, and deliberately the shape people already know.

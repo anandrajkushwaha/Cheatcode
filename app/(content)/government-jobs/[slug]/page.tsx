@@ -7,7 +7,7 @@ import { formatDate, statusOf, type ExamWithNotices } from "@/lib/govt/types";
 import { Deadline, StatusPill } from "@/components/govt/bits";
 import { Lifecycle } from "@/components/govt/Lifecycle";
 
-export const revalidate = 600;
+export const revalidate = 120;
 
 /**
  * One recruitment, and everything published about it.

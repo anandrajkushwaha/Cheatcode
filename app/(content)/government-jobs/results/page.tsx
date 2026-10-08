@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SITE } from "@/lib/seo/constants";
 import { KindScreen } from "@/components/govt/KindScreen";
 
-export const revalidate = 600;
+export const revalidate = 120;
 
 export const metadata: Metadata = {
   title: "Sarkari Result 2026 \u2014 Latest Government Exam Results | Cheatcode",
