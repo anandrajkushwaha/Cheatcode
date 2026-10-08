@@ -33,12 +33,10 @@ import {
  */
 export function NoticeForm({
   notice,
-  exams,
   defaultKind,
   today,
 }: {
   notice?: PanelNotice;
-  exams: { id: string; label: string }[];
   defaultKind?: NoticeKind;
   today: string;
 }) {
@@ -53,8 +51,14 @@ export function NoticeForm({
   // habit is more reliable than a blank one left behind.
   const [publishedOn, setPublishedOn] = useState(notice?.publishedOn ?? (notice ? "" : today));
   const [summary, setSummary] = useState(notice?.summary ?? "");
-  const [examId, setExamId] = useState(notice?.examId ?? "");
-  const [status, setStatus] = useState(notice?.status ?? "published");
+  // Not editable any more: a job is a title and a link, and the recruitment
+  // pages are parked. Carried through on save so an older notice that was
+  // attached to one does not quietly detach itself the first time it is
+  // edited.
+  const examId = notice?.examId ?? "";
+  // A new notice starts as a draft. Nothing reaches the public page until
+  // somebody presses Publish on it, which is one click from the list.
+  const [status, setStatus] = useState(notice?.status ?? "draft");
 
   async function save() {
     const done = await post<{ id: string }>({
@@ -84,7 +88,7 @@ export function NoticeForm({
     <div className="space-y-6">
       <Group
         title={notice ? "Edit notice" : "New notice"}
-        note="Copy the title and the link from the board itself. The link is what a reader taps to check us — a notice without it is a claim, so it is the one field with no way around."
+        note="Two fields matter: the title as the board writes it, and the official link. The title on the public page is that link — somebody taps the job and lands on the board's own page."
       >
         <Field label="Kind" hint="Which tab it appears under.">
           <Select
@@ -133,25 +137,13 @@ export function NoticeForm({
           />
         </Field>
 
-        <Field
-          label="Part of a recruitment"
-          hint="Links this notice into that recruitment's timeline. Leave unattached if there is no page for it."
-          wide
-        >
-          <Select
-            value={examId}
-            onChange={(e) => setExamId(e.target.value)}
-            options={[{ value: "", label: "Not attached" }, ...exams.map((e) => ({ value: e.id, label: e.label }))]}
-          />
-        </Field>
-
-        <Field label="Status" hint="Published is live on the public page immediately.">
+        <Field label="Status" hint="Drafts are saved here and reach nobody. Publish from the list when the batch is ready.">
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             options={[
-              { value: "published", label: "Published — live" },
               { value: "draft", label: "Draft — not public" },
+              { value: "published", label: "Published — live" },
               { value: "withdrawn", label: "Withdrawn — taken off the page" },
             ]}
           />
@@ -162,7 +154,7 @@ export function NoticeForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => void save()} disabled={busy} className={BUTTON}>
-          {busy ? "Saving…" : notice ? "Save changes" : "Post notice"}
+          {busy ? "Saving…" : notice ? "Save changes" : status === "published" ? "Post it live" : "Save as draft"}
         </button>
         <Link href="/admin/govt" className={BUTTON_QUIET}>
           Cancel

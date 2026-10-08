@@ -64,10 +64,14 @@ export function Deadline({ end }: { end: string | null }) {
 /**
  * One row in a list of notices.
  *
- * It links to the exam page, never straight out to the official PDF. That is
- * the whole difference from the sites this competes with: arriving from
- * "SSC CGL result" should land somewhere that also tells you the next exam
- * date and whether the answer key is out, not on a PDF with no way back.
+ * The title is the link. Where it goes depends on whether there is anything
+ * of ours worth going to: a notice attached to a recruitment page opens that
+ * page, and a notice standing on its own — which is all of them while the
+ * recruitment pages are parked — opens the board's own page in a new tab.
+ *
+ * The arrow is the whole of the "apply button". A row that leaves the site
+ * should say so before it is tapped, and a second button beside a title that
+ * already goes to the same place is a second thing to miss.
  */
 export function NoticeRow({ notice }: { notice: Notice }) {
   const href = notice.examSlug
@@ -80,6 +84,11 @@ export function NoticeRow({ notice }: { notice: Notice }) {
       <span className="min-w-0 flex-1">
         <span className="block text-[0.9rem] leading-snug text-ink group-hover:underline">
           {notice.title}
+          {external && (
+            <span aria-hidden className="ml-1 text-ink-30">
+              ↗
+            </span>
+          )}
         </span>
         {notice.organisation && (
           <span className="mt-0.5 block text-[0.76rem] text-ink-30">{notice.organisation}</span>

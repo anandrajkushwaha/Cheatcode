@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getExamOptions } from "@/lib/govt/admin";
 import { NoticeForm } from "@/components/admin/govt/NoticeForm";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
 import { todayIn } from "@/lib/govt/lifecycle";
@@ -22,8 +21,6 @@ export default async function NewNotice({
     ? (sp.kind as NoticeKind)
     : undefined;
 
-  const exams = await getExamOptions();
-
   return (
     <div className="space-y-6">
       <div>
@@ -34,7 +31,7 @@ export default async function NewNotice({
       </div>
       {/* Today in India, worked out on the server: a laptop set to another
           timezone would otherwise default the date to yesterday. */}
-      <NoticeForm exams={exams} defaultKind={kind} today={todayIn()} />
+      <NoticeForm defaultKind={kind} today={todayIn()} />
     </div>
   );
 }

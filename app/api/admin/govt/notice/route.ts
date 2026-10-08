@@ -98,6 +98,23 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
+  // --------------------------------------------------- publish the batch
+  //
+  // The working shape is a batch: several jobs read off a board in one
+  // sitting, then put up together. Scoped to drafts, so it can never
+  // resurrect something that was withdrawn on purpose.
+  if (body.action === "publish_all") {
+    const { data, error } = await db
+      .from("govt_notices")
+      .update({ status: "published", updated_at: new Date().toISOString() })
+      .eq("status", "draft")
+      .select("id");
+    if (error) return bad(error.message, 500);
+
+    refreshGovt();
+    return Response.json({ ok: true, published: (data ?? []).length });
+  }
+
   // ------------------------------------------------------------- delete
   if (body.action === "delete") {
     if (session.role !== "owner") {

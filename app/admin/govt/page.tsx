@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getPanel } from "@/lib/govt/admin";
 import { KIND_LABEL, NOTICE_KINDS, formatDate, type NoticeKind } from "@/lib/govt/types";
-import { lifecycleOf } from "@/lib/govt/lifecycle";
+import { PublishAll, RowPublish } from "@/components/admin/govt/RowPublish";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,12 @@ export const dynamic = "force-dynamic";
  * One list, newest first, every kind and every status in it. Not six tabs:
  * the question somebody has on opening this is "did my last ten go up", and
  * that is answered by one list sorted by when it was posted, not by six.
+ *
+ * A job here is a title and a link, and nothing else is required. The title
+ * on the public page IS the link — somebody taps it and lands on the board's
+ * own page — so there is no page of ours in between to fill in. The
+ * recruitment pages the code can still build are parked, deliberately, until
+ * the simple thing is running.
  */
 export default async function AdminGovt({
   searchParams,
@@ -62,25 +68,17 @@ export default async function AdminGovt({
         <div>
           <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Government jobs</h1>
           <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-            Everything on <code>/government-jobs</code> is posted from here. A notice goes live the
-            moment it is saved as Published — there is no second approval — so the only thing worth
-            double-checking is the official link, because that is what a reader taps to check us.
+            Everything on <code>/government-jobs</code> is posted from here, and a job is two
+            fields: the title as the board writes it, and the official link. Nothing is public
+            until you press Publish — add a batch, read it back, put it up together.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/admin/govt/notice/new"
-            className="rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90"
-          >
-            Post a notice
-          </Link>
-          <Link
-            href="/admin/govt/recruitment/new"
-            className="rounded-full border border-ink-15 px-4 py-2.5 text-[0.85rem] font-medium text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
-          >
-            New recruitment
-          </Link>
-        </div>
+        <Link
+          href="/admin/govt/notice/new?kind=job"
+          className="rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper transition-opacity hover:opacity-90"
+        >
+          Add a job
+        </Link>
       </div>
 
       {panel.legacy && (
@@ -117,6 +115,15 @@ export default async function AdminGovt({
         )}
       </div>
 
+      {panel.drafts > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-08 bg-ink-04 px-4 py-3">
+          <p className="text-[0.84rem] text-ink-50">
+            {panel.drafts} saved and not public yet.
+          </p>
+          <PublishAll count={panel.drafts} />
+        </div>
+      )}
+
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
@@ -129,7 +136,7 @@ export default async function AdminGovt({
           <p className="rounded-2xl border border-dashed border-ink-15 px-4 py-6 text-[0.85rem] leading-relaxed text-ink-50">
             {kind || status
               ? "Nothing here with that filter."
-              : "Nothing posted yet. Post a notice above — the public page shows its empty state until the first one goes up."}
+              : "Nothing here yet. Add a job above — title, official link, done."}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -176,82 +183,17 @@ export default async function AdminGovt({
                     {n.postedBy && <span>by {n.postedBy}</span>}
                   </p>
                 </div>
-                <Link
-                  href={`/admin/govt/notice/${n.id}`}
-                  className="shrink-0 rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
-                >
-                  Edit
-                </Link>
+                <div className="flex shrink-0 items-center gap-2">
+                  <RowPublish id={n.id} status={n.status} />
+                  <Link
+                    href={`/admin/govt/notice/${n.id}`}
+                    className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
+                  >
+                    Edit
+                  </Link>
+                </div>
               </li>
             ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Recruitment pages
-          </h2>
-          <span className="text-[0.75rem] text-ink-30">
-            {panel.exams.filter((e) => e.status === "published").length} live · {panel.exams.length} total
-          </span>
-        </div>
-
-        {panel.exams.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-ink-15 px-4 py-6 text-[0.85rem] leading-relaxed text-ink-50">
-            None yet. A notice does not need one — but a recruitment page is what holds the dates,
-            the vacancies and every stage of one exam at a single address, and it is the page
-            Google sends people to.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {panel.exams.map((e) => {
-              const life = lifecycleOf(e.applicationEnd);
-              return (
-                <li
-                  key={e.id}
-                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-ink-08 px-4 py-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-2">
-                      <span className="text-[0.88rem] font-medium">
-                        {e.organisation} — {e.name}
-                      </span>
-                      <StatusTag status={e.status} />
-                    </p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.76rem] text-ink-30">
-                      <code>/{e.slug}</code>
-                      <span>
-                        {e.applicationEnd
-                          ? `last date ${formatDate(e.applicationEnd)}${
-                              life === "closed" ? " · over" : life === "closing_soon" ? " · closing soon" : ""
-                            }`
-                          : "no last date"}
-                      </span>
-                      {e.vacancies !== null && <span>{e.vacancies.toLocaleString("en-IN")} posts</span>}
-                      {e.postedBy && <span>by {e.postedBy}</span>}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Link
-                      href={`/government-jobs/${e.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-full px-2 py-1.5 text-[0.78rem] text-ink-30 underline underline-offset-2 hover:text-ink"
-                    >
-                      View
-                    </Link>
-                    <Link
-                      href={`/admin/govt/recruitment/${e.id}`}
-                      className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.78rem] text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                </li>
-              );
-            })}
           </ul>
         )}
       </section>

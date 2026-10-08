@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getExamOptions, getPanelNotice } from "@/lib/govt/admin";
+import { getPanelNotice } from "@/lib/govt/admin";
 import { NoticeForm } from "@/components/admin/govt/NoticeForm";
 import { todayIn } from "@/lib/govt/lifecycle";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditNotice({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [notice, exams] = await Promise.all([getPanelNotice(id), getExamOptions()]);
+  const notice = await getPanelNotice(id);
   if (!notice) notFound();
 
   return (
@@ -19,7 +19,7 @@ export default async function EditNotice({ params }: { params: Promise<{ id: str
         </Link>
         <h1 className="mt-2 text-[1.3rem] font-semibold tracking-[-0.03em]">Edit notice</h1>
       </div>
-      <NoticeForm notice={notice} exams={exams} today={todayIn()} />
+      <NoticeForm notice={notice} today={todayIn()} />
     </div>
   );
 }
