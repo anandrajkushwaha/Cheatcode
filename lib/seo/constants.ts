@@ -5,4 +5,14 @@ export const SITE = {
   description:
     "Cheatcode is the career toolkit for students and early-career professionals in India — a free resume builder with an ATS check, job search across company boards, AI mock interviews and a career agent that has read your resume.",
   locale: "en_IN",
+  /**
+   * The brand's own profiles and inbox. One copy, read by the footer and by
+   * the Organization markup, so the entity Google sees and the links a
+   * visitor sees can never describe two different companies.
+   */
+  email: "cheatcodeapp26@gmail.com",
+  sameAs: [
+    "https://www.instagram.com/cheatcodeapp/",
+    "https://www.linkedin.com/company/cheatcodeapp/",
+  ],
 } as const;

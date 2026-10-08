@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SITE } from "@/lib/seo/constants";
+import { breadcrumbJsonLd } from "@/lib/seo/jsonld";
+import { JsonLd } from "@/components/JsonLd";
 import { getExam } from "@/lib/govt/query";
 import { formatDate, verifiedDeadline, type ExamWithNotices } from "@/lib/govt/types";
 import { lifecycleOf } from "@/lib/govt/lifecycle";
@@ -116,7 +118,8 @@ export default async function ExamPage({ params }: { params: Promise<{ slug: str
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <main className="min-w-0">
+        {/* A div, not <main>: the content layout already wraps the page in one. */}
+        <div className="min-w-0">
           <header>
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-[0.76rem] font-medium uppercase tracking-[0.12em] text-ink-30">
@@ -197,7 +200,29 @@ export default async function ExamPage({ params }: { params: Promise<{ slug: str
               </ul>
             </section>
           )}
-        </main>
+
+          <p className="mt-10 max-w-[68ch] text-[0.78rem] leading-relaxed text-ink-30">
+            Source:{" "}
+            {applyUrl ? (
+              <a
+                href={applyUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="underline underline-offset-2 hover:text-ink"
+              >
+                {exam.organisation}
+              </a>
+            ) : (
+              exam.organisation
+            )}{" "}
+            official notification. Page last updated{" "}
+            <time dateTime={exam.updatedAt}>{formatDate(exam.updatedAt.slice(0, 10))}</time>.{" "}
+            <Link href="/editorial-standards" className="underline underline-offset-2 hover:text-ink">
+              How we publish government jobs
+            </Link>
+            .
+          </p>
+        </div>
 
         {/* ------------------------------------------------------------ apply */}
         <aside className="lg:sticky lg:top-6 lg:h-fit">
@@ -229,6 +254,14 @@ export default async function ExamPage({ params }: { params: Promise<{ slug: str
           </div>
         </aside>
       </div>
+
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { label: "Home", path: "/" },
+          { label: "Government jobs", path: "/government-jobs" },
+          { label: exam.name, path: `/government-jobs/${exam.slug}` },
+        ])}
+      />
     </div>
   );
 }

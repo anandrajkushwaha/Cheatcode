@@ -36,6 +36,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    // The running feed is indexable (see its page); the single-story pages are not.
+    { url: `${SITE.url}/insights`, lastModified: now, changeFrequency: "daily", priority: 0.7 },
+    // Trust pages: who we are and the rules we publish by.
+    { url: `${SITE.url}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    {
+      url: `${SITE.url}/editorial-standards`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.4,
+    },
 
     /* Government jobs. The hub and the six kind pages are always submitted —
        they are the queries people type — while an exam page is listed only

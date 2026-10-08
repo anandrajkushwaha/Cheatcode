@@ -166,6 +166,8 @@ export type Exam = {
    * rather than guessed.
    */
   shown: Set<string>;
+  /** When the row last changed — shown as "last updated", never as a verification date. */
+  updatedAt: string;
 };
 
 export type ExamWithNotices = Exam & { notices: Notice[] };

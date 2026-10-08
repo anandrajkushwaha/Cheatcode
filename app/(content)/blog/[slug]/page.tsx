@@ -104,7 +104,13 @@ export default async function ArticlePage({ params }: Props) {
         <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-ink-08 py-4 text-[0.82rem] text-ink-50">
           {post.author && (
             <>
-              <span className="font-medium text-ink">{post.author.name}</span>
+              <Link
+                href={`/authors/${post.author.slug}`}
+                rel="author"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                {post.author.name}
+              </Link>
               {post.author.role_title && (
                 <span className="text-ink-30">{post.author.role_title}</span>
               )}
@@ -287,7 +293,8 @@ export default async function ArticlePage({ params }: Props) {
                 "@type": "Person",
                 name: post.author.name,
                 description: post.author.role_title ?? undefined,
-                url: post.author.linkedin_url ?? `${SITE.url}/authors/${post.author.slug}`,
+                url: `${SITE.url}/authors/${post.author.slug}`,
+                sameAs: post.author.linkedin_url ? [post.author.linkedin_url] : undefined,
               }
             : { "@type": "Organization", name: SITE.name },
           publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },

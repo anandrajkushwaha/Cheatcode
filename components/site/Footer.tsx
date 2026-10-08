@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { SITE } from "@/lib/seo/constants";
 import { FooterBanner } from "./FooterBanner";
 
 /**
@@ -21,8 +22,7 @@ const GROUPS: Group[] = [
   {
     title: "Quick links",
     links: [
-      // No About page exists yet; this is the homepage until there is one.
-      { href: "/", label: "About Us" },
+      { href: "/about", label: "About Us" },
       { href: "/insights", label: "Insights" },
       { href: "/blog", label: "Blogs" },
       { href: "/become-a-mentor", label: "Become a mentor" },
@@ -43,14 +43,14 @@ const GROUPS: Group[] = [
 ];
 
 const LEGAL = [
+  { href: "/editorial-standards", label: "Editorial standards" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
   { href: "/refunds", label: "Refunds" },
 ];
 
-const EMAIL = "cheatcodeapp26@gmail.com";
-const INSTAGRAM = "https://www.instagram.com/cheatcodeapp/";
-const LINKEDIN = "https://www.linkedin.com/company/cheatcodeapp/";
+const EMAIL = SITE.email;
+const [INSTAGRAM, LINKEDIN] = SITE.sameAs;
 
 const link = "text-[0.87rem] leading-[1.5] text-white/74 transition-colors hover:text-white";
 const heading = "text-[1.1rem] font-bold leading-[1.5] text-white";

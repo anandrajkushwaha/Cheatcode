@@ -29,7 +29,7 @@ import { classifyGovtError } from "@/lib/govt/db-error";
 const EXAM_COLS =
   "id, slug, organisation, organisation_type, name, year, qualification_levels, qualification_text, " +
   "states, is_all_india, age_min, age_max, vacancies, application_start, application_end, apply_url, " +
-  "fee_by_category, exam_date_from, exam_date_to, date_note, selection_process, about, evidence, status";
+  "fee_by_category, exam_date_from, exam_date_to, date_note, selection_process, about, evidence, status, updated_at";
 
 const NOTICE_COLS =
   "id, kind, title, summary, published_on, official_url, status, exam_id";
@@ -59,6 +59,7 @@ type ExamRow = {
   about: string | null;
   evidence: Record<string, unknown> | null;
   status: Exam["status"];
+  updated_at: string;
 };
 
 type NoticeRow = {
@@ -114,6 +115,7 @@ function toExam(r: ExamRow): Exam {
     about: r.about,
     status: r.status,
     shown: shownFields(r.evidence),
+    updatedAt: r.updated_at,
   };
 }
 
