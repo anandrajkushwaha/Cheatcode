@@ -144,8 +144,24 @@ function toNotice(r: NoticeRow, exam?: { slug: string; name: string; organisatio
  * a table that will hold thousands of rows, not millions.
  */
 export async function getNotices(kind: NoticeKind, limit = 12): Promise<Notice[]> {
+  return (await getNoticesResult(kind, limit)).notices;
+}
+
+/**
+ * The same read, with the reason it came back empty.
+ *
+ * Needed because "no rows" and "no tables" look identical from the outside
+ * and mean opposite things. The hub was telling a visitor "nothing published
+ * yet" on a deployment where the migration had simply never been run, which
+ * is a page lying about its own state — and lying in the one direction that
+ * stops anybody investigating.
+ */
+export async function getNoticesResult(
+  kind: NoticeKind,
+  limit = 12,
+): Promise<{ notices: Notice[]; setup: boolean; error?: string }> {
   const db = createAppAdminClient();
-  if (!db) return [];
+  if (!db) return { notices: [], setup: true, error: "Accounts aren't configured on this deployment." };
 
   const { data, error } = await db
     .from("govt_notices")
@@ -156,12 +172,32 @@ export async function getNotices(kind: NoticeKind, limit = 12): Promise<Notice[]
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error || !data) return [];
+  if (error) {
+    // PostgREST answers a missing table with 42P01, and with PGRST205 when
+    // its schema cache has never seen the name. Both mean the same thing to
+    // somebody looking at an empty page: the SQL has not been run.
+    const missing =
+      error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      /relation .*govt_notices.* does not exist/i.test(error.message) ||
+      /could not find the table/i.test(error.message);
+    return {
+      notices: [],
+      setup: missing,
+      error: missing
+        ? "Government notices aren't set up in this database yet — run supabase/schemas/100_govt_notices.sql."
+        : error.message,
+    };
+  }
+  if (!data) return { notices: [], setup: false };
   const rows = data as NoticeRow[];
 
   const examIds = [...new Set(rows.map((r) => r.exam_id).filter((x): x is string => Boolean(x)))];
   const exams = await examsById(examIds);
-  return rows.map((r) => toNotice(r, r.exam_id ? exams.get(r.exam_id) : undefined));
+  return {
+    notices: rows.map((r) => toNotice(r, r.exam_id ? exams.get(r.exam_id) : undefined)),
+    setup: false,
+  };
 }
 
 async function examsById(ids: string[]) {
@@ -251,4 +287,102 @@ export async function getClosingSoon(limit = 10): Promise<Exam[]> {
     .limit(limit);
 
   return ((data ?? []) as unknown as ExamRow[]).map(toExam);
+}
+
+/* ----------------------------------------------------------------- admin */
+
+export type SourceRow = {
+  id: string;
+  name: string;
+  organisation: string;
+  listUrl: string | null;
+  kind: string;
+  active: boolean;
+  lastRunAt: string | null;
+  lastStatus: string | null;
+  lastCount: number;
+  lastError: string | null;
+};
+
+export type GovtStatus =
+  | { ok: false; setup: boolean; error: string }
+  | {
+      ok: true;
+      sources: SourceRow[];
+      exams: number;
+      notices: number;
+      published: number;
+      reports: number;
+    };
+
+/**
+ * What state this feature is actually in.
+ *
+ * Written for the one question that cannot be answered by looking at the
+ * public page: is it empty because nothing has been ingested, or because the
+ * tables do not exist? Both look the same to a visitor, and only one of them
+ * is something to wait for.
+ */
+export async function getGovtStatus(): Promise<GovtStatus> {
+  const db = createAppAdminClient();
+  if (!db) return { ok: false, setup: true, error: "Accounts aren't configured on this deployment." };
+
+  const { data, error } = await db
+    .from("govt_sources")
+    .select("id, name, organisation, list_url, kind, active, last_run_at, last_status, last_count, last_error")
+    .order("organisation", { ascending: true });
+
+  if (error) {
+    const missing =
+      error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      /does not exist/i.test(error.message) ||
+      /could not find the table/i.test(error.message);
+    return { ok: false, setup: missing, error: error.message };
+  }
+
+  const head = async (table: string, filter?: (q: ReturnType<typeof countQuery>) => unknown) => {
+    const q = countQuery(table);
+    if (filter) filter(q);
+    const { count } = (await q) as { count: number | null };
+    return count ?? 0;
+  };
+  function countQuery(table: string) {
+    return db!.from(table).select("id", { count: "exact", head: true });
+  }
+
+  const [exams, notices, published, reports] = await Promise.all([
+    head("govt_exams"),
+    head("govt_notices"),
+    head("govt_notices", (q) => q.eq("status", "published")),
+    head("govt_error_reports", (q) => q.eq("resolved", false)),
+  ]);
+
+  const sources = (
+    (data ?? []) as {
+      id: string;
+      name: string;
+      organisation: string;
+      list_url: string | null;
+      kind: string;
+      active: boolean;
+      last_run_at: string | null;
+      last_status: string | null;
+      last_count: number;
+      last_error: string | null;
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    name: r.name,
+    organisation: r.organisation,
+    listUrl: r.list_url,
+    kind: r.kind,
+    active: r.active,
+    lastRunAt: r.last_run_at,
+    lastStatus: r.last_status,
+    lastCount: r.last_count,
+    lastError: r.last_error,
+  }));
+
+  return { ok: true, sources, exams, notices, published, reports };
 }

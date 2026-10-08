@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/seo/constants";
-import { getClosingSoon, getNotices } from "@/lib/govt/query";
+import { getClosingSoon, getNoticesResult } from "@/lib/govt/query";
 import { KIND_LABEL, NOTICE_KINDS } from "@/lib/govt/types";
 import { Deadline, NoticeColumn, StatusPill } from "@/components/govt/bits";
 
@@ -35,12 +35,17 @@ export const metadata: Metadata = {
 };
 
 export default async function GovernmentJobsHub() {
-  const [columns, closing] = await Promise.all([
-    Promise.all(NOTICE_KINDS.map(async (k) => ({ kind: k, notices: await getNotices(k, 10) }))),
+  const [results, closing] = await Promise.all([
+    Promise.all(
+      NOTICE_KINDS.map(async (k) => ({ kind: k, ...(await getNoticesResult(k, 10)) })),
+    ),
     getClosingSoon(6),
   ]);
 
+  const columns = results.map(({ kind, notices }) => ({ kind, notices }));
   const empty = columns.every((c) => c.notices.length === 0);
+  // One reason for all six, because all six read the same table.
+  const problem = results.find((r) => r.error);
 
   return (
     <div className="container-page pb-20 pt-8 sm:pb-28 sm:pt-10">
@@ -58,10 +63,13 @@ export default async function GovernmentJobsHub() {
         /* A first-run state rather than six empty boxes. Six boxes each saying
            "nothing yet" reads as broken; one sentence reads as early. */
         <div className="mt-8 rounded-2xl border border-dashed border-ink-15 p-8 text-center">
-          <p className="text-[0.95rem] font-medium">Nothing published yet</p>
+          <p className="text-[0.95rem] font-medium">
+            {problem ? "Not available right now" : "Nothing published yet"}
+          </p>
           <p className="mx-auto mt-2 max-w-[48ch] text-[0.88rem] leading-relaxed text-ink-50">
-            We are adding the first recruitment boards now. Notifications will appear here as they
-            are published.
+            {problem
+              ? "We could not load notices just now. Please try again shortly."
+              : "We are adding the first recruitment boards now. Notifications will appear here as they are published."}
           </p>
         </div>
       ) : (

@@ -47,6 +47,13 @@ export const SECTIONS: readonly Section[] = [
     apis: ["/api/admin/insight", "/api/admin/upload"],
   },
   {
+    key: "govt",
+    label: "Government jobs",
+    detail: "The recruitment sources we watch, what each run found, and anything a reader reported as wrong.",
+    pages: ["/admin/govt"],
+    apis: ["/api/admin/govt"],
+  },
+  {
     key: "bank",
     label: "Question bank",
     detail: "Draft and publish the public interview-question pages.",

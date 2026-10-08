@@ -54,6 +54,7 @@ const NAV = [
   { href: "/admin/reviews", label: "Reviews" },
   // Next to Articles because it is the same job: pages written here that
   // exist to be found by somebody who has not heard of us yet.
+  { href: "/admin/govt", label: "Government jobs" },
   { href: "/admin/bank", label: "Question bank" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/posts", label: "Articles" },

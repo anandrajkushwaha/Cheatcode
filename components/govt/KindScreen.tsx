@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getNotices } from "@/lib/govt/query";
+import { getNoticesResult } from "@/lib/govt/query";
 import { KIND_LABEL, KIND_SLUG, NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
 import { NoticeRow } from "@/components/govt/bits";
 
@@ -19,7 +19,7 @@ export async function KindScreen({
   kind: NoticeKind;
   blurb: string;
 }) {
-  const notices = await getNotices(kind, 100);
+  const { notices, error } = await getNoticesResult(kind, 100);
 
   return (
     <div className="container-page pb-20 pt-8 sm:pb-28 sm:pt-10">
@@ -54,10 +54,13 @@ export async function KindScreen({
 
       {notices.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-ink-15 p-8 text-center">
-          <p className="text-[0.95rem] font-medium">Nothing published yet</p>
+          <p className="text-[0.95rem] font-medium">
+            {error ? "Not available right now" : "Nothing published yet"}
+          </p>
           <p className="mx-auto mt-2 max-w-[48ch] text-[0.88rem] leading-relaxed text-ink-50">
-            This page fills as the recruitment boards publish. Nothing is listed here before it
-            exists on an official site.
+            {error
+              ? "We could not load notices just now. Please try again shortly."
+              : "This page fills as the recruitment boards publish. Nothing is listed here before it exists on an official site."}
           </p>
         </div>
       ) : (
