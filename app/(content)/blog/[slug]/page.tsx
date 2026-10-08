@@ -56,6 +56,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: post.published_at,
       modifiedTime: post.updated_at,
       authors: post.author?.name ? [post.author.name] : undefined,
+      ...(post.cover_image
+        ? { images: [{ url: post.cover_image, alt: post.cover_alt ?? post.title }] }
+        : {}),
     },
   };
 }
@@ -285,6 +288,8 @@ export default async function ArticlePage({ params }: Props) {
           description: post.seo_description,
           datePublished: post.published_at,
           dateModified: post.updated_at,
+          // Google asks for an image on Article; the site card when there is no cover.
+          image: post.cover_image ?? `${SITE.url}/opengraph-image`,
           inLanguage: "en-IN",
           wordCount: post.word_count,
           mainEntityOfPage: { "@type": "WebPage", "@id": url },

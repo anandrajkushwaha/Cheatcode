@@ -8,6 +8,8 @@ type BuildMetadataOptions = {
   image?: string;
   type?: "website" | "article";
   noindex?: boolean;
+  /** With noindex: still follow the links. For archive pages that lead to indexable ones. */
+  follow?: boolean;
 };
 
 /**
@@ -21,6 +23,7 @@ export function buildMetadata({
   image,
   type = "website",
   noindex = false,
+  follow = false,
 }: BuildMetadataOptions): Metadata {
   const url = `${SITE.url}${path}`;
 
@@ -30,7 +33,7 @@ export function buildMetadata({
     metadataBase: new URL(SITE.url),
     alternates: { canonical: url },
     robots: noindex
-      ? { index: false, follow: false }
+      ? { index: false, follow }
       : {
           index: true,
           follow: true,

@@ -35,7 +35,7 @@ export default async function CategoryPage({ params }: Props) {
   const cat = await getCategoryBySlug(slug);
   if (!cat) notFound();
 
-  const { posts } = await getPosts({ categorySlug: slug, perPage: 60 });
+  const { posts } = await getPosts({ categorySlug: slug, perPage: 300 });
 
   return (
     <>

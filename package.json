@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "db:seed": "node scripts/seed.mjs",
-    "test": "node --experimental-strip-types --import ./scripts/alias-hook.mjs --test lib/govt/lifecycle.test.ts lib/govt/paging.test.ts lib/seo/intents.test.ts"
+    "test": "node --experimental-strip-types --import ./scripts/alias-hook.mjs --test lib/govt/lifecycle.test.ts lib/govt/paging.test.ts lib/seo/intents.test.ts lib/seo/audit.test.ts"
   },
   "dependencies": {
     "@sparticuz/chromium-min": "^133.0.0",

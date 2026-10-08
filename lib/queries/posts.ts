@@ -83,10 +83,19 @@ export async function getAllPostSlugs(): Promise<
   return data ?? [];
 }
 
-/** Same cluster, excluding the current post. Falls back to recent posts. */
+/**
+ * Same cluster, excluding the current post. Falls back to recent posts.
+ *
+ * Not simply the newest in the category: that sent every article's "Keep
+ * reading" links to the same three posts, so each new guide pushed an older
+ * one out of every list and the back catalogue ended up with no internal
+ * links pointing at it at all. Instead the window is chosen from the whole
+ * category by the post's own id — stable for a given page, different between
+ * pages — so the links spread across everything in the cluster.
+ */
 export async function getRelatedPosts(
   post: Pick<Post, "id" | "category">,
-  limit = 3,
+  limit = 4,
 ): Promise<PostCard[]> {
   const supabase = db();
   if (!supabase) return [];
@@ -98,8 +107,9 @@ export async function getRelatedPosts(
       .eq("category_id", post.category.id)
       .neq("id", post.id)
       .order("published_at", { ascending: false })
-      .limit(limit);
-    if (data?.length) return data as unknown as PostCard[];
+      .limit(300);
+    const pool = (data as unknown as PostCard[]) ?? [];
+    if (pool.length) return rotate(pool, post.id, limit);
   }
 
   const { data } = await supabase
@@ -109,6 +119,15 @@ export async function getRelatedPosts(
     .order("published_at", { ascending: false })
     .limit(limit);
   return (data as unknown as PostCard[]) ?? [];
+}
+
+/** `limit` consecutive items from `pool`, starting at a point fixed by `seed`. */
+function rotate<T>(pool: T[], seed: string, limit: number): T[] {
+  if (pool.length <= limit) return pool;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const start = h % pool.length;
+  return Array.from({ length: limit }, (_, i) => pool[(start + i) % pool.length]);
 }
 
 export async function getCategories(): Promise<Category[]> {

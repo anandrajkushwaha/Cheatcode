@@ -7,7 +7,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/admin/", "/blog/page/"],
+        // /blog/page/N is not disallowed: it is how a crawler reaches the older
+        // guides. Those pages are noindex,follow instead — walked, not listed.
+        disallow: ["/api/", "/admin/"],
       },
     ],
     // One entry: the index at /sitemap.xml points to every shard.

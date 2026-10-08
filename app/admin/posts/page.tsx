@@ -130,6 +130,12 @@ export default async function AdminPosts({
         <div className="flex flex-wrap items-center gap-3">
           <RangePicker basePath="/admin/posts" range={range} />
           <Link
+            href="/admin/posts/seo"
+            className="rounded-full border border-ink-15 px-4 py-1.5 text-[0.8rem] font-medium"
+          >
+            SEO audit
+          </Link>
+          <Link
             href="/admin/posts/new"
             className="rounded-full bg-ink px-4 py-1.5 text-[0.8rem] font-medium text-paper"
           >

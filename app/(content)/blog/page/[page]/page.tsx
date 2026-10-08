@@ -16,7 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       "More practical guides on resumes, ATS, interviews, salary and job search for Indian job seekers.",
     path: `/blog/page/${page}`,
     // Paginated pages are crawlable but shouldn't compete with /blog in the index.
+    // Followed, though: these are the only path to an older guide from the hub.
     noindex: true,
+    follow: true,
   });
 }
 
