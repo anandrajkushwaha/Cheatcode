@@ -48,7 +48,13 @@ export function classifyGovtError(error: Raw): GovtDbError {
     /column .* does not exist/i.test(text) ||
     /could not find the '.*' column/i.test(text)
   ) {
-    const column = text.match(/'([a-z_]+)'/i)?.[1] ?? text.match(/column [\w.]*\.?(\w+)/i)?.[1] ?? null;
+    // "column govt_exams.source_id does not exist" and "Could not find the
+    // 'posted_by' column of ...". The first pattern was greedy enough to
+    // report the column as "d", which is its own small lesson about anchoring.
+    const column =
+      text.match(/column\s+(?:[\w$]+\.)*"?([\w$]+)"?/i)?.[1] ??
+      text.match(/'([\w$]+)' column/i)?.[1] ??
+      null;
     return {
       kind: "missing_column",
       message:

@@ -24,7 +24,7 @@ export type PanelNotice = {
   examId: string | null;
   examName: string | null;
   examSlug: string | null;
-  /** Typed by a person, rather than extracted. source_id is the test. */
+  /** Typed by a person, rather than extracted by a run. */
   manual: boolean;
   postedBy: string | null;
   createdAt: string;
@@ -118,8 +118,16 @@ const NOTICE_COLS =
 /** The same read on a database where 105 has not been run yet. */
 const NOTICE_COLS_LEGACY = NOTICE_COLS.replace(", posted_by", "");
 
+/**
+ * No source_id here, and that is not an oversight.
+ *
+ * Only govt_notices carries one — a notice is the thing a board publishes and
+ * a run extracts. A recruitment is assembled from notices and has never had
+ * the column, so asking for it is a 42703 that takes the whole screen down.
+ * Which it did. A hand-made recruitment is identified by posted_by instead.
+ */
 const EXAM_LIST_COLS =
-  "id, slug, organisation, name, year, status, application_end, vacancies, source_id, posted_by, created_at";
+  "id, slug, organisation, name, year, status, application_end, vacancies, posted_by, created_at";
 
 const EXAM_LIST_COLS_LEGACY = EXAM_LIST_COLS.replace(", posted_by", "");
 
@@ -146,7 +154,6 @@ type ExamRow = {
   status: string;
   application_end: string | null;
   vacancies: number | null;
-  source_id: string | null;
   posted_by: string | null;
   created_at: string;
 };
@@ -161,7 +168,10 @@ function toPanelExam(r: ExamRow): PanelExam {
     status: r.status,
     applicationEnd: r.application_end,
     vacancies: r.vacancies,
-    manual: r.source_id === null,
+    // A name on the row means a person typed it. Before 105 there is no name
+    // on anything, so nothing claims to be hand-made — which is the right way
+    // for this to be wrong.
+    manual: Boolean(r.posted_by),
     postedBy: r.posted_by ?? null,
     createdAt: r.created_at,
   };
