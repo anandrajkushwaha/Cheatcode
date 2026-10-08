@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/govt/ingest",
-      "schedule": "41 * * * *"
+      "schedule": "35 1 * * *"
     }
   ]
 }

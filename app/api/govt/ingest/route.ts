@@ -6,11 +6,12 @@ export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 /**
- * The scheduled entry point for the government-jobs monitor.
+ * The scheduled entry point for the government-jobs monitor. Once a day.
  *
  * Node rather than the edge because it drives a browser, and given two minutes
  * because a cold container has to fetch and unpack Chrome before it can render
- * anything. Every later run in the same container reuses it.
+ * anything. Every later board in the same run reuses it, which is most of why
+ * all ten fit in one morning rather than needing a trigger each.
  *
  * The work lives in lib/govt/ingest.ts so the admin button runs exactly the
  * same code as the cron — two paths into one function, which is the only way

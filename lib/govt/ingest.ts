@@ -5,15 +5,18 @@ import { classify, type Classified } from "@/lib/govt/classify";
 import { makeSlug } from "@/lib/govt/types";
 
 /**
- * One run of the government-jobs monitor.
+ * One morning's run of the government-jobs monitor.
  *
- * **One board per invocation**, least recently run first. Not a loop over all
- * ten, because each board means starting Chrome, rendering a page and a model
- * call, and ten of those do not fit inside a serverless function's minute. A
- * board that hangs then takes down the nine behind it, which is how a monitor
- * stops monitoring without anybody noticing. One at a time, every hour, means
- * ten boards are each checked a little over twice a day and no single bad page
- * can starve the others.
+ * Once a day, early, and every board in the one run — because recruitment
+ * notifications do not arrive hourly and checking ten boards around the clock
+ * is work nobody asked for.
+ *
+ * Boards are taken least-recently-checked first and worked through until the
+ * time budget runs out. That ordering is what makes the budget safe: whatever
+ * is not reached today is at the front of the queue tomorrow, so a slow board
+ * delays the others by a day rather than starving them forever. Most mornings
+ * the budget is never reached — a board whose links have not changed stops at
+ * the hash, costing one render and no model call at all.
  *
  * Nothing waits for a person. What the run cannot stand behind, it leaves out
  * — see the field rules in 100_govt_notices.sql — and what it publishes is a
@@ -21,40 +24,77 @@ import { makeSlug } from "@/lib/govt/types";
  * read directly and the part a reader actually needs.
  */
 
-export type RunResult = {
-  ok: boolean;
-  source?: string;
+export type SourceResult = {
+  source: string;
   checked: number;
   found: number;
   added: number;
-  skipped?: "unchanged" | "none-active";
+  status: "ok" | "empty" | "unchanged" | "error";
   error?: string;
 };
 
+export type RunResult = {
+  ok: boolean;
+  /** Boards read this morning, in the order they were taken. */
+  sources: SourceResult[];
+  added: number;
+  /** Boards left for tomorrow because the budget ran out. */
+  remaining: number;
+  error?: string;
+};
+
+/** Stop starting new boards past this. One is always finished, never cut off. */
+const BUDGET_MS = 95_000;
+
 export async function runGovtIngest(db: SupabaseClient): Promise<RunResult> {
-  const { data: sources, error } = await db
+  const started = Date.now();
+
+  const { data, error } = await db
     .from("govt_sources")
     .select("id, name, organisation, organisation_type, list_url, last_hash")
     .eq("active", true)
     .not("list_url", "is", null)
-    .order("last_run_at", { ascending: true, nullsFirst: true })
-    .limit(1);
+    .order("last_run_at", { ascending: true, nullsFirst: true });
 
-  if (error) return { ok: false, checked: 0, found: 0, added: 0, error: error.message };
+  if (error) return { ok: false, sources: [], added: 0, remaining: 0, error: error.message };
 
-  const source = (sources ?? [])[0] as
-    | {
-        id: string;
-        name: string;
-        organisation: string;
-        organisation_type: string;
-        list_url: string;
-        last_hash: string | null;
-      }
-    | undefined;
+  type Row = {
+    id: string;
+    name: string;
+    organisation: string;
+    organisation_type: string;
+    list_url: string;
+    last_hash: string | null;
+  };
 
-  if (!source) return { ok: true, checked: 0, found: 0, added: 0, skipped: "none-active" };
+  const queue = (data ?? []) as Row[];
+  const done: SourceResult[] = [];
 
+  for (const source of queue) {
+    if (Date.now() - started > BUDGET_MS) break;
+    done.push(await one(db, source));
+  }
+
+  return {
+    ok: done.every((d) => d.status !== "error"),
+    sources: done,
+    added: done.reduce((n, d) => n + d.added, 0),
+    remaining: queue.length - done.length,
+  };
+}
+
+/** One board, start to finish. Never throws: a bad board is a row, not a 500. */
+async function one(
+  db: SupabaseClient,
+  source: {
+    id: string;
+    name: string;
+    organisation: string;
+    organisation_type: string;
+    list_url: string;
+    last_hash: string | null;
+  },
+): Promise<SourceResult> {
   const stamp = async (patch: Record<string, unknown>) => {
     await db
       .from("govt_sources")
@@ -70,19 +110,25 @@ export async function runGovtIngest(db: SupabaseClient): Promise<RunResult> {
     if (page.hash === source.last_hash) {
       await stamp({ last_status: "unchanged", last_error: null });
       return {
-        ok: true,
         source: source.organisation,
         checked: page.links.length,
         found: 0,
         added: 0,
-        skipped: "unchanged",
+        status: "unchanged",
       };
     }
 
     const result = await classify(page.title, page.links);
     if (!result.ok) {
       await stamp({ last_status: "error", last_error: result.error.slice(0, 500) });
-      return { ok: false, source: source.organisation, checked: page.links.length, found: 0, added: 0, error: result.error };
+      return {
+        source: source.organisation,
+        checked: page.links.length,
+        found: 0,
+        added: 0,
+        status: "error",
+        error: result.error,
+      };
     }
 
     let added = 0;
@@ -98,16 +144,23 @@ export async function runGovtIngest(db: SupabaseClient): Promise<RunResult> {
     });
 
     return {
-      ok: true,
       source: source.organisation,
       checked: page.links.length,
       found: result.notices.length,
       added,
+      status: result.notices.length ? "ok" : "empty",
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await stamp({ last_status: "error", last_error: message.slice(0, 500) });
-    return { ok: false, source: source.organisation, checked: 0, found: 0, added: 0, error: message };
+    return {
+      source: source.organisation,
+      checked: 0,
+      found: 0,
+      added: 0,
+      status: "error",
+      error: message,
+    };
   }
 }
 
