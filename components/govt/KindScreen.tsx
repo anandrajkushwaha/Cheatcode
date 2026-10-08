@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getNoticesResult } from "@/lib/govt/query";
 import { KIND_LABEL, KIND_SLUG, NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
 import { NoticeRow } from "@/components/govt/bits";
+import { Pager, PER_PAGE } from "@/components/govt/Pager";
 
 /**
  * One kind of notice, in full.
@@ -11,15 +12,24 @@ import { NoticeRow } from "@/components/govt/bits";
  * which is the exam page sitting at the same level — and each kind wants its
  * own title and description written for what people actually search, which is
  * per-file content rather than a template.
+ *
+ * Twenty to a page, numbered. The hub shows the newest ten of each kind and
+ * sends people here for the rest, so this is the page that has to stay
+ * usable when a kind holds four hundred notices — which it will, since
+ * nothing is ever removed from it, only closed.
  */
 export async function KindScreen({
   kind,
   blurb,
+  page = 1,
 }: {
   kind: NoticeKind;
   blurb: string;
+  page?: number;
 }) {
-  const { notices, error } = await getNoticesResult(kind, 100);
+  const { notices, total, error } = await getNoticesResult(kind, PER_PAGE, page - 1);
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const first = (page - 1) * PER_PAGE + 1;
 
   return (
     <div className="container-page pb-20 pt-8 sm:pb-28 sm:pt-10">
@@ -64,11 +74,24 @@ export async function KindScreen({
           </p>
         </div>
       ) : (
-        <ul className="mt-8 rounded-2xl border border-ink-08 bg-paper px-4 sm:px-5">
-          {notices.map((n) => (
-            <NoticeRow key={n.id} notice={n} />
-          ))}
-        </ul>
+        <>
+          <ul className="mt-8 rounded-2xl border border-ink-08 bg-paper px-4 sm:px-5">
+            {notices.map((n) => (
+              <NoticeRow key={n.id} notice={n} />
+            ))}
+          </ul>
+
+          {/* Said in full rather than as "page 2 of 7": the useful fact is how
+              many there are altogether, and it is the only place on the site
+              that says so. */}
+          <p className="mt-3 text-center text-[0.78rem] text-ink-30">
+            {total <= PER_PAGE
+              ? `${total} listed`
+              : `${first}–${first + notices.length - 1} of ${total}`}
+          </p>
+
+          <Pager base={`/government-jobs/${KIND_SLUG[kind]}`} page={page} pages={pages} />
+        </>
       )}
 
       <p className="mt-10 max-w-[70ch] text-[0.8rem] leading-relaxed text-ink-30">

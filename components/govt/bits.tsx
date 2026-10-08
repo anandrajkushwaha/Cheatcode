@@ -140,19 +140,27 @@ export function NoticeRow({ notice }: { notice: Notice }) {
  * drawn 760 pixels tall beside the column with nine, and the page carried
  * three enormous panels of white. A card is as tall as what is in it.
  *
- * An empty column shows one line and no "See all". A link to a page that is
- * also empty is a dead end dressed up as navigation.
+ * Ten rows at most, and then the count. The column is a sample — the whole
+ * list lives on the kind page — and "View all 37" is a better invitation
+ * than "See all" because it says what is behind the link.
+ *
+ * An empty column shows one line and no link at all. A link to a page that
+ * is also empty is a dead end dressed up as navigation.
  */
 export function NoticeColumn({
   title,
   kind,
   notices,
+  total,
 }: {
   title: string;
   kind: keyof typeof KIND_SLUG;
   notices: Notice[];
+  /** How many there are altogether, not just in this column. */
+  total?: number;
 }) {
   const empty = notices.length === 0;
+  const more = (total ?? notices.length) > notices.length;
 
   return (
     <section className="self-start rounded-2xl border border-ink-08 bg-paper p-4 sm:p-5">
@@ -161,9 +169,9 @@ export function NoticeColumn({
         {!empty && (
           <Link
             href={`/government-jobs/${KIND_SLUG[kind]}`}
-            className="text-[0.76rem] text-ink-30 transition-colors hover:text-ink"
+            className="shrink-0 text-[0.76rem] text-ink-30 underline-offset-4 transition-colors hover:text-ink hover:underline"
           >
-            See all
+            {more ? `View all ${total}` : "View all"}
           </Link>
         )}
       </div>

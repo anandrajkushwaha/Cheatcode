@@ -155,18 +155,26 @@ export async function getNotices(kind: NoticeKind, limit = 12): Promise<Notice[]
 export async function getNoticesResult(
   kind: NoticeKind,
   limit = 12,
-): Promise<{ notices: Notice[]; setup: boolean; error?: string }> {
+  /** Zero-based page. The hub never passes one; the kind pages do. */
+  page = 0,
+): Promise<{ notices: Notice[]; total: number; setup: boolean; error?: string }> {
   const db = createAppAdminClient();
-  if (!db) return { notices: [], setup: true, error: "Accounts aren't configured on this deployment." };
+  if (!db) {
+    return { notices: [], total: 0, setup: true, error: "Accounts aren't configured on this deployment." };
+  }
 
-  const { data, error } = await db
+  // `count: "exact"` rides along with the rows rather than costing a second
+  // request, which is what lets the hub say "View all 37" and the kind page
+  // know how many pages it has without asking twice.
+  const from = page * limit;
+  const { data, error, count } = await db
     .from("govt_notices")
-    .select(NOTICE_COLS)
+    .select(NOTICE_COLS, { count: "exact" })
     .eq("kind", kind)
     .in("status", ["published", "stale"])
     .order("published_on", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, from + limit - 1);
 
   if (error) {
     // PostgREST answers a missing table with 42P01, and with PGRST205 when
@@ -179,19 +187,21 @@ export async function getNoticesResult(
       /could not find the table/i.test(error.message);
     return {
       notices: [],
+      total: 0,
       setup: missing,
       error: missing
         ? "Government notices aren't set up in this database yet — run supabase/schemas/100_govt_notices.sql."
         : error.message,
     };
   }
-  if (!data) return { notices: [], setup: false };
+  if (!data) return { notices: [], total: 0, setup: false };
   const rows = data as NoticeRow[];
 
   const examIds = [...new Set(rows.map((r) => r.exam_id).filter((x): x is string => Boolean(x)))];
   const exams = await examsById(examIds);
   return {
     notices: rows.map((r) => toNotice(r, r.exam_id ? exams.get(r.exam_id) : undefined)),
+    total: count ?? rows.length,
     setup: false,
   };
 }

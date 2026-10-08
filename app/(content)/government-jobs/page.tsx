@@ -45,7 +45,8 @@ export default async function GovernmentJobsHub() {
     getClosed(1),
   ]);
 
-  const columns = results.map(({ kind, notices }) => ({ kind, notices }));
+  // Ten per card, and the total so each card can say how many more there are.
+  const columns = results.map(({ kind, notices, total }) => ({ kind, notices, total }));
   const empty = columns.every((c) => c.notices.length === 0);
   const problem = results.find((r) => r.error);
 
@@ -104,8 +105,14 @@ export default async function GovernmentJobsHub() {
           {/* `items-start` is the whole fix for the three tall blank panels:
               a grid cell stretches to the tallest row unless told not to. */}
           <div className="mt-10 grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {columns.map(({ kind, notices }) => (
-              <NoticeColumn key={kind} kind={kind} title={KIND_LABEL[kind]} notices={notices} />
+            {columns.map(({ kind, notices, total }) => (
+              <NoticeColumn
+                key={kind}
+                kind={kind}
+                title={KIND_LABEL[kind]}
+                notices={notices}
+                total={total}
+              />
             ))}
           </div>
 
