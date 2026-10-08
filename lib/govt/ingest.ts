@@ -43,8 +43,15 @@ export type RunResult = {
   error?: string;
 };
 
-/** Stop starting new boards past this. One is always finished, never cut off. */
-const BUDGET_MS = 95_000;
+/**
+ * Stop starting new boards past this. One is always finished, never cut off.
+ *
+ * Eighty, under a 120-second function, so that a board started at 79 seconds
+ * and timing out at its own twenty still lands inside the limit. A budget that
+ * can overrun is worse than a tight one: the run is killed mid-board, the
+ * stamp is never written, and that board looks untouched tomorrow.
+ */
+const BUDGET_MS = 80_000;
 
 export async function runGovtIngest(db: SupabaseClient): Promise<RunResult> {
   const started = Date.now();

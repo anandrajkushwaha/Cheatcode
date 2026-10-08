@@ -2,6 +2,16 @@ import { createAppAdminClient } from "@/lib/supabase/app";
 import { runGovtIngest } from "@/lib/govt/ingest";
 
 export const runtime = "nodejs";
+/**
+ * Run this in Mumbai.
+ *
+ * The first real run timed out on upsc.gov.in and joinindianarmy.nic.in while
+ * ibps.in, indiapost.gov.in and sbi.co.in answered fine. The two that failed
+ * are both NIC-hosted, and NIC routinely throttles or drops traffic from
+ * foreign datacentre ranges — so this is a function that has to be sitting in
+ * India, not a timeout that needs raising.
+ */
+export const preferredRegion = "bom1";
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 

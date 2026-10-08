@@ -78,12 +78,47 @@ Rules you must not break:
 
 Returning an empty list is a correct answer when the page has no notices.`;
 
+/**
+ * How many links go in one call.
+ *
+ * SSC's first real run came back "the model's answer wasn't valid JSON" with
+ * twenty-five links sent — the output had been cut off mid-array, because a
+ * reasoning model spends part of its token budget thinking and what is left
+ * was not enough to finish the list. Raising the cap alone would only move
+ * the cliff; forty links at a time keeps every answer short enough to land,
+ * and means a board that does fail loses one chunk rather than its whole page.
+ */
+const CHUNK = 40;
+
 export async function classify(
   pageTitle: string,
   links: { url: string; text: string }[],
 ): Promise<{ ok: true; notices: Classified[] } | { ok: false; error: string }> {
   if (links.length === 0) return { ok: true, notices: [] };
 
+  const chunks: { url: string; text: string }[][] = [];
+  for (let i = 0; i < links.length; i += CHUNK) chunks.push(links.slice(i, i + CHUNK));
+
+  const all: Classified[] = [];
+  const failures: string[] = [];
+
+  for (const chunk of chunks) {
+    const result = await classifyChunk(pageTitle, chunk);
+    if (result.ok) all.push(...result.notices);
+    else failures.push(result.error);
+  }
+
+  // Every chunk failed: the board genuinely did not get read, and saying so
+  // is the point of the error. Some failed: keep what came back rather than
+  // throwing away eight good notices because a ninth chunk timed out.
+  if (failures.length === chunks.length) return { ok: false, error: failures[0] };
+  return { ok: true, notices: all };
+}
+
+async function classifyChunk(
+  pageTitle: string,
+  links: { url: string; text: string }[],
+): Promise<{ ok: true; notices: Classified[] } | { ok: false; error: string }> {
   const user =
     `Page: ${pageTitle}\n\nLinks:\n` +
     links.map((l, i) => `${i + 1}. ${l.text}\n   ${l.url}`).join("\n");
@@ -94,7 +129,7 @@ export async function classify(
     schema: SCHEMA as unknown as Record<string, unknown>,
     name: "govt_notices",
     temperature: 0,
-    maxTokens: 4000,
+    maxTokens: 12_000,
     timeoutMs: 60_000,
     meta: { feature: "govt_ingest", userId: null },
   });

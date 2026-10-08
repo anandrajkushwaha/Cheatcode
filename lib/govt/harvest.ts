@@ -38,7 +38,15 @@ const NEVER = [
 const NOISE =
   /^(home|back|next|previous|more|read more|click here|skip to main content|english|hindi|screen reader|a\+|a-|a)$/i;
 
-export async function harvest(url: string, timeoutMs = 30_000): Promise<Harvested> {
+/**
+ * Twenty seconds, not thirty.
+ *
+ * A board that cannot reach DOMContentLoaded in twenty seconds is down or
+ * blocking us, and waiting longer does not change that — it just spends the
+ * run's budget on the one board least likely to return anything. Two timeouts
+ * took sixty seconds out of the first real run and left four boards unread.
+ */
+export async function harvest(url: string, timeoutMs = 20_000): Promise<Harvested> {
   const browser = await launch();
   const page = await browser.newPage();
 
@@ -74,6 +82,10 @@ export async function harvest(url: string, timeoutMs = 30_000): Promise<Harveste
     const seen = new Set<string>();
     const links = found.links
       .filter((l) => l.text.length >= 8 && l.text.length <= 300)
+      // A link title is a title. Anything longer is a paragraph that happens
+      // to be wrapped in an anchor, and sending it whole is input the model
+      // has to read before it can say "not a notice".
+      .map((l) => ({ ...l, text: l.text.slice(0, 180) }))
       .filter((l) => !NOISE.test(l.text))
       .filter((l) => !NEVER.some((re) => re.test(l.url)))
       .filter((l) => {
@@ -82,7 +94,7 @@ export async function harvest(url: string, timeoutMs = 30_000): Promise<Harveste
         seen.add(l.url);
         return true;
       })
-      .slice(0, 120);
+      .slice(0, 80);
 
     return { links, title: found.title, hash: fingerprint(links) };
   } finally {
