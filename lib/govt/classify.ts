@@ -1,7 +1,7 @@
 import "server-only";
 import { llmJson } from "@/lib/app/llm";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/govt/types";
-import { byPattern } from "@/lib/govt/patterns";
+import { byPattern, isSubstantive } from "@/lib/govt/patterns";
 
 /**
  * Which of these links is a recruitment notice, and what kind.
@@ -67,8 +67,15 @@ Pick out only links that are a RECRUITMENT NOTICE, and say which kind:
 - syllabus: a syllabus or exam pattern document
 - admission: an entrance exam or counselling notice for a course
 
-Ignore everything else: navigation, about pages, tenders, press releases,
-officer transfers, office orders, RTI, contact pages, archives.
+Ignore everything else: tenders, press releases, officer transfers, office
+orders, RTI, contact pages, archives.
+
+Above all, ignore the site's own NAVIGATION. A notice names a particular
+recruitment — an organisation, a post, an exam, a year. A link whose whole
+text is "Vacancies", "Current Openings", "Recruitment Exams", "View All",
+"Latest Jobs", "Notifications" or "Click here" is the heading above a list or
+the link to the rest of it, and is never a notice however well it matches a
+keyword.
 
 Rules you must not break:
 - Copy the url exactly as given. Never alter or shorten it.
@@ -161,7 +168,10 @@ async function classifyChunk(
     // than trusted, every time.
     if (!given.has(url)) continue;
     if (!kinds.has(kind)) continue;
-    if (title.length < 6 || title.length > 300) continue;
+    // The same bar the pattern reader is held to. The model published "View
+    // All" and "Current Openings" as jobs; being a model does not make a
+    // signpost a notice.
+    if (title.length > 300 || !isSubstantive(title)) continue;
 
     const date = typeof r.published_on === "string" ? r.published_on.trim() : "";
     const year = typeof r.year === "number" && r.year >= 2000 && r.year <= 2100 ? r.year : null;

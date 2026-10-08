@@ -84,9 +84,14 @@ export function NoticeRow({ notice }: { notice: Notice }) {
           <span className="mt-0.5 block text-[0.76rem] text-ink-30">{notice.organisation}</span>
         )}
       </span>
-      <span className="shrink-0 whitespace-nowrap pt-0.5 text-[0.74rem] text-ink-30">
-        {formatDate(notice.publishedOn) ?? "—"}
-      </span>
+      {/* No date, no column. A dash on every row is a column of dashes
+          pretending to be information — most of these boards do not date
+          their links, and saying so forty times is worse than not saying it. */}
+      {notice.publishedOn && (
+        <span className="shrink-0 whitespace-nowrap pt-0.5 text-[0.74rem] text-ink-30">
+          {formatDate(notice.publishedOn)}
+        </span>
+      )}
     </>
   );
 
