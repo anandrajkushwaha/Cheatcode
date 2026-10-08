@@ -1,4 +1,5 @@
 import { getGovtStatus } from "@/lib/govt/query";
+import { GovtRunButton } from "@/components/admin/GovtRunButton";
 
 export const dynamic = "force-dynamic";
 
@@ -41,10 +42,10 @@ export default async function AdminGovt() {
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Government jobs</h1>
         <p className="mt-2 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-          The recruitment boards we watch, and what each run found. A source stays switched off
-          until its notifications URL has been opened and checked — a monitor pointed at an
-          unverified page either finds nothing and looks broken, or finds the wrong page and
-          publishes it.
+          The recruitment boards we watch, and what each run found. It runs itself every morning
+          at 7:05; this button does exactly the same thing now. A board whose page holds no
+          recruitment notices writes &ldquo;empty&rdquo; and publishes nothing, so a wrong URL costs a
+          quiet row here rather than bad data on a public page.
         </p>
       </div>
 
@@ -62,6 +63,8 @@ export default async function AdminGovt() {
           </div>
         ))}
       </dl>
+
+      <GovtRunButton />
 
       {status.exams === 0 && (
         <p className="rounded-xl border border-dashed border-ink-15 px-4 py-3.5 text-[0.85rem] leading-relaxed text-ink-50">
