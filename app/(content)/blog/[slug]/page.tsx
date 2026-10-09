@@ -10,6 +10,7 @@ import { SITE } from "@/lib/seo/constants";
 import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
 import { FaqBlock } from "@/components/content/FaqBlock";
+import { GuideCard } from "@/components/content/GuideCard";
 import { ArticleShare } from "@/components/content/ArticleShare";
 import { ToolBlock } from "@/components/content/ToolBlock";
 import { ResumeCtaBar, ResumeCtaBlock } from "@/components/content/ResumeCta";
@@ -18,7 +19,6 @@ import { isResumeCategory } from "@/lib/content/resume-cta";
 import {
   Breadcrumbs,
   Toc,
-  ArticleCard,
   formatDate,
 } from "@/components/content/bits";
 
@@ -273,11 +273,13 @@ export default async function ArticlePage({ params }: Props) {
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             Keep reading
           </h2>
-          <div className="mt-6 max-w-3xl">
+          <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((p) => (
-              <ArticleCard key={p.id} post={p} context="related" />
+              <li key={p.id}>
+                <GuideCard post={p} />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 

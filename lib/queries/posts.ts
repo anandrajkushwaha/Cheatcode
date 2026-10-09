@@ -8,6 +8,12 @@ const CARD_COLS =
   "id,slug,title,excerpt,published_at,reading_minutes,post_type," +
   "category:categories(slug,name,short_name)";
 
+/** A card with its cover image: the homepage strip and "Keep reading". */
+export type GuideCardPost = PostCard & { cover_image: string | null; cover_alt: string | null };
+
+const GUIDE_CARD_COLS = `${CARD_COLS},cover_image,cover_alt`;
+
+
 const FULL_COLS =
   "*,category:categories(*),author:authors(*)";
 
@@ -79,16 +85,15 @@ export async function getPosts({
  */
 export async function getLatestGuidesWithCovers(
   limit = 4,
-): Promise<(PostCard & { cover_image: string | null; cover_alt: string | null })[]> {
+): Promise<GuideCardPost[]> {
   const supabase = db();
   if (!supabase) return [];
   const { data } = await supabase
     .from("posts")
-    .select(`${CARD_COLS},cover_image,cover_alt`)
+    .select(GUIDE_CARD_COLS)
     .order("published_at", { ascending: false })
     .limit(30);
-  type Row = PostCard & { cover_image: string | null; cover_alt: string | null };
-  const rows = (data as unknown as Row[]) ?? [];
+  const rows = (data as unknown as GuideCardPost[]) ?? [];
   const covered = rows.filter((r) => r.cover_image);
   const rest = rows.filter((r) => !r.cover_image);
   return [...covered, ...rest].slice(0, limit);
@@ -116,37 +121,47 @@ export async function getAllPostSlugs(): Promise<
  * links pointing at it at all. Instead the window is chosen from the whole
  * category by the post's own id — stable for a given page, different between
  * pages — so the links spread across everything in the cluster.
+ *
+ * The cards are picture cards, so guides with a cover image are rotated
+ * through first and uncovered ones only fill a short row. (The back
+ * catalogue's internal links no longer depend on this list: every guide is
+ * linked from other guides' bodies, which the SEO audit checks.)
  */
 export async function getRelatedPosts(
   post: Pick<Post, "id" | "category">,
   limit = 4,
-): Promise<PostCard[]> {
+): Promise<GuideCardPost[]> {
   const supabase = db();
   if (!supabase) return [];
 
   if (post.category?.id) {
     const { data } = await supabase
       .from("posts")
-      .select(CARD_COLS)
+      .select(GUIDE_CARD_COLS)
       .eq("category_id", post.category.id)
       .neq("id", post.id)
       .order("published_at", { ascending: false })
       .limit(300);
-    const pool = (data as unknown as PostCard[]) ?? [];
-    if (pool.length) return rotate(pool, post.id, limit);
+    const pool = (data as unknown as GuideCardPost[]) ?? [];
+    if (pool.length) {
+      const covered = rotate(pool.filter((p) => p.cover_image), post.id, limit);
+      const rest = rotate(pool.filter((p) => !p.cover_image), post.id, limit - covered.length);
+      return [...covered, ...rest].slice(0, limit);
+    }
   }
 
   const { data } = await supabase
     .from("posts")
-    .select(CARD_COLS)
+    .select(GUIDE_CARD_COLS)
     .neq("id", post.id)
     .order("published_at", { ascending: false })
     .limit(limit);
-  return (data as unknown as PostCard[]) ?? [];
+  return (data as unknown as GuideCardPost[]) ?? [];
 }
 
 /** `limit` consecutive items from `pool`, starting at a point fixed by `seed`. */
 function rotate<T>(pool: T[], seed: string, limit: number): T[] {
+  if (limit <= 0) return [];
   if (pool.length <= limit) return pool;
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
