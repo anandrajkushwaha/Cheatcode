@@ -1,16 +1,18 @@
 /**
- * The one host the site is served from: cheatcodeapp.com, no www.
+ * The one host the site is served from: www.cheatcodeapp.com.
  *
- * Search Console showed Google holding two copies of most pages, one on www
- * and one without, and 126 URLs reported as "Page with redirect": the
- * canonicals and the sitemap were naming a host that redirects. Whatever the
- * environment says, a www form of the production host is folded back here,
- * so every canonical, sitemap entry and JSON-LD URL names the page that
- * actually answers with a 200.
+ * Vercel serves the site on www and 308-redirects the bare domain to it.
+ * Search Console listed 126 bare-domain URLs as "Page with redirect": the
+ * canonicals and the sitemap were naming cheatcodeapp.com, which never
+ * answers with a page. Whatever the environment says, either form of the
+ * production host resolves to www here, so every canonical, sitemap entry
+ * and JSON-LD URL names the URL that answers with a 200. (Chrome hides the
+ * "www" in its address bar, which is why the site looks like it lives on
+ * the bare domain; Search Console's redirect list is the reliable witness.)
  */
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://cheatcodeapp.com")
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.cheatcodeapp.com")
   .replace(/\/+$/, "")
-  .replace(/^https?:\/\/www\.cheatcodeapp\.com$/i, "https://cheatcodeapp.com");
+  .replace(/^https?:\/\/(www\.)?cheatcodeapp\.com$/i, "https://www.cheatcodeapp.com");
 
 export const SITE = {
   name: "Cheatcode",
