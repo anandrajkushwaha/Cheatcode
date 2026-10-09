@@ -70,6 +70,30 @@ export async function getPosts({
   return { posts: (data as unknown as PostCard[]) ?? [], total: count ?? 0 };
 }
 
+/**
+ * The newest guides for the landing page, the ones with a cover image first.
+ *
+ * The strip is a row of picture cards, and a card with no picture next to
+ * three that have one reads as broken. So it takes the newest guides that
+ * have a cover, and only tops up with uncovered ones if there are not enough.
+ */
+export async function getLatestGuidesWithCovers(
+  limit = 4,
+): Promise<(PostCard & { cover_image: string | null; cover_alt: string | null })[]> {
+  const supabase = db();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from("posts")
+    .select(`${CARD_COLS},cover_image,cover_alt`)
+    .order("published_at", { ascending: false })
+    .limit(30);
+  type Row = PostCard & { cover_image: string | null; cover_alt: string | null };
+  const rows = (data as unknown as Row[]) ?? [];
+  const covered = rows.filter((r) => r.cover_image);
+  const rest = rows.filter((r) => !r.cover_image);
+  return [...covered, ...rest].slice(0, limit);
+}
+
 export async function getAllPostSlugs(): Promise<
   { slug: string; updated_at: string }[]
 > {

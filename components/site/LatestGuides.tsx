@@ -1,14 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getPosts, getCategories } from "@/lib/queries/posts";
+import { getLatestGuidesWithCovers, getCategories } from "@/lib/queries/posts";
 import { Reveal } from "./Reveal";
 import { formatDate } from "@/components/content/bits";
 
-/** Latest guides strip for the landing page. Renders nothing if the blog is empty. */
+/**
+ * Latest guides strip for the landing page: four picture cards, the newest
+ * guides that have a cover image. Renders nothing if the blog is empty.
+ */
 export async function LatestGuides() {
-  const [{ posts }, categories] = await Promise.all([
-    getPosts({ page: 1, perPage: 6 }),
-    getCategories(),
-  ]);
+  const [posts, categories] = await Promise.all([getLatestGuidesWithCovers(4), getCategories()]);
 
   if (posts.length === 0) return null;
 
@@ -42,37 +43,59 @@ export async function LatestGuides() {
           </p>
         </Reveal>
 
-        <ul className="mt-14 grid gap-px overflow-hidden rounded-3xl border border-ink-08 bg-ink-08 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {posts.map((post, i) => (
-            <Reveal as="li" key={post.id} delay={(i % 3) * 70}>
+            <Reveal as="li" key={post.id} delay={(i % 4) * 70}>
               <Link
                 href={`/blog/${post.slug}`}
-                className="group flex h-full flex-col bg-paper p-7 transition-colors hover:bg-ink-04"
+                className="group flex h-full flex-col overflow-hidden rounded-3xl border border-ink-08 bg-paper transition-colors hover:border-ink-30"
               >
-                <div className="flex items-center gap-2.5 text-[0.72rem] text-ink-30">
-                  {post.category && (
-                    <span className="uppercase tracking-wider">
-                      {post.category.short_name ?? post.category.name}
-                    </span>
+                <div className="relative aspect-[16/9] w-full overflow-hidden bg-ink-04">
+                  {post.cover_image ? (
+                    <Image
+                      src={post.cover_image}
+                      alt={post.cover_alt || post.title}
+                      fill
+                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    // No cover: the category on a quiet panel, so the row still
+                    // reads as four cards rather than three and a gap.
+                    <div className="flex h-full items-end p-5">
+                      <span className="text-[0.8rem] font-medium uppercase tracking-[0.14em] text-ink-30">
+                        {post.category?.short_name ?? post.category?.name ?? "Guide"}
+                      </span>
+                    </div>
                   )}
-                  <span aria-hidden="true">·</span>
-                  <span>{post.reading_minutes} min</span>
                 </div>
 
-                <h3 className="mt-3 text-[1.05rem] font-medium leading-snug tracking-[-0.02em]">
-                  {post.title}
-                </h3>
+                <div className="flex flex-1 flex-col p-6">
+                  <div className="flex items-center gap-2.5 text-[0.72rem] text-ink-30">
+                    {post.category && (
+                      <span className="uppercase tracking-wider">
+                        {post.category.short_name ?? post.category.name}
+                      </span>
+                    )}
+                    <span aria-hidden="true">·</span>
+                    <span>{post.reading_minutes} min</span>
+                  </div>
 
-                <p className="mt-2.5 line-clamp-3 text-[0.9rem] leading-relaxed text-ink-50">
-                  {post.excerpt}
-                </p>
+                  <h3 className="mt-3 line-clamp-3 text-[1.02rem] font-medium leading-snug tracking-[-0.02em]">
+                    {post.title}
+                  </h3>
 
-                <time
-                  dateTime={post.published_at}
-                  className="mt-5 text-[0.75rem] text-ink-30"
-                >
-                  {formatDate(post.published_at)}
-                </time>
+                  <p className="mt-2.5 line-clamp-2 text-[0.88rem] leading-relaxed text-ink-50">
+                    {post.excerpt}
+                  </p>
+
+                  <time
+                    dateTime={post.published_at}
+                    className="mt-auto pt-5 text-[0.75rem] text-ink-30"
+                  >
+                    {formatDate(post.published_at)}
+                  </time>
+                </div>
               </Link>
             </Reveal>
           ))}
