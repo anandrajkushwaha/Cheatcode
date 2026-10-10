@@ -1,5 +1,6 @@
 import "server-only";
 import { createAppAdminClient } from "@/lib/supabase/app";
+import { PHONE_LOGIN_DOMAIN } from "@/lib/auth/identifier";
 
 /**
  * The list of people who have signed in.
@@ -39,6 +40,7 @@ export type PersonRow = {
   name: string | null;
   email: string | null;
   phone: string | null;
+  city: string | null;
   plan: string;
   planStatus: string;
   joinedAt: string;
@@ -114,11 +116,11 @@ export async function getPeople(limit = 500): Promise<Result<People>> {
   const base = "id,full_name,email,phone,plan,plan_status,created_at";
   let profiles = await db
     .from("profiles")
-    .select(`${base},signup_source,signup_campaign`)
+    .select(`${base},city,signup_source,signup_campaign`)
     .order("created_at", { ascending: false })
     .limit(limit + 1);
   // Before 91_attribution.sql there are no signup columns; list without them.
-  if (profiles.error && /signup_/.test(profiles.error.message)) {
+  if (profiles.error && /signup_|city/.test(profiles.error.message)) {
     profiles = (await db
       .from("profiles")
       .select(base)
@@ -137,6 +139,7 @@ export async function getPeople(limit = 500): Promise<Result<People>> {
     plan: string | null;
     plan_status: string | null;
     created_at: string;
+    city?: string | null;
     signup_source?: string | null;
     signup_campaign?: string | null;
   }[];
@@ -162,15 +165,19 @@ export async function getPeople(limit = 500): Promise<Result<People>> {
     data: {
       rows: people.map((p) => {
         const c = counts.get(p.id) ?? { drafts: 0, downloads: 0 };
+        // A number sign-up's email is only its login key; show the number.
+        const email = p.email?.endsWith(`@${PHONE_LOGIN_DOMAIN}`) ? null : p.email;
+        const phone = p.phone ? (p.phone.startsWith("+") ? p.phone : `+${p.phone}`) : null;
         return {
           id: p.id,
           name: p.full_name,
-          email: p.email,
-          phone: p.phone,
+          email,
+          phone,
+          city: p.city ?? null,
           plan: p.plan ?? "free",
           planStatus: p.plan_status ?? "inactive",
           joinedAt: p.created_at,
-          handle: p.email || p.phone || p.id.slice(0, 8),
+          handle: email || phone || p.id.slice(0, 8),
           drafts: c.drafts,
           downloads: c.downloads,
           source: p.signup_source ?? null,

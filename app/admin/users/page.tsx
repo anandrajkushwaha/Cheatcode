@@ -123,6 +123,7 @@ export default async function AdminPeople() {
                     </td>
                     <td className="max-w-[14rem] px-2 py-2.5 text-ink-50">
                       <span className="block truncate">{p.email ?? p.phone ?? "—"}</span>
+                      {p.city && <span className="block truncate text-ink-30">{p.city}</span>}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">{day(p.joinedAt)}</td>
                     <td className="max-w-[12rem] px-2 py-2.5 text-ink-50">

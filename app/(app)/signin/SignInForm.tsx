@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 import { parseIdentifier, type Identifier } from "@/lib/auth/identifier";
@@ -16,7 +16,7 @@ type Mode = "choose" | "identify" | "password" | "login" | "done";
  * and Facebook, where Google refuses to sign anybody in, which is exactly
  * where people tapping a Meta ad land.
  *
- * The second path is two short steps: the number or email, then a password.
+ * The second path is two short steps: the number or email, then name, city and a password.
  * A new one gets an account on the spot (no code or confirmation email to
  * chase from inside a webview); one that already has an account is asked for
  * its password instead. A number signs in with a password, not an SMS code:
@@ -25,15 +25,21 @@ type Mode = "choose" | "identify" | "password" | "login" | "done";
 export function SignInForm({
   next,
   initialMode = "choose",
+  initialIdentifier = "",
 }: {
   next: string;
   initialMode?: "choose" | "email";
+  /** What was typed when Continue was pressed before React loaded (see below). */
+  initialIdentifier?: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode === "email" ? "identify" : "choose");
-  const [raw, setRaw] = useState("");
+  const [raw, setRaw] = useState(initialIdentifier);
+  const rawInput = useRef<HTMLInputElement>(null);
   const [id, setId] = useState<Identifier | null>(null);
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [city, setCity] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +54,23 @@ export function SignInForm({
    * those browsers email/phone is offered first, with a way out to the real
    * browser for anyone who wants Google.
    */
+  /*
+   * On a slow phone, or with the ad pixels still loading, people type their
+   * number before React has taken over the page. The box shows it but `raw`
+   * is still empty, so Continue looked dead. Pick up whatever is already in
+   * the box once React is running.
+   */
+  useEffect(() => {
+    const typed = rawInput.current?.value;
+    if (typed) setRaw(typed);
+    // The no-JS fallback put the number in the address bar; take it back out.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("username")) {
+      url.searchParams.delete("username");
+      window.history.replaceState(null, "", url);
+    }
+  }, []);
+
   useEffect(() => {
     const ua = navigator.userAgent || "";
     const app = /Instagram/i.test(ua)
@@ -107,7 +130,10 @@ export function SignInForm({
   }
 
   function continueWithIdentifier() {
-    const parsed = parseIdentifier(raw);
+    // The box itself, not just state: see the effect above.
+    const typed = rawInput.current?.value ?? raw;
+    if (typed !== raw) setRaw(typed);
+    const parsed = parseIdentifier(typed);
     if (!parsed) {
       setError("Enter a 10-digit Indian mobile number or an email address.");
       return;
@@ -130,6 +156,14 @@ export function SignInForm({
 
   async function createAccount() {
     if (!id) return;
+    if (name.trim().length < 2) {
+      setError("Enter your name.");
+      return;
+    }
+    if (city.trim().length < 2) {
+      setError("Enter your city.");
+      return;
+    }
     if (password.length < 8) {
       setError("Use a password of at least 8 characters.");
       return;
@@ -140,7 +174,7 @@ export function SignInForm({
       const res = await fetch("/api/auth/email-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: raw, password }),
+        body: JSON.stringify({ identifier: id.kind === "phone" ? id.phone : id.email, password, name, city }),
       });
       if (res.status === 409) {
         // Already has an account: ask for that password instead.
@@ -182,7 +216,7 @@ export function SignInForm({
     mode === "identify"
       ? "Sign up with number or email"
       : mode === "password"
-        ? "Create your password"
+        ? "Create your account"
         : mode === "login"
           ? "Enter your password"
           : mode === "done"
@@ -193,7 +227,7 @@ export function SignInForm({
     mode === "identify"
       ? "Step 1 of 2 — your mobile number or email. New or returning, start here."
       : mode === "password"
-        ? `Step 2 of 2 — a password for ${id?.display}. At least 8 characters.`
+        ? `Step 2 of 2 — your name, city and a password for ${id?.display}.`
         : mode === "login"
           ? `Signing in as ${id?.display}.`
           : mode === "done"
@@ -279,12 +313,18 @@ export function SignInForm({
       {mode === "identify" && (
         <form
           className="mt-7 space-y-3"
+          // Pressed before React loads, the form falls back to a plain GET of
+          // this page; these fields bring the person back to this same step
+          // with their number filled in and `next` kept.
           onSubmit={(e) => {
             e.preventDefault();
             continueWithIdentifier();
           }}
         >
+          <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="method" value="email" />
           <input
+            ref={rawInput}
             autoFocus
             type="text"
             name="username"
@@ -297,9 +337,9 @@ export function SignInForm({
             placeholder="98765 43210 or you@example.com"
             className={field}
           />
+          {/* Never disabled: before React loads, state can't see what was typed. */}
           <button
             type="submit"
-            disabled={!raw.trim()}
             className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
           >
             Continue
@@ -327,15 +367,42 @@ export function SignInForm({
         >
           {/* The number or email as a hidden field, so password managers save the pair. */}
           <input type="text" name="username" autoComplete="username" value={raw} readOnly hidden />
+          {mode === "password" && (
+            <>
+              <input
+                autoFocus
+                type="text"
+                name="name"
+                autoComplete="name"
+                autoCapitalize="words"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your full name"
+                maxLength={80}
+                className={field}
+              />
+              <input
+                type="text"
+                name="city"
+                autoComplete="address-level2"
+                autoCapitalize="words"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Your city"
+                maxLength={60}
+                className={field}
+              />
+            </>
+          )}
           <div className="relative">
             <input
-              autoFocus
+              autoFocus={mode === "login"}
               type={showPassword ? "text" : "password"}
               name="password"
               autoComplete={mode === "password" ? "new-password" : "current-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "password" ? "At least 8 characters" : "Your password"}
+              placeholder={mode === "password" ? "Password, 8+ characters" : "Your password"}
               className={`${field} pr-16`}
             />
             <button
@@ -348,7 +415,12 @@ export function SignInForm({
           </div>
           <button
             type="submit"
-            disabled={busy || password.length < (mode === "password" ? 8 : 1)}
+            disabled={
+              busy ||
+              (mode === "password"
+                ? password.length < 8 || name.trim().length < 2 || city.trim().length < 2
+                : password.length < 1)
+            }
             className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
           >
             {busy

@@ -17,8 +17,8 @@ export const metadata: Metadata = {
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; username?: string }>;
 }) {
-  const { next } = await searchParams;
-  return SignInPage({ searchParams: Promise.resolve({ next, method: "email" }) });
+  const { next, username } = await searchParams;
+  return SignInPage({ searchParams: Promise.resolve({ next, method: "email", username }) });
 }

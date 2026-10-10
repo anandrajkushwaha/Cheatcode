@@ -21,6 +21,8 @@ export const dynamic = "force-dynamic";
  * login address on our own subdomain (see lib/auth/identifier.ts), because
  * Supabase only signs a phone in with a password when SMS is configured.
  *
+ * The name and city asked for alongside the password land on the profile.
+ *
  * Returns 201 when created, 409 when the address already has an account (the
  * form then asks for the existing password instead), 400 for bad input and
  * 429 when one address is hammering the endpoint.
@@ -43,13 +45,18 @@ function limited(ip: string): boolean {
   return h.n > MAX_PER_WINDOW;
 }
 
+/** Trimmed, inner whitespace collapsed, capped. Empty when not a string. */
+function clean(v: unknown, max: number): string {
+  return typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
+}
+
 export async function POST(request: Request) {
   const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   if (limited(ip)) {
     return Response.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
   }
 
-  let body: { identifier?: unknown; email?: unknown; password?: unknown };
+  let body: { identifier?: unknown; email?: unknown; password?: unknown; name?: unknown; city?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -60,12 +67,20 @@ export async function POST(request: Request) {
     typeof body.identifier === "string" ? body.identifier : typeof body.email === "string" ? body.email : "";
   const id = parseIdentifier(raw);
   const password = typeof body.password === "string" ? body.password : "";
+  const name = clean(body.name, 80);
+  const city = clean(body.city, 60);
 
   if (!id) {
     return Response.json(
       { error: "Enter a 10-digit Indian mobile number or an email address." },
       { status: 400 },
     );
+  }
+  if (name.length < 2) {
+    return Response.json({ error: "Enter your name." }, { status: 400 });
+  }
+  if (city.length < 2) {
+    return Response.json({ error: "Enter your city." }, { status: 400 });
   }
   if (password.length < 8 || password.length > 72) {
     return Response.json({ error: "Use a password of at least 8 characters." }, { status: 400 });
@@ -81,7 +96,8 @@ export async function POST(request: Request) {
     password,
     email_confirm: true,
     ...(id.kind === "phone" ? { phone: id.phone, phone_confirm: true } : {}),
-    user_metadata: { signup_method: id.kind },
+    // handle_new_user copies full_name and city into the profile row.
+    user_metadata: { signup_method: id.kind, full_name: name, city },
   });
 
   if (error) {
