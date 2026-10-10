@@ -16,7 +16,7 @@ type Mode = "choose" | "identify" | "password" | "login" | "done";
  * and Facebook, where Google refuses to sign anybody in, which is exactly
  * where people tapping a Meta ad land.
  *
- * The second path is two short steps: the email or number, then a password.
+ * The second path is two short steps: the number or email, then a password.
  * A new one gets an account on the spot (no code or confirmation email to
  * chase from inside a webview); one that already has an account is asked for
  * its password instead. A number signs in with a password, not an SMS code:
@@ -109,7 +109,7 @@ export function SignInForm({
   function continueWithIdentifier() {
     const parsed = parseIdentifier(raw);
     if (!parsed) {
-      setError("Enter an email address or a 10-digit Indian mobile number.");
+      setError("Enter a 10-digit Indian mobile number or an email address.");
       return;
     }
     setId(parsed);
@@ -180,7 +180,7 @@ export function SignInForm({
 
   const heading =
     mode === "identify"
-      ? "Sign up with email or phone"
+      ? "Sign up with number or email"
       : mode === "password"
         ? "Create your password"
         : mode === "login"
@@ -191,7 +191,7 @@ export function SignInForm({
 
   const sub =
     mode === "identify"
-      ? "Step 1 of 2 — your email or mobile number. New or returning, start here."
+      ? "Step 1 of 2 — your mobile number or email. New or returning, start here."
       : mode === "password"
         ? `Step 2 of 2 — a password for ${id?.display}. At least 8 characters.`
         : mode === "login"
@@ -222,7 +222,7 @@ export function SignInForm({
         <div className="mt-7 space-y-3">
           <p className="rounded-xl bg-ink-04 p-3.5 text-[0.84rem] leading-relaxed text-ink-70">
             You&apos;re in {inApp.app}&apos;s browser, where Google sign-in doesn&apos;t work. Sign up
-            with your email or phone number instead — it takes two steps.
+            with your mobile number or email instead — it takes two steps.
           </p>
           <button
             type="button"
@@ -230,7 +230,7 @@ export function SignInForm({
             disabled={busy}
             className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
           >
-            Continue with email / phone number
+            Continue with number / email
           </button>
           <button
             type="button"
@@ -271,7 +271,7 @@ export function SignInForm({
             disabled={busy}
             className="w-full rounded-full border border-ink-15 px-5 py-3 text-[0.92rem] text-ink-70 transition-colors hover:border-ink-30 disabled:opacity-40"
           >
-            Continue with email / phone number
+            Continue with number / email
           </button>
         </div>
       )}
@@ -294,7 +294,7 @@ export function SignInForm({
             spellCheck={false}
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
-            placeholder="you@example.com or 98765 43210"
+            placeholder="98765 43210 or you@example.com"
             className={field}
           />
           <button
@@ -325,7 +325,7 @@ export function SignInForm({
             void (mode === "password" ? createAccount() : logIn());
           }}
         >
-          {/* The email or number as a hidden field, so password managers save the pair. */}
+          {/* The number or email as a hidden field, so password managers save the pair. */}
           <input type="text" name="username" autoComplete="username" value={raw} readOnly hidden />
           <div className="relative">
             <input
@@ -369,7 +369,7 @@ export function SignInForm({
             }}
             className="w-full text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink"
           >
-            Use a different email or number
+            Use a different number or email
           </button>
         </form>
       )}

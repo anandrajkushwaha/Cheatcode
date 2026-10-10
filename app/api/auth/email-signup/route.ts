@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
   if (!id) {
     return Response.json(
-      { error: "Enter an email address or a 10-digit Indian mobile number." },
+      { error: "Enter a 10-digit Indian mobile number or an email address." },
       { status: 400 },
     );
   }

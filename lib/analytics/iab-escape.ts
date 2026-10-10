@@ -63,8 +63,8 @@ export const IAB_ESCAPE_SNIPPET = `
       function build() {
         if (!document.body || document.getElementById('cc-iab-banner')) return;
         var msg = platform === 'ios'
-          ? 'Sign up with your email or phone right here, or tap \\u22EF and choose \\u201COpen in Safari\\u201D to use Google.'
-          : 'Sign up with your email or phone right here, or tap \\u22EE and choose \\u201COpen in Chrome\\u201D to use Google.';
+          ? 'Sign up with your number or email right here, or tap \\u22EF and choose \\u201COpen in Safari\\u201D to use Google.'
+          : 'Sign up with your number or email right here, or tap \\u22EE and choose \\u201COpen in Chrome\\u201D to use Google.';
         var bar = document.createElement('div');
         bar.id = 'cc-iab-banner';
         bar.setAttribute('role', 'status');
