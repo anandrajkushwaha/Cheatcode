@@ -56,11 +56,15 @@ export const IAB_ESCAPE_SNIPPET = `
 
     function showBanner(platform) {
       if (get('cc_banner_closed') || document.getElementById('cc-iab-banner')) return;
+      // The sign-in card explains this itself, with an email option that
+      // works right here; the bar would only sit on top of it.
+      var path = window.location.pathname;
+      if (path === '/signin' || path === '/signup' || path.indexOf('/signin/') === 0 || path.indexOf('/signup/') === 0) return;
       function build() {
         if (!document.body || document.getElementById('cc-iab-banner')) return;
         var msg = platform === 'ios'
-          ? 'To sign in with Google, tap the share or \\u22EF menu and choose \\u201COpen in Safari\\u201D.'
-          : 'To sign in with Google, tap the \\u22EE menu and choose \\u201COpen in Chrome\\u201D or \\u201COpen in browser\\u201D.';
+          ? 'Sign up with your email right here, or tap \\u22EF and choose \\u201COpen in Safari\\u201D to use Google.'
+          : 'Sign up with your email right here, or tap \\u22EE and choose \\u201COpen in Chrome\\u201D to use Google.';
         var bar = document.createElement('div');
         bar.id = 'cc-iab-banner';
         bar.setAttribute('role', 'status');

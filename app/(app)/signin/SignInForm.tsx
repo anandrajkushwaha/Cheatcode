@@ -4,17 +4,31 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 
+type Mode = "choose" | "phone" | "otp" | "email" | "password" | "login" | "done";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 /**
- * Two ways in, because the audience splits.
+ * Three ways in, because the audience splits.
  *
  * Google is one tap and costs nothing, and almost every Indian student and
- * working professional already has a Gmail account. Phone OTP is the pattern
- * Naukri trained this market on, and some people simply trust it more — but
- * every message costs money and delivery is not guaranteed, so Google leads.
+ * working professional already has a Gmail account. Email and a password is
+ * the way in that works everywhere — above all inside Instagram and
+ * Facebook, where Google refuses to sign anybody in, which is exactly where
+ * people tapping a Meta ad land. Phone OTP stays for those who trust it.
+ *
+ * The email path is two short steps: the address, then a password. New
+ * addresses get an account created on the spot (no confirmation email to
+ * chase from inside a webview); an address that already has one is asked
+ * for its password instead.
  */
-export function SignInForm({ next }: { next: string }) {
+export function SignInForm({ next, initialMode = "choose" }: { next: string; initialMode?: "choose" | "email" }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"choose" | "phone" | "otp">("choose");
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -139,6 +153,71 @@ export function SignInForm({ next }: { next: string }) {
     }
   }
 
+  function continueWithEmail() {
+    const clean = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(clean)) {
+      setError("That doesn't look like an email address.");
+      return;
+    }
+    setEmail(clean);
+    setError(null);
+    setNotice(null);
+    setPassword("");
+    setMode("password");
+  }
+
+  async function signInWithPassword() {
+    const supabase = createAppBrowserClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    setMode("done");
+    router.push(next);
+    router.refresh();
+  }
+
+  async function createAccount() {
+    if (password.length < 8) {
+      setError("Use a password of at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/email-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.status === 409) {
+        // The address already has an account: ask for that password instead.
+        setMode("login");
+        setPassword("");
+        setNotice("You already have a Cheatcode account with this email. Enter its password to sign in.");
+        setBusy(false);
+        return;
+      }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "Couldn't create the account. Try again in a moment.");
+      }
+      await signInWithPassword();
+    } catch (e) {
+      setError(readable(e));
+      setBusy(false);
+    }
+  }
+
+  async function logIn() {
+    setBusy(true);
+    setError(null);
+    try {
+      await signInWithPassword();
+    } catch (e) {
+      setError(readable(e));
+      setBusy(false);
+    }
+  }
+
   const field =
     "w-full rounded-xl border border-ink-15 px-4 py-3 text-[16px] outline-none focus:border-ink-30 sm:text-[0.95rem]";
 
@@ -146,13 +225,37 @@ export function SignInForm({ next }: { next: string }) {
     // Width is the card's job now — this sits inside one on the sign-in page.
     <div className="w-full">
       <h1 className="text-[1.7rem] font-semibold leading-tight tracking-[-0.03em]">
-        {mode === "otp" ? "Enter the code" : "Sign in to Cheatcode"}
+        {mode === "otp"
+          ? "Enter the code"
+          : mode === "email"
+            ? "Sign up with email"
+            : mode === "password"
+              ? "Create your password"
+              : mode === "login"
+                ? "Enter your password"
+                : mode === "done"
+                  ? "You're in"
+                  : "Sign in to Cheatcode"}
       </h1>
       <p className="mt-2.5 text-[0.92rem] leading-relaxed text-ink-50">
         {mode === "otp"
           ? `We sent a six-digit code to ${e164}.`
-          : "New here or coming back, it is the same button — signing in with Google or your number is what creates the account."}
+          : mode === "email"
+            ? "Step 1 of 2 — your email. New or returning, start here."
+            : mode === "password"
+              ? `Step 2 of 2 — a password for ${email}. At least 8 characters.`
+              : mode === "login"
+                ? `Signing in as ${email}.`
+                : mode === "done"
+                  ? "Taking you to Cheatcode…"
+                  : "New here or coming back, it is the same screen — Google, email or your number all create the account on first use."}
       </p>
+
+      {notice && !error && (
+        <p className="mt-5 rounded-xl bg-ink-04 p-3.5 text-[0.85rem] leading-relaxed text-ink-70">
+          {notice}
+        </p>
+      )}
 
       {error && (
         <p className="mt-5 rounded-xl border border-ink-30 p-3.5 text-[0.85rem] leading-relaxed">
@@ -163,16 +266,24 @@ export function SignInForm({ next }: { next: string }) {
       {mode === "choose" && inApp && (
         <div className="mt-7 space-y-3">
           <p className="rounded-xl bg-ink-04 p-3.5 text-[0.84rem] leading-relaxed text-ink-70">
-            You&apos;re in {inApp.app}&apos;s browser, where Google sign-in doesn&apos;t work. Use your
-            mobile number, or open this page in {inApp.android ? "Chrome" : "Safari or Chrome"}.
+            You&apos;re in {inApp.app}&apos;s browser, where Google sign-in doesn&apos;t work. Sign up
+            with your email instead — it takes two steps.
           </p>
+          <button
+            type="button"
+            onClick={() => { setMode("email"); setError(null); }}
+            disabled={busy}
+            className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
+          >
+            Continue with email
+          </button>
           <button
             type="button"
             onClick={() => { setMode("phone"); setError(null); }}
             disabled={busy}
-            className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
+            className="w-full rounded-full border border-ink-15 px-5 py-3 text-[0.92rem] text-ink-70 disabled:opacity-40"
           >
-            Continue with mobile number
+            Use my mobile number
           </button>
           <button
             type="button"
@@ -207,6 +318,15 @@ export function SignInForm({ next }: { next: string }) {
           >
             <GoogleMark />
             Continue with Google
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setMode("email"); setError(null); }}
+            disabled={busy}
+            className="w-full rounded-full border border-ink-15 px-5 py-3 text-[0.92rem] text-ink-70 transition-colors hover:border-ink-30 disabled:opacity-40"
+          >
+            Continue with email
           </button>
 
           <button
@@ -252,6 +372,84 @@ export function SignInForm({ next }: { next: string }) {
             Back
           </button>
         </div>
+      )}
+
+      {mode === "email" && (
+        <form
+          className="mt-7 space-y-3"
+          onSubmit={(e) => { e.preventDefault(); continueWithEmail(); }}
+        >
+          <input
+            autoFocus
+            type="email"
+            name="email"
+            autoComplete="email"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className={field}
+          />
+          <button
+            type="submit"
+            disabled={!email.trim()}
+            className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
+          >
+            Continue
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("choose"); setError(null); }}
+            className="w-full text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink"
+          >
+            Other ways to sign in
+          </button>
+        </form>
+      )}
+
+      {(mode === "password" || mode === "login") && (
+        <form
+          className="mt-7 space-y-3"
+          onSubmit={(e) => { e.preventDefault(); void (mode === "password" ? createAccount() : logIn()); }}
+        >
+          {/* The address as a hidden field, so password managers save the pair. */}
+          <input type="email" name="email" autoComplete="username" value={email} readOnly hidden />
+          <div className="relative">
+            <input
+              autoFocus
+              type={showPassword ? "text" : "password"}
+              name="password"
+              autoComplete={mode === "password" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === "password" ? "At least 8 characters" : "Your password"}
+              className={`${field} pr-16`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[0.8rem] text-ink-30 hover:text-ink"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+          <button
+            type="submit"
+            disabled={busy || password.length < (mode === "password" ? 8 : 1)}
+            className="w-full rounded-full bg-ink px-5 py-3 text-[0.92rem] font-medium text-paper disabled:opacity-40"
+          >
+            {busy
+              ? mode === "password" ? "Creating your account…" : "Signing in…"
+              : mode === "password" ? "Create account" : "Sign in"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("email"); setPassword(""); setError(null); setNotice(null); }}
+            className="w-full text-[0.85rem] text-ink-30 underline underline-offset-4 hover:text-ink"
+          >
+            Use a different email
+          </button>
+        </form>
       )}
 
       {mode === "otp" && (
@@ -319,6 +517,12 @@ export function SignInForm({ next }: { next: string }) {
 /** Supabase's errors are written for developers. These are for people. */
 function readable(e: unknown): string {
   const raw = e instanceof Error ? e.message : String(e);
+  if (/invalid login credentials/i.test(raw)) {
+    return "That password doesn't match this email. If you first signed up with Google, use \"Continue with Google\" in Chrome or Safari instead.";
+  }
+  if (/email logins are disabled|email provider/i.test(raw)) {
+    return "Email sign-in isn't switched on yet. Enable it in Supabase under Authentication → Providers → Email.";
+  }
   if (/provider is not enabled|Unsupported provider/i.test(raw)) {
     return "That sign-in method isn't switched on yet in Supabase. Enable it under Authentication → Providers.";
   }

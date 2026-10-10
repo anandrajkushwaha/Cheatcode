@@ -16,9 +16,9 @@ export const metadata: Metadata = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; method?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, method } = await searchParams;
   // Only ever redirect within this site: an open redirect here would let
   // someone send a signed-in user to a page they control.
   const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
@@ -72,7 +72,7 @@ export default async function SignInPage({
 
       <div className="flex flex-1 items-center justify-center px-4 pb-16 pt-2 sm:pb-24">
         <div className="w-full max-w-[34rem] rounded-[1.75rem] bg-paper p-7 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.45)] sm:p-10">
-          <SignInForm next={target} />
+          <SignInForm next={target} initialMode={method === "email" ? "email" : "choose"} />
         </div>
       </div>
     </main>
