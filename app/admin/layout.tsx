@@ -55,6 +55,9 @@ const NAV = [
   // an unanswered one is somebody who paid and heard nothing.
   { href: "/admin/resume-requests", label: "Reviews queue" },
   { href: "/admin/users", label: "People" },
+  // Beside People: the same kind of list, from the free ATS checker, with or
+  // without an account.
+  { href: "/admin/leads", label: "ATS leads" },
   // After People because it answers the next question: People says how many
   // signed up, this says who they are — read out of their own résumés.
   { href: "/admin/user-analytics", label: "User analytics" },

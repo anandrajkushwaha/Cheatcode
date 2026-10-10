@@ -286,6 +286,12 @@ function sessionTouch(): Touch {
   return touch;
 }
 
+/** This visit's source, for forms that record where a lead came from. */
+export function currentTouch(): Touch | null {
+  if (typeof window === "undefined") return null;
+  return sessionTouch();
+}
+
 export function trackPageView(path: string) {
   if (typeof window === "undefined" || window.__ccBot) return;
   if (path.startsWith("/admin") || isAdminSurface() || isOwner()) return;

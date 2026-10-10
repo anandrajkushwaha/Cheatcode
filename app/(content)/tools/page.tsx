@@ -6,7 +6,7 @@ import { Breadcrumbs } from "@/components/content/bits";
 export const metadata: Metadata = buildMetadata({
   title: "Free Career Tools for Indian Job Seekers | Cheatcode",
   description:
-    "Free tools for Indian job seekers — a resume ATS checker and an in-hand salary calculator. Everything runs in your browser. No signup, nothing stored.",
+    "Free tools for Indian job seekers — a resume ATS checker and an in-hand salary calculator. Everything runs in your browser. No signup.",
   path: "/tools",
 });
 
@@ -37,7 +37,7 @@ export default function ToolsHub() {
         <span className="text-ink-30"> No login, no catch.</span>
       </h1>
       <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-70">
-        Everything runs in your browser. Nothing you type is sent anywhere or stored.
+        Everything runs in your browser. Your files are never uploaded.
       </p>
 
       <div className="mt-12 grid gap-4 sm:grid-cols-2">

@@ -16,7 +16,7 @@ export default function StudioAtsPage() {
         </h1>
         <p className="mt-2 max-w-[60ch] text-[0.87rem] leading-relaxed text-ink-50">
           Before a recruiter reads your resume, software does. This reads it the
-          same way and reports what came out — in your browser, nothing uploaded.
+          same way and reports what came out — in your browser, the file is never uploaded.
         </p>
       </div>
 

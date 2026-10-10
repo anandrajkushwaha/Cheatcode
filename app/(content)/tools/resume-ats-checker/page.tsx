@@ -17,7 +17,7 @@ const FAQ = [
   },
   {
     q: "Does this upload my resume anywhere?",
-    a: "No. The file is read inside your browser using JavaScript. It is never sent to our servers, never stored, and disappears the moment you close the tab. That is also why there is no signup — there is nothing to attach an account to.",
+    a: "The file itself, no. It is read inside your browser using JavaScript and is never sent to our servers. What we do save is the contact block from it — your name, email and phone number — along with your score, so Cheatcode can contact you about your resume and jobs. The rest of your resume is not sent or stored.",
   },
   {
     q: "Why does my beautifully designed resume score badly?",
@@ -40,7 +40,7 @@ const FAQ = [
 export const metadata: Metadata = buildMetadata({
   title: "Free Resume ATS Checker — Real Score & Weak Points | Cheatcode",
   description:
-    "Upload your resume and see what an ATS actually reads. Real parse-based score, plus the exact weak points costing you interviews. No signup, nothing uploaded.",
+    "Upload your resume and see what an ATS actually reads. Real parse-based score, plus the exact weak points costing you interviews. No signup, and the file is never uploaded.",
   path: "/tools/resume-ats-checker",
 });
 
@@ -67,7 +67,7 @@ export default function AtsCheckerPage() {
           and the exact lines costing you it.
         </p>
         <p className="mt-4 text-[0.8rem] text-ink-30">
-          Free · No signup · Runs entirely in your browser · Nothing uploaded
+          Free · No signup · File read in your browser, never uploaded
         </p>
       </div>
 

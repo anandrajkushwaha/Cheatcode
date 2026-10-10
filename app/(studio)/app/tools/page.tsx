@@ -34,8 +34,8 @@ export default function StudioToolsPage() {
       <div>
         <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Free tools</h1>
         <p className="mt-2 max-w-[58ch] text-[0.87rem] leading-relaxed text-ink-50">
-          Both run entirely in your browser. Nothing you upload here is sent
-          anywhere or stored.
+          Both run entirely in your browser. Files you choose here are never
+          uploaded.
         </p>
       </div>
 

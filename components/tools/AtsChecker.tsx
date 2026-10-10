@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EVENTS, track } from "@/lib/analytics/events";
+import { EVENTS, currentTouch, track } from "@/lib/analytics/events";
 import { metaTrack } from "@/lib/analytics/meta";
 import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
 import { ExtractError, extractResume } from "@/lib/tools/extract";
+import { findContact } from "@/lib/tools/contact";
 
 type State =
   | { phase: "idle" }
@@ -22,6 +23,33 @@ const ACCEPT =
   "application/pdf,.pdf," +
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx," +
   "text/plain,.txt,application/vnd.oasis.opendocument.text,.odt,application/rtf,.rtf"
+
+/**
+ * The contact block only — name, email, phone, LinkedIn — never the file
+ * or its text. The uploader says this happens. Fire and forget: the score
+ * is already on screen and nothing here may get in its way.
+ */
+function saveLead(text: string, score: number, fileType: string) {
+  try {
+    const c = findContact(text);
+    if (!c.email && !c.phone) return;
+    void fetch("/api/tools/ats-lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        ...c,
+        score,
+        fileType,
+        landing: window.location.pathname,
+        inApp: /Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(navigator.userAgent || ""),
+        touch: currentTouch(),
+      }),
+    }).catch(() => {});
+  } catch {
+    /* never in the way of the score */
+  }
+}
 
 /**
  * @param context  Which door this is being rendered behind. The public page
@@ -61,6 +89,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
       setState({ phase: "done", name: file.name, result });
       // A finished free check is the lead the ads are optimised for.
       metaTrack("Lead", { content_name: "resume-ats-checker" });
+      saveLead(facts.text, result.score, facts.fileType);
 
       track(EVENTS.TOOL_COMPUTE, {
         label: "resume-ats-checker",
@@ -139,8 +168,17 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
           <p className="mx-auto mt-3 max-w-[46ch] text-[0.95rem] leading-relaxed text-ink-50">
             {state.phase === "reading"
               ? state.name
-              : "PDF, DOCX or TXT. It is read inside your browser — the file is never uploaded, and nothing is stored."}
+              : "PDF, DOCX or TXT. The file is read inside your browser and never uploaded."}
           </p>
+          {state.phase !== "reading" && (
+            <p className="mx-auto mt-2 max-w-[52ch] text-[0.8rem] leading-relaxed text-ink-30">
+              We save the name, email and phone number from your resume so Cheatcode can
+              contact you about your resume and jobs.{" "}
+              <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">
+                Privacy
+              </Link>
+            </p>
+          )}
 
           {state.phase !== "reading" && (
             <>

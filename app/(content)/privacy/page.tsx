@@ -18,8 +18,10 @@ import { LegalPage, LegalSummary } from "@/components/content/LegalPage";
  *  1. No IP address is written to our own tables. app/api/track reads the
  *     address to test it against ANALYTICS_EXCLUDE_IPS and then drops it.
  *     Adding an ip column to page_views would make this page false.
- *  2. The free ATS checker parses in the browser and uploads nothing. Moving
- *     that parse server-side would make this page false too.
+ *  2. The free ATS checker parses in the browser and never uploads the file.
+ *     It sends only the contact block it finds (name, email, phone, LinkedIn)
+ *     and the score to ats_leads. Sending the text or the file would make
+ *     this page false.
  *
  * NOTE FOR REVIEW: this is an accurate description of the system, not legal
  * advice. Before you take payments or open to EU traffic, have a lawyer read
@@ -54,7 +56,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           The free resume tools read your file inside your browser. The file
-          never reaches us.
+          never reaches us; the ATS checker saves only the name, email and phone
+          number written on it.
         </p>
         <p>
           Anything in your account — resume, chat history, profile — is deleted
@@ -104,11 +107,15 @@ export default function PrivacyPage() {
       <h3>When you use a free tool</h3>
       <p>
         The resume ATS checker and the salary calculator run entirely inside
-        your browser. Your resume file is read by JavaScript on your own device,
-        scored there, and forgotten when you close the tab. It is never
-        transmitted to us and there is no copy of it on any server of ours. What
-        we do record is the same anonymous event as any other page — that the
-        tool was used, and roughly from where.
+        your browser. Your resume file is read by JavaScript on your own device
+        and scored there. The file and its text are never transmitted to us and
+        there is no copy of it on any server of ours. The ATS checker does send
+        one thing: the contact details it finds on the resume — name, email,
+        phone number and LinkedIn link — with your score and the page or ad that
+        brought you, so that Cheatcode can contact you about your resume and
+        jobs. The checker says this beside the upload button. Otherwise we
+        record the same anonymous event as any other page — that the tool was
+        used, and roughly from where.
       </p>
 
       <h3>When you join the waitlist</h3>
@@ -269,7 +276,8 @@ export default function PrivacyPage() {
         Account data — profile, resumes, drafts, conversations — is kept until
         you delete it or ask us to close your account, after which it is removed
         from our live systems and disappears from backups as those age out.
-        Waitlist emails are kept until you ask to be taken off the list.
+        Waitlist emails, and contact details saved by the ATS checker, are kept
+        until you ask us to remove them.
         Analytics rows contain no name, email or address and are kept as a
         long-run record of how the site is doing. Usage counters are kept as
         long as they are needed for billing and limits.
