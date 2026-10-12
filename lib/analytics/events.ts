@@ -32,6 +32,12 @@ export const EVENTS = {
    * Journeys screen builds the ad funnel from these.
    */
   SIGNUP_STEP: "signup_step",
+  /**
+   * One step of /build-resume, the ad's template-first sign-up. label:
+   * template_click (params: template) | details_submit | account_created |
+   * existing_account | login | draft_created | error (params: reason).
+   */
+  BUILDER_STEP: "builder_step",
 
   // --- tools ---
   TOOL_VIEW: "tool_view", // params: label (tool slug)

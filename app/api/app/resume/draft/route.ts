@@ -63,10 +63,12 @@ export async function POST(request: Request) {
 
   let restart = false;
   let template: unknown;
+  let keepContact = false;
   try {
-    const body = (await request.json()) as { restart?: boolean; template?: unknown } | null;
+    const body = (await request.json()) as { restart?: boolean; template?: unknown; keepContact?: unknown } | null;
     restart = body?.restart === true;
     template = body?.template;
+    keepContact = body?.keepContact === true;
   } catch {
     // No body is the ordinary case: "give me my draft, make one if you must."
   }
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
     // A named template is a request for a new resume in it, not a re-skin of
     // the one they have — see createFromTemplate for why those are different.
     if (isTemplateId(template)) {
-      return Response.json({ ok: true, draft: await createFromTemplate(user.id, template) });
+      return Response.json({ ok: true, draft: await createFromTemplate(user.id, template, keepContact) });
     }
     const draft = restart ? await reseedDraft(user.id) : await getOrCreateDraft(user.id);
     return Response.json({ ok: true, draft });

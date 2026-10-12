@@ -28,7 +28,7 @@ const SOURCES: { id: SourceFilter; label: string }[] = [
 
 const OUTCOME = [
   "Left on the first page",
-  "Saw sign-up, left",
+  "Saw sign-up form, left",
   "Entered number, left",
   "Signed in",
   "Used ATS / resume",

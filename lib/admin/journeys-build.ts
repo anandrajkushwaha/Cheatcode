@@ -18,7 +18,7 @@
 
 export const STEPS = [
   "Landed",
-  "Saw sign-up",
+  "Saw sign-up form",
   "Entered number / email",
   "Signed in",
   "Used ATS / resume",
@@ -135,6 +135,27 @@ export type Event = {
 };
 
 function eventText(e: Event): string | null {
+  if (e.event === "builder_step") {
+    const p = e.params ?? {};
+    switch (e.label) {
+      case "template_click":
+        return `Picked template "${String(p.template ?? "?")}" — details form opened`;
+      case "details_submit":
+        return "Filled details, tapped Continue";
+      case "account_created":
+        return "Created account";
+      case "existing_account":
+        return "Already had an account — asked for password";
+      case "login":
+        return "Signed in with password";
+      case "draft_created":
+        return "Resume opened in the editor";
+      case "error":
+        return `Form error: ${String(p.reason ?? "unknown").slice(0, 80)}`;
+      default:
+        return `Builder: ${e.label ?? "step"}`;
+    }
+  }
   const p = e.params ?? {};
   if (e.event === "signup_step") {
     const method =
@@ -241,6 +262,13 @@ export function buildJourneys(
       if (pv.path.startsWith("/app/resume")) reach(4);
     }
     for (const ev of s.events) {
+      if (ev.event === "builder_step") {
+        reach(1);
+        if (ev.label === "details_submit" || ev.label === "existing_account")
+          reach(2);
+        if (ev.label === "account_created" || ev.label === "login") reach(3);
+        if (ev.label === "draft_created") reach(4);
+      }
       if (ev.event === "signup_step") {
         reach(1);
         if (ev.label === "identify" || ev.label === "existing_account")

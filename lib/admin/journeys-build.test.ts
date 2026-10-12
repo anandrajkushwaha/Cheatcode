@@ -89,3 +89,16 @@ test("Meta's ad-review data centres are hidden and counted", () => {
   assert.equal(r.total, 3);
   assert.equal(r.crawlers, 1);
 });
+
+test("the template-first page fills the same funnel", () => {
+  const v = [view("t", "/build-resume", "10")];
+  const e = [
+    ev("t", "builder_step", "template_click", "10", { params: { template: "aurora" } }),
+    ev("t", "builder_step", "details_submit", "11"),
+    ev("t", "builder_step", "account_created", "12"),
+    ev("t", "builder_step", "draft_created", "13"),
+  ];
+  const j = buildJourneys(v, e, "meta").journeys[0];
+  assert.deepEqual(j.reached, [0, 1, 2, 3, 4]);
+  assert.match(j.timeline[1].text, /aurora/);
+});

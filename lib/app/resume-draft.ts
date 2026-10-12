@@ -1,4 +1,5 @@
 import type { Profile, Resume } from "@/lib/app/account";
+import { PHONE_LOGIN_DOMAIN } from "@/lib/auth/identifier";
 import { analyseResume, type AtsResult, type ResumeFacts } from "@/lib/tools/ats";
 import {
   sectionOrder,
@@ -39,6 +40,23 @@ export type DraftContent = ResumeContent;
  * missed it, and the resume wins where both have an answer — it is the
  * document being edited, and the profile is a summary of it.
  */
+/**
+ * The profile's contact details as they should print. A number sign-up's
+ * auth email is only a login key on our own subdomain and must never reach a
+ * resume; its phone comes back from Supabase as bare digits ("9198…").
+ */
+function profileEmail(profile: Profile | null): string | null {
+  const e = profile?.email ?? null;
+  return e && !e.endsWith(`@${PHONE_LOGIN_DOMAIN}`) ? e : null;
+}
+
+function profilePhone(profile: Profile | null): string | null {
+  const p = profile?.phone ?? null;
+  if (!p) return null;
+  const d = p.replace(/\D/g, "");
+  return d.length === 12 && d.startsWith("91") ? `+91 ${d.slice(2, 7)} ${d.slice(7)}` : p;
+}
+
 export function seedFromResume(resume: Resume | null, profile: Profile | null): DraftContent {
   const p = resume?.parsed;
   const base = emptyResume();
@@ -47,9 +65,9 @@ export function seedFromResume(resume: Resume | null, profile: Profile | null): 
     ...base,
     ...(p ?? {}),
     full_name: p?.full_name ?? profile?.full_name ?? null,
-    email: p?.email ?? profile?.email ?? null,
-    phone: p?.phone ?? profile?.phone ?? null,
-    location: p?.location ?? profile?.preferred_cities?.[0] ?? null,
+    email: p?.email ?? profileEmail(profile),
+    phone: p?.phone ?? profilePhone(profile),
+    location: p?.location ?? profile?.city ?? profile?.preferred_cities?.[0] ?? null,
     headline: p?.headline ?? profile?.current_title ?? null,
     years_experience: p?.years_experience ?? profile?.years_experience ?? null,
     target_role: p?.target_role ?? profile?.target_roles?.[0] ?? null,

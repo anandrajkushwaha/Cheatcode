@@ -235,7 +235,12 @@ export async function getOrCreateDraft(userId: string): Promise<ResumeDraft> {
  * The new draft becomes primary, because somebody who just chose a template is
  * about to edit that one.
  */
-export async function createFromTemplate(userId: string, template: string): Promise<ResumeDraft> {
+export async function createFromTemplate(
+  userId: string,
+  template: string,
+  /** Put their name and contact details on the sample (see starterContent). */
+  keepContact = false,
+): Promise<ResumeDraft> {
   const supabase = await client();
 
   // Whatever they have, in order of preference: the draft they were last
@@ -250,7 +255,7 @@ export async function createFromTemplate(userId: string, template: string): Prom
         : emptyResume();
   // Nothing of theirs beyond a name? Open the template complete, with the
   // gallery's sample in it for them to write over — see starter-content.ts.
-  const content = starterContent(own, template);
+  const content = starterContent(own, template, keepContact);
 
   // Scored in the template it will be rendered in, because a sidebar and a
   // plain column are not worth the same number.

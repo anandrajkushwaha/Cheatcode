@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 import { parseIdentifier, type Identifier } from "@/lib/auth/identifier";
 import { EVENTS, track } from "@/lib/analytics/events";
+import { metaTrack } from "@/lib/analytics/meta";
 
 type Mode = "choose" | "identify" | "password" | "login" | "done";
 
@@ -196,6 +197,7 @@ export function SignInForm({
         throw new Error(body.error ?? "Couldn't create the account. Try again in a moment.");
       }
       track(EVENTS.SIGNUP_STEP, { label: "account_created", method: id.kind });
+      metaTrack("CompleteRegistration", { content_name: "signup" });
       await signInWithPassword(id);
     } catch (e) {
       track(EVENTS.SIGNUP_STEP, { label: "error", reason: readable(e).slice(0, 100) });

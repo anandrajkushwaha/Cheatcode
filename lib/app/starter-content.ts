@@ -26,13 +26,24 @@ export function isThin(r: Resume): boolean {
   );
 }
 
-export function starterContent(own: Resume, templateId: string): Resume {
+export function starterContent(own: Resume, templateId: string, keepContact = false): Resume {
   if (!isThin(own)) return own;
   // The template's own sample, complete and untouched. An earlier version put
   // the person's name and contact details into it, which read as their résumé
   // mixed with somebody else's jobs — worse than either. The whole document is
   // theirs to write over.
-  return sampleFor(templateId);
+  const sample = sampleFor(templateId);
+  // The exception is /build-resume, whose form says "these go at the top of
+  // your resume": there the header is theirs and the body is the sample to
+  // write over. Only what they gave replaces the sample's.
+  if (!keepContact) return sample;
+  return {
+    ...sample,
+    full_name: own.full_name || sample.full_name,
+    email: own.email || sample.email,
+    phone: own.phone || sample.phone,
+    location: own.location || sample.location,
+  };
 }
 
 /**

@@ -23,6 +23,8 @@ export type Profile = {
   expected_ctc: number | null;
   notice_period_days: number | null;
   preferred_cities: string[];
+  /** Given at sign-up with a number or an email (106_profile_city.sql). */
+  city?: string | null;
   open_to_remote: boolean;
   target_roles: string[];
   /**

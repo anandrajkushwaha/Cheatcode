@@ -56,7 +56,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
   }
 
-  let body: { identifier?: unknown; email?: unknown; password?: unknown; name?: unknown; city?: unknown };
+  let body: {
+    identifier?: unknown;
+    email?: unknown;
+    password?: unknown;
+    name?: unknown;
+    city?: unknown;
+    contactEmail?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -69,6 +76,11 @@ export async function POST(request: Request) {
   const password = typeof body.password === "string" ? body.password : "";
   const name = clean(body.name, 80);
   const city = clean(body.city, 60);
+  // A number sign-up can also give an email for the resume (/build-resume).
+  // The number stays the login; this becomes the profile's email instead of
+  // the internal login address.
+  const contact = parseIdentifier(clean(body.contactEmail, 254));
+  const contactEmail = contact?.kind === "email" ? contact.email : null;
 
   if (!id) {
     return Response.json(
@@ -91,13 +103,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Sign-up isn't configured yet." }, { status: 503 });
   }
 
-  const { error } = await admin.auth.admin.createUser({
+  const { data: created, error } = await admin.auth.admin.createUser({
     email: id.email,
     password,
     email_confirm: true,
     ...(id.kind === "phone" ? { phone: id.phone, phone_confirm: true } : {}),
     // handle_new_user copies full_name and city into the profile row.
-    user_metadata: { signup_method: id.kind, full_name: name, city },
+    user_metadata: { signup_method: id.kind, full_name: name, city, ...(contactEmail ? { contact_email: contactEmail } : {}) },
   });
 
   if (error) {
@@ -105,6 +117,11 @@ export async function POST(request: Request) {
       return Response.json({ exists: true }, { status: 409 });
     }
     return Response.json({ error: "Couldn't create the account. Try again in a moment." }, { status: 500 });
+  }
+
+  if (id.kind === "phone" && contactEmail && created.user) {
+    const { error: e } = await admin.from("profiles").update({ email: contactEmail }).eq("id", created.user.id);
+    if (e) console.error("[email-signup] contact email not saved", e.message);
   }
 
   return Response.json({ ok: true }, { status: 201 });

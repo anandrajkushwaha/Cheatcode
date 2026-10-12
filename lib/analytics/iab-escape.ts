@@ -6,7 +6,10 @@
  * (`disallowed_useragent`), so the Google button on /signin cannot work for
  * anybody arriving from an ad.
  *
- * Android gets a silent hop into Chrome via an `intent://` URL, keeping the
+ * Not on /signin, /signup or /build-resume: those work in the webview (number
+ * or email sign-up), so they stay put — see step 2 below.
+ *
+ * Elsewhere, Android gets a silent hop into Chrome via an `intent://` URL, keeping the
  * path and query so the UTM parameters survive the jump. iOS has no such
  * escape — Apple gives a webview no way to hand a URL to Safari — so it gets
  * a dismissible line at the bottom of the screen and nothing else. Every
@@ -32,7 +35,23 @@ export const IAB_ESCAPE_SNIPPET = `
     function get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
     function set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
 
-    // 2) Android: jump to Chrome via intent://
+    // 2) Pages that work fully inside the webview — sign-up by number or
+    //    email, and the template-first /build-resume — stay put. A forced
+    //    hop to Chrome there was an "open with?" prompt between an ad tap and
+    //    the form, and a Chrome tab without the session once they had signed
+    //    in. Marking the hop as tried keeps the next page (after sign-up) in
+    //    the webview too, where the person is signed in.
+    var here = window.location.pathname;
+    var stay = ['/signin', '/signup', '/build-resume'].some(function (p) {
+      return here === p || here.indexOf(p + '/') === 0;
+    });
+    if (stay) {
+      set('cc_intent_tried', '1');
+      set('cc_banner_closed', '1');
+      return;
+    }
+
+    // 3) Android: jump to Chrome via intent://
     if (isAndroid) {
       if (!get('cc_intent_tried')) {
         set('cc_intent_tried', '1'); // never loop
@@ -51,7 +70,7 @@ export const IAB_ESCAPE_SNIPPET = `
       return;
     }
 
-    // 3) iOS: banner only, never blocks the page
+    // 4) iOS: banner only, never blocks the page
     if (isIOS) showBanner('ios');
 
     function showBanner(platform) {

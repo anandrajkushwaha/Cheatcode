@@ -44,6 +44,7 @@ export function TemplateGallery({
   content,
   current,
   basePath = "/app",
+  onPick,
 }: {
   /** Their own draft's content. Absent for somebody with no resume yet —
    *  the gallery still shows, on the sample, and picking a template starts
@@ -53,6 +54,11 @@ export function TemplateGallery({
   current: string | null;
   /** Which shell to open the editor in. /app by default; the studio passes its own. */
   basePath?: string;
+  /**
+   * Take over what a click does. The signed-out /build-resume page uses it to
+   * ask for the person's details first; there is no draft to create yet.
+   */
+  onPick?: (template: string) => void;
 }) {
   const router = useRouter();
   const [filters, setFilters] = useState<Filters>({});
@@ -100,6 +106,10 @@ export function TemplateGallery({
   }, [shown.length]);
 
   async function choose(template: string) {
+    if (onPick) {
+      onPick(template);
+      return;
+    }
     // Already the one in use: open it. Creating a draft here would start a
     // fresh document and strand every design edit made to the current one.
     if (template === current) {
