@@ -61,8 +61,16 @@ function osOf(request: Request, ua: string): string {
   return "unknown";
 }
 
-/** Order matters: several browsers include "Chrome" or "Safari" in their UA. */
+/**
+ * Order matters: several browsers include "Chrome" or "Safari" in their UA,
+ * and the in-app browsers (where a Meta ad opens) include both — they are
+ * checked first so an Instagram tap is not filed as Chrome.
+ */
 function browserOf(ua: string): string {
+  if (/Instagram/i.test(ua)) return "Instagram app";
+  if (/FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) return "Facebook app";
+  if (/LinkedInApp/i.test(ua)) return "LinkedIn app";
+  if (/Snapchat/i.test(ua)) return "Snapchat app";
   if (/Edg\//i.test(ua)) return "Edge";
   if (/OPR\/|Opera/i.test(ua)) return "Opera";
   if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
@@ -122,7 +130,12 @@ export async function POST(request: Request) {
   // spectacular blog session. Worse, the Content screen filters these out
   // while the Traffic screen did not, so the two dashboards disagreed with
   // each other. What happens inside the app belongs to the app's own tables.
-  if (path === "/app" || path.startsWith("/app/")) return ok();
+  // The exception is the handful of funnel events the admin's Journeys screen
+  // is built from — an ATS score inside the app is the end of an ad's
+  // journey, and dropping it made every such visit look abandoned.
+  const FUNNEL_EVENTS = ["signup_step", "tool_compute", "tool_input"];
+  const funnelEvent = body.kind === "event" && FUNNEL_EVENTS.includes(String(body.event));
+  if ((path === "/app" || path.startsWith("/app/")) && !funnelEvent) return ok();
 
   // Neither is anything you do yourself. Three independent ways to be
   // recognised as the owner, because each covers a case the others miss:

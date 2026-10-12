@@ -49,6 +49,34 @@ export function GoogleAnalytics() {
   // every hit, so setting it late still stops everything that follows. It is
   // re-checked on every route change and every time the tab is shown again,
   // because a session restart after idle is precisely when the stray hit goes.
+  // GA4's enhanced measurement sends its own page_view on every history
+  // change, the moment the URL changes — before any effect here runs. So a
+  // client-side hop from the site into /admin (or the back button onto it)
+  // was counted. Switch GA off as the URL changes, not after: wrap
+  // pushState/replaceState before gtag loads (gtag then wraps ours, so ours
+  // runs first), and listen to popstate ahead of it too.
+  useEffect(() => {
+    if (!GA_ID || window.__ccHistoryGuard) return;
+    window.__ccHistoryGuard = true;
+    const key = `ga-disable-${GA_ID}`;
+    const guard = (url: unknown) => {
+      try {
+        const path = new URL(String(url), window.location.href).pathname;
+        if (path.startsWith("/admin")) (window as unknown as Record<string, unknown>)[key] = true;
+      } catch {
+        /* a URL we can't read is not an admin URL */
+      }
+    };
+    for (const name of ["pushState", "replaceState"] as const) {
+      const original = window.history[name];
+      window.history[name] = function (this: History, data: unknown, unused: string, url?: string | URL | null) {
+        if (url != null) guard(url);
+        return original.call(this, data, unused, url);
+      };
+    }
+    window.addEventListener("popstate", () => guard(window.location.href), true);
+  }, []);
+
   useEffect(() => {
     if (!GA_ID) return;
     const key = `ga-disable-${GA_ID}`;

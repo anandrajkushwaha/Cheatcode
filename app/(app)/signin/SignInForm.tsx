@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppBrowserClient } from "@/lib/supabase/app-client";
 import { parseIdentifier, type Identifier } from "@/lib/auth/identifier";
+import { EVENTS, track } from "@/lib/analytics/events";
 
 type Mode = "choose" | "identify" | "password" | "login" | "done";
 
@@ -105,6 +106,7 @@ export function SignInForm({
   }
 
   async function withGoogle() {
+    track(EVENTS.SIGNUP_STEP, { label: "google" });
     setBusy(true);
     setError(null);
     try {
@@ -135,9 +137,11 @@ export function SignInForm({
     if (typed !== raw) setRaw(typed);
     const parsed = parseIdentifier(typed);
     if (!parsed) {
+      track(EVENTS.SIGNUP_STEP, { label: "identify_invalid" });
       setError("Enter a 10-digit Indian mobile number or an email address.");
       return;
     }
+    track(EVENTS.SIGNUP_STEP, { label: "identify", method: parsed.kind });
     setId(parsed);
     setError(null);
     setNotice(null);
@@ -177,6 +181,7 @@ export function SignInForm({
         body: JSON.stringify({ identifier: id.kind === "phone" ? id.phone : id.email, password, name, city }),
       });
       if (res.status === 409) {
+        track(EVENTS.SIGNUP_STEP, { label: "existing_account", method: id.kind });
         // Already has an account: ask for that password instead.
         setMode("login");
         setPassword("");
@@ -190,8 +195,10 @@ export function SignInForm({
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Couldn't create the account. Try again in a moment.");
       }
+      track(EVENTS.SIGNUP_STEP, { label: "account_created", method: id.kind });
       await signInWithPassword(id);
     } catch (e) {
+      track(EVENTS.SIGNUP_STEP, { label: "error", reason: readable(e).slice(0, 100) });
       setError(readable(e));
       setBusy(false);
     }
@@ -203,7 +210,9 @@ export function SignInForm({
     setError(null);
     try {
       await signInWithPassword(id);
+      track(EVENTS.SIGNUP_STEP, { label: "login", method: id.kind });
     } catch (e) {
+      track(EVENTS.SIGNUP_STEP, { label: "error", reason: readable(e).slice(0, 100) });
       setError(readable(e));
       setBusy(false);
     }

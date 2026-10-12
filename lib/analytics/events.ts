@@ -24,6 +24,15 @@ export const EVENTS = {
   WAITLIST_SUCCESS: "waitlist_success",
   WAITLIST_ERROR: "waitlist_error", // params: label (reason)
 
+  // --- sign-up ---
+  /**
+   * One step of the sign-in screen. label: google | identify |
+   * identify_invalid | account_created | existing_account | login | error.
+   * params: method (phone | email), reason (error text). The admin's
+   * Journeys screen builds the ad funnel from these.
+   */
+  SIGNUP_STEP: "signup_step",
+
   // --- tools ---
   TOOL_VIEW: "tool_view", // params: label (tool slug)
   TOOL_COMPUTE: "tool_compute", // params: label, value
@@ -73,6 +82,8 @@ declare global {
     /** Hits made before gtag loaded; flushed by components/GoogleAnalytics. */
     __gaQueue?: unknown[][];
     __ccBot?: string | null;
+    /** Set once the GA history guard is installed (components/GoogleAnalytics.tsx). */
+    __ccHistoryGuard?: boolean;
   }
 }
 

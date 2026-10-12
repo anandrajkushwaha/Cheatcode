@@ -44,6 +44,9 @@ const NAV = [
   { href: "/admin", label: "Dashboard" },
   // The website: visitors, sources, ad campaigns and the free tools.
   { href: "/admin/traffic", label: "Traffic" },
+  // Right after Traffic: the same visits, one at a time — the ad funnel and
+  // where each visitor left.
+  { href: "/admin/journeys", label: "Journeys" },
   // Beside Traffic, and after it: Traffic counts arrivals, this one says
   // which of our pages they arrived at — and which they never do.
   { href: "/admin/pages", label: "Pages" },
