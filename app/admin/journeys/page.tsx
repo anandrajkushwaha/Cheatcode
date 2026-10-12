@@ -212,7 +212,10 @@ export default async function AdminJourneys({
                           {OUTCOME[j.furthest]}
                         </span>
                         <span className="ml-auto text-[0.75rem] text-ink-30 tabular-nums">
-                          {j.pages} page{j.pages === 1 ? "" : "s"} · {duration(j.seconds)}
+                          {j.pages} page{j.pages === 1 ? "" : "s"}
+                          {/* One page and nothing after it says nothing about how long they
+                              stayed — the webview gives no signal on close — so no "0s". */}
+                          {j.seconds > 0 ? ` · ${duration(j.seconds)}` : ""}
                         </span>
                       </summary>
                       <div className="mb-4 rounded-xl bg-ink-04 p-4 text-[0.8rem]">
