@@ -1,3 +1,4 @@
+import { cache } from "react";
 import "server-only";
 import { createPublicClient } from "@/lib/supabase/public";
 import type { Post, PostCard, Category, Author } from "@/types/db";
@@ -226,3 +227,14 @@ export async function getPostsByAuthor(authorId: string, limit = 50): Promise<Po
     .limit(limit);
   return (data as unknown as PostCard[]) ?? [];
 }
+
+/**
+ * Every published guide's slug and focus keyword, for the contextual links
+ * added at render time (lib/content/autolink.ts). Memoised per request.
+ */
+export const getLinkTargets = cache(async (): Promise<{ slug: string; focus_keyword: string | null }[]> => {
+  const supabase = db();
+  if (!supabase) return [];
+  const { data } = await supabase.from("posts").select("slug,focus_keyword").limit(2000);
+  return (data as { slug: string; focus_keyword: string | null }[] | null) ?? [];
+});

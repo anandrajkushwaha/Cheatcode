@@ -35,3 +35,14 @@ test("in-hand pages sort by package, crore last", () => {
 test("a category that is not a hub is not grouped", () => {
   assert.equal(groupForHub("linkedin", posts("a")), null);
 });
+
+test("series: package order on in-hand pages, with the calculator as hub", async () => {
+  const { seriesFor } = await import("@/lib/content/series");
+  const p = (slug: string) => ({ slug, title: slug });
+  const list = [p("20-lpa-in-hand-salary"), p("14-lpa-in-hand-salary"), p("16-lpa-in-hand-salary"), p("how-to-negotiate-salary")];
+  const s = seriesFor("salary", "Salary", list, "16-lpa-in-hand-salary")!;
+  assert.equal(s.prev?.label, "14 LPA");
+  assert.equal(s.next?.label, "20 LPA");
+  assert.equal(s.hub.href, "/tools/in-hand-salary-calculator");
+  assert.equal(seriesFor("linkedin", "LinkedIn", list, "x"), null);
+});

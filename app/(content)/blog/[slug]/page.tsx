@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getPostBySlug, getRelatedPosts, getAllPostSlugs } from "@/lib/queries/posts";
+import { getPostBySlug, getRelatedPosts, getAllPostSlugs, getLinkTargets, getPosts } from "@/lib/queries/posts";
+import { autolink, KEYWORD_LINKS, type LinkTarget } from "@/lib/content/autolink";
+import { isHub, packageLakhs } from "@/lib/content/hub-groups";
+import { LpaCompare, type Package } from "@/components/content/LpaCompare";
+import { seriesFor } from "@/lib/content/series";
 import { pickBanner } from "@/lib/queries/banners";
 import { PromoBanner } from "@/components/content/PromoBanner";
 import { withHeadingIds } from "@/lib/content/render";
@@ -68,12 +72,18 @@ export default async function ArticlePage({ params }: Props) {
   const post = await getPostBySlug(slug);
   if (!post) notFound();
 
-  const [related, inArticleBanner, sidebarBanner] = await Promise.all([
-    getRelatedPosts(post),
+  const catSlug = post.category?.slug ?? null;
+  const [related, inArticleBanner, sidebarBanner, linkRows, siblings] = await Promise.all([
+    getRelatedPosts(post, 6),
     pickBanner("in_article", post.slug),
     pickBanner("sidebar", post.slug),
+    getLinkTargets(),
+    catSlug && isHub(catSlug) ? getPosts({ categorySlug: catSlug, perPage: 300 }) : null,
   ]);
-  const body = withHeadingIds(post.content_html, post.toc);
+  const body = autolink(withHeadingIds(post.content_html, post.toc), linkTargets(linkRows), `/blog/${post.slug}`);
+  const series =
+    catSlug && siblings ? seriesFor(catSlug, post.category?.name ?? "guides", siblings.posts, post.slug) : null;
+  const lpa = packageNeighbours(post.slug, siblings?.posts ?? []);
   const url = `${SITE.url}/blog/${post.slug}`;
   const resumeArticle = isResumeCategory(post.category?.slug);
 
@@ -155,9 +165,41 @@ export default async function ArticlePage({ params }: Props) {
             {/* An article whose body already has its own FAQ section keeps that
                 one; the block would print the same questions twice. The FAQ
                 markup below is emitted either way. */}
+            {lpa && <LpaCompare {...lpa} />}
+
+            {series && (
+              <nav
+                aria-label={`More in ${series.group}`}
+                className="mt-12 rounded-2xl border border-ink-08 p-5 text-[0.9rem]"
+              >
+                <p className="text-[0.72rem] font-medium uppercase tracking-[0.14em] text-ink-30">
+                  {series.group}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                  {series.prev ? (
+                    <Link href={series.prev.href} rel="prev" className="text-ink-70 hover:text-ink">
+                      ← {series.prev.label}
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <Link href={series.hub.href} className="font-medium underline underline-offset-4">
+                    {series.hub.label}
+                  </Link>
+                  {series.next ? (
+                    <Link href={series.next.href} rel="next" className="text-ink-70 hover:text-ink">
+                      {series.next.label} →
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              </nav>
+            )}
+
             {!hasFaqSection(post.content_html) && <FaqBlock items={post.faq} />}
 
-            <ToolBlock slugs={post.related_tool_slugs} />
+            <ToolBlock slugs={post.related_tool_slugs?.length ? post.related_tool_slugs : defaultTools(catSlug)} />
 
             {/*
               After the answer, not before it. A share row above the article
@@ -273,7 +315,7 @@ export default async function ArticlePage({ params }: Props) {
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             Keep reading
           </h2>
-          <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((p) => (
               <li key={p.id}>
                 <GuideCard post={p} />
@@ -346,4 +388,38 @@ export default async function ArticlePage({ params }: Props) {
 /** Whether the body carries its own "FAQ" / "Frequently asked questions" H2. */
 function hasFaqSection(html: string): boolean {
   return /<h2[^>]*>[^<]*(faq|frequently asked)/i.test(html);
+}
+
+/**
+ * The keyword map for this render: the hand-picked phrases whose target is
+ * live, then each guide's own focus keyword when it is specific enough to
+ * mean that guide (two words or more).
+ */
+function linkTargets(rows: { slug: string; focus_keyword: string | null }[]): LinkTarget[] {
+  const live = new Set(rows.map((r) => `/blog/${r.slug}`));
+  const curated = KEYWORD_LINKS.filter((t) => !t.href.startsWith("/blog/") || live.has(t.href));
+  const own = rows
+    .filter((r) => r.focus_keyword && r.focus_keyword.trim().split(/\s+/).length >= 2 && r.focus_keyword.length >= 10)
+    .map((r) => ({ phrase: r.focus_keyword!.trim(), href: `/blog/${r.slug}` }));
+  return [...curated, ...own];
+}
+
+/** A tool for every guide that did not name one: the calculator for money, the ATS checker otherwise. */
+function defaultTools(categorySlug: string | null): string[] {
+  if (categorySlug === "salary" || categorySlug === "pf-tax") return ["in-hand-salary-calculator"];
+  if (categorySlug === "government-jobs-exams") return [];
+  return ["resume-ats-checker"];
+}
+
+/** An in-hand guide's package and the published packages either side of it. */
+function packageNeighbours(slug: string, siblings: { slug: string }[]) {
+  const lakhs = packageLakhs(slug);
+  if (lakhs === null) return null;
+  const all: Package[] = siblings
+    .map((p) => ({ slug: p.slug, lakhs: packageLakhs(p.slug) }))
+    .filter((p): p is Package => p.lakhs !== null)
+    .sort((a, b) => a.lakhs - b.lakhs);
+  const i = all.findIndex((p) => p.slug === slug);
+  if (i < 0) return null;
+  return { current: all[i], prev: all[i - 1] ?? null, next: all[i + 1] ?? null };
 }
