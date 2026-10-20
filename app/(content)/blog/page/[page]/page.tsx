@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPosts, POSTS_PER_PAGE } from "@/lib/queries/posts";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -14,18 +14,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `Career Guides — Page ${page} | Cheatcode`,
     description:
       "More practical guides on resumes, ATS, interviews, salary and job search for Indian job seekers.",
+    // Indexable, each with its own canonical. These were noindex, which left
+    // Google free to stop crawling them — and they are a path to every older
+    // guide. Google's own guidance for paginated series is a self-canonical
+    // on each page, not noindex and not a canonical to page 1.
     path: `/blog/page/${page}`,
-    // Paginated pages are crawlable but shouldn't compete with /blog in the index.
-    // Followed, though: these are the only path to an older guide from the hub.
-    noindex: true,
-    follow: true,
   });
 }
 
 export default async function BlogPaged({ params }: Props) {
   const { page: pageParam } = await params;
   const page = Number(pageParam);
-  if (!Number.isInteger(page) || page < 2) notFound();
+  if (pageParam === "1") permanentRedirect("/blog");
+  if (!Number.isInteger(page) || page < 2 || String(page) !== pageParam) notFound();
 
   const { posts, total } = await getPosts({ page });
   if (posts.length === 0) notFound();

@@ -66,6 +66,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ----------------------------------------------------------------- blog
+  // /blog?page=N used to answer 200 with page 1's posts — a duplicate of
+  // /blog for every N Google tried. The real pages live at /blog/page/N, so
+  // the query form is sent there, permanently, with nothing else carried.
+  if (pathname === "/blog" && request.nextUrl.searchParams.has("page")) {
+    const n = Number(request.nextUrl.searchParams.get("page"));
+    const url = request.nextUrl.clone();
+    url.search = "";
+    url.pathname = Number.isInteger(n) && n >= 2 ? `/blog/page/${n}` : "/blog";
+    return NextResponse.redirect(url, 301);
+  }
+
   // --------------------------------------------------------------- studio
   // /studio was the old address of the signed-in shell. Links to it are out
   // in the world — bookmarks, emails, anything already shared — so they are
@@ -143,5 +155,5 @@ export const config = {
   // /api/admin is listed explicitly: it does not start with /admin, so
   // without this line the API guard above would never run and the wall would
   // be a decoration.
-  matcher: ["/admin/:path*", "/api/admin/:path*", "/app/:path*", "/studio/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/app/:path*", "/studio/:path*", "/blog"],
 };

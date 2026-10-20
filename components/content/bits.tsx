@@ -105,6 +105,13 @@ export function Toc({ items }: { items: TocItem[] }) {
   );
 }
 
+/**
+ * Numbered pages plus Newer / Older, all plain links in the server HTML.
+ *
+ * Numbers matter for crawling, not only for people: with Newer/Older alone,
+ * page 20 was twenty hops from /blog. First, last and two either side of the
+ * current page are always shown, so any page is a couple of hops away.
+ */
 export function Pagination({
   page,
   totalPages,
@@ -118,23 +125,46 @@ export function Pagination({
   const href = (p: number) =>
     p === 1 ? basePath : `${basePath === "/blog" ? "/blog/page" : basePath}/${p}`;
 
+  const shown = new Set<number>([1, totalPages]);
+  for (let p = page - 2; p <= page + 2; p++) if (p >= 1 && p <= totalPages) shown.add(p);
+  const nums = [...shown].sort((a, b) => a - b);
+
   return (
     <nav
       aria-label="Pagination"
-      className="mt-14 flex items-center justify-between border-t border-ink-08 pt-8 text-[0.88rem]"
+      className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-ink-08 pt-8 text-[0.88rem]"
     >
       {page > 1 ? (
-        <Link href={href(page - 1)} className="text-ink-50 transition-colors hover:text-ink">
+        <Link href={href(page - 1)} rel="prev" className="text-ink-50 transition-colors hover:text-ink">
           ← Newer
         </Link>
       ) : (
         <span />
       )}
-      <span className="text-ink-30">
-        Page {page} of {totalPages}
-      </span>
+      <ol className="flex flex-wrap items-center gap-1">
+        {nums.map((n, i) => (
+          <li key={n} className="flex items-center gap-1">
+            {i > 0 && n - nums[i - 1] > 1 && <span className="px-1 text-ink-30">…</span>}
+            {n === page ? (
+              <span
+                aria-current="page"
+                className="grid h-8 min-w-8 place-items-center rounded-full bg-ink px-2 text-[0.8rem] text-paper"
+              >
+                {n}
+              </span>
+            ) : (
+              <Link
+                href={href(n)}
+                className="grid h-8 min-w-8 place-items-center rounded-full px-2 text-[0.8rem] text-ink-50 transition-colors hover:bg-ink-04 hover:text-ink"
+              >
+                {n}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
       {page < totalPages ? (
-        <Link href={href(page + 1)} className="text-ink-50 transition-colors hover:text-ink">
+        <Link href={href(page + 1)} rel="next" className="text-ink-50 transition-colors hover:text-ink">
           Older →
         </Link>
       ) : (
