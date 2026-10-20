@@ -2,6 +2,12 @@ import Link from "next/link";
 import { ExamCard } from "@/components/govt/bits";
 import type { Exam } from "@/lib/govt/types";
 
+const LISTS = [
+  { href: "/government-jobs/closing-soon", title: "Closing soon", label: "Closing soon" },
+  { href: "/government-jobs/dates-not-stated", title: "Dates not stated", label: "No stated closing date" },
+  { href: "/government-jobs/closed", title: "Closed recruitments", label: "Closed recruitments" },
+];
+
 /**
  * A list of recruitments in one lifecycle state.
  *
@@ -49,6 +55,21 @@ export function ExamListScreen({
           ))}
         </ul>
       )}
+
+      {/* The other two lists. Each lifecycle page is in the sitemap, and the
+          hub alone gave each one too few links in to be crawled with any
+          priority (the crawl check counts at least three). */}
+      <nav aria-label="Other lists" className="mt-10 flex flex-wrap gap-2">
+        {LISTS.filter((l) => l.title !== title).map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
+          >
+            {l.label}
+          </Link>
+        ))}
+      </nav>
 
       <p className="mt-10 max-w-[70ch] text-[0.8rem] leading-relaxed text-ink-30">
         Cheatcode is not a government body. Every notice links to the official notification on the
