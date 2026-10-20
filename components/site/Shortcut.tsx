@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { relFor } from "@/lib/content/autolink";
 import Link from "next/link";
 
 /**
@@ -73,6 +74,7 @@ export function Shortcut() {
             <li key={c.title} className="@container">
               <Link
                 href={c.href}
+                rel={relFor(c.href)}
                 data-ev="cta_click"
                 data-ev-location="shortcut"
                 data-ev-label={c.title}

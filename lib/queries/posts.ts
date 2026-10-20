@@ -101,16 +101,16 @@ export async function getLatestGuidesWithCovers(
 }
 
 export async function getAllPostSlugs(): Promise<
-  { slug: string; updated_at: string }[]
+  { slug: string; updated_at: string; category: { slug: string } | null }[]
 > {
   const supabase = db();
   if (!supabase) return [];
   const { data } = await supabase
     .from("posts")
-    .select("slug,updated_at")
+    .select("slug,updated_at,category:categories(slug)")
     .order("published_at", { ascending: false })
     .limit(5000);
-  return data ?? [];
+  return (data as unknown as { slug: string; updated_at: string; category: { slug: string } | null }[]) ?? [];
 }
 
 /**

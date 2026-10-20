@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { relFor } from "@/lib/content/autolink";
 import Link from "next/link";
 import { SITE } from "@/lib/seo/constants";
 import { FooterBanner } from "./FooterBanner";
@@ -167,7 +168,7 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
                     <ul className="mt-5 space-y-4">
                       {g.links.map((l) => (
                         <li key={`${g.title}-${l.label}`}>
-                          <Link href={l.href} className={link}>
+                          <Link href={l.href} rel={relFor(l.href)} className={link}>
                             {l.label}
                           </Link>
                         </li>

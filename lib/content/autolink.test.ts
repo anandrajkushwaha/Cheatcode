@@ -48,3 +48,13 @@ test("local paths from any form of href", () => {
   assert.equal(localPath("/tools"), "/tools");
   assert.equal(localPath("https://example.com/blog/a"), null);
 });
+
+test("links to sign-in and the app are nofollowed, guides are not", async () => {
+  const { nofollowPrivate, relFor } = await import("@/lib/content/autolink");
+  assert.equal(
+    nofollowPrivate('<a href="/signin?next=%2Fapp">a</a> <a href="/blog/x">b</a> <a href="/app" rel="x">c</a>'),
+    '<a href="/signin?next=%2Fapp" rel="nofollow">a</a> <a href="/blog/x">b</a> <a href="/app" rel="x">c</a>',
+  );
+  assert.equal(relFor("/signup"), "nofollow");
+  assert.equal(relFor("/signing-bonus"), undefined);
+});

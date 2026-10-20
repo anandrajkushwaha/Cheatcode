@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/seo/constants";
-import { getAllPostSlugs, getCategories } from "@/lib/queries/posts";
+import { getAllPostSlugs, getCategories, POSTS_PER_PAGE } from "@/lib/queries/posts";
 import { getPublishedBanks } from "@/lib/interview/bank";
 import { getExamSlugs } from "@/lib/govt/query";
 import { KIND_SLUG, NOTICE_KINDS } from "@/lib/govt/types";
@@ -26,23 +26,45 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getExamSlugs(),
   ]);
 
+  // lastmod is a real date or nothing. It used to be the moment the sitemap
+  // was built, on every page, which tells Google every page changed every ten
+  // minutes and so that lastmod means nothing. Listing pages take the date of
+  // the newest guide they show; pages with no meaningful date leave it out.
+  const time = (iso: string) => new Date(iso).getTime();
+  const latest = posts.length ? new Date(Math.max(...posts.map((p) => time(p.updated_at)))) : now;
+  const catLatest = new Map<string, Date>();
+  for (const p of posts) {
+    const c = p.category?.slug;
+    if (c && (!catLatest.has(c) || catLatest.get(c)!.getTime() < time(p.updated_at))) {
+      catLatest.set(c, new Date(p.updated_at));
+    }
+  }
+  const examLatest = exams.length ? new Date(Math.max(...exams.map((e) => time(e.updatedAt)))) : now;
+  const blogPages = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
+
   return [
-    { url: SITE.url, lastModified: now, changeFrequency: "daily", priority: 1 },
-    { url: `${SITE.url}/blog`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: SITE.url, lastModified: latest, changeFrequency: "daily", priority: 1 },
+    { url: `${SITE.url}/blog`, lastModified: latest, changeFrequency: "daily", priority: 0.9 },
+    // The paginated archive: indexable, self-canonical, and the path to every
+    // older guide (see app/(content)/blog/page/[page]).
+    ...Array.from({ length: blogPages - 1 }, (_, i) => ({
+      url: `${SITE.url}/blog/page/${i + 2}`,
+      lastModified: latest,
+      changeFrequency: "daily" as const,
+      priority: 0.5,
+    })),
     {
       url: `${SITE.url}/become-a-mentor`,
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.8,
     },
-    { url: `${SITE.url}/tools`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE.url}/tools`, changeFrequency: "monthly", priority: 0.7 },
     // The running feed is indexable (see its page); the single-story pages are not.
     { url: `${SITE.url}/insights`, lastModified: now, changeFrequency: "daily", priority: 0.7 },
     // Trust pages: who we are and the rules we publish by.
-    { url: `${SITE.url}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE.url}/about`, changeFrequency: "monthly", priority: 0.5 },
     {
       url: `${SITE.url}/editorial-standards`,
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.4,
     },
@@ -58,13 +80,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${SITE.url}/government-jobs`,
-      lastModified: now,
+      lastModified: examLatest,
       changeFrequency: "daily" as const,
       priority: 0.9,
     },
     ...NOTICE_KINDS.map((k) => ({
       url: `${SITE.url}/government-jobs/${KIND_SLUG[k]}`,
-      lastModified: now,
+      lastModified: examLatest,
       changeFrequency: "daily" as const,
       priority: 0.8,
     })),
@@ -75,7 +97,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        getExamSlugs, which only returns published and closed rows. */
     ...(["closing-soon", "closed", "dates-not-stated"] as const).map((seg) => ({
       url: `${SITE.url}/government-jobs/${seg}`,
-      lastModified: now,
+      lastModified: examLatest,
       changeFrequency: "daily" as const,
       priority: 0.7,
     })),
@@ -106,19 +128,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     {
       url: `${SITE.url}/tools/resume-ats-checker`,
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.9,
     },
     {
       url: `${SITE.url}/tools/in-hand-salary-calculator`,
-      lastModified: now,
+      lastModified: catLatest.get("salary") ?? latest,
       changeFrequency: "monthly",
       priority: 0.9,
     },
     {
       url: `${SITE.url}/authors/cheatcode-team`,
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.4,
     },
@@ -126,13 +146,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Low priority on purpose: these need to be findable and indexable — a
     // payment gateway checks that they resolve — without competing with the
     // guides for crawl budget.
-    { url: `${SITE.url}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE.url}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE.url}/refunds`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE.url}/privacy`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE.url}/terms`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE.url}/refunds`, changeFrequency: "yearly", priority: 0.3 },
 
     ...categories.map((c) => ({
       url: `${SITE.url}/blog/category/${c.slug}`,
-      lastModified: now,
+      lastModified: catLatest.get(c.slug) ?? latest,
       changeFrequency: "weekly" as const,
       priority: 0.7,
     })),

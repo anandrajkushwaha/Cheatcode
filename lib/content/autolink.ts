@@ -143,3 +143,19 @@ export function autolink(html: string, targets: LinkTarget[], selfPath: string, 
   }
   return parts.join("");
 }
+
+/** Paths that are noindex: sign-in, the app, the ad landing page. */
+const PRIVATE = /^(?:https?:\/\/(?:www\.)?cheatcodeapp\.com)?\/(?:signin|signup|app|admin|build-resume)(?:[/?#]|$)/i;
+
+/** rel for a link: nofollow when it points at a noindex page, so crawl time goes to the guides. */
+export function relFor(href: string): "nofollow" | undefined {
+  return PRIVATE.test(href) ? "nofollow" : undefined;
+}
+
+/** The same, applied to every link in a block of stored article HTML. */
+export function nofollowPrivate(html: string): string {
+  return html.replace(/<a\b([^>]*?)\bhref\s*=\s*(["'])([^"']+)\2([^>]*)>/gi, (whole, pre, q, href, post) => {
+    if (!relFor(href) || /\brel\s*=/i.test(pre + post)) return whole;
+    return `<a${pre}href=${q}${href}${q}${post} rel="nofollow">`;
+  });
+}

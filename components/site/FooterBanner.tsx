@@ -64,6 +64,7 @@ export function FooterBanner() {
             </p>
             <Link
               href="/signin"
+              rel="nofollow"
               data-ev="cta_click"
               data-ev-location="footer-banner"
               data-ev-label="Sign up free"

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { relFor } from "@/lib/content/autolink";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -247,6 +248,7 @@ export function Rulebook() {
                       </p>
                       <Link
                         href={p.href}
+                        rel={relFor(p.href)}
                         data-ev="cta_click"
                         data-ev-location="rulebook"
                         data-ev-label={p.cta}

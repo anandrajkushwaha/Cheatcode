@@ -69,6 +69,7 @@ export function Hero() {
 
           <Link
             href="/signin"
+            rel="nofollow"
             data-ev="cta_click"
             data-ev-location="hero"
             data-ev-label="Get Started"

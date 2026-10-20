@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPostBySlug, getRelatedPosts, getAllPostSlugs, getLinkTargets, getPosts } from "@/lib/queries/posts";
-import { autolink, KEYWORD_LINKS, type LinkTarget } from "@/lib/content/autolink";
+import { autolink, KEYWORD_LINKS, nofollowPrivate, type LinkTarget } from "@/lib/content/autolink";
 import { isHub, packageLakhs } from "@/lib/content/hub-groups";
 import { LpaCompare, type Package } from "@/components/content/LpaCompare";
 import { seriesFor } from "@/lib/content/series";
@@ -80,7 +80,9 @@ export default async function ArticlePage({ params }: Props) {
     getLinkTargets(),
     catSlug && isHub(catSlug) ? getPosts({ categorySlug: catSlug, perPage: 300 }) : null,
   ]);
-  const body = autolink(withHeadingIds(post.content_html, post.toc), linkTargets(linkRows), `/blog/${post.slug}`);
+  const body = nofollowPrivate(
+    autolink(withHeadingIds(post.content_html, post.toc), linkTargets(linkRows), `/blog/${post.slug}`),
+  );
   const series =
     catSlug && siblings ? seriesFor(catSlug, post.category?.name ?? "guides", siblings.posts, post.slug) : null;
   const lpa = packageNeighbours(post.slug, siblings?.posts ?? []);
@@ -253,6 +255,7 @@ export default async function ArticlePage({ params }: Props) {
               </p>
               <Link
                 href="/signin?next=/app"
+                rel="nofollow"
                 data-ev="cta_click"
                 data-ev-location="article-account-block"
                 data-ev-label="Sign up"

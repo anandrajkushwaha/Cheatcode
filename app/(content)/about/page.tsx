@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { relFor } from "@/lib/content/autolink";
 import Link from "next/link";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { SITE } from "@/lib/seo/constants";
@@ -102,7 +103,7 @@ export default function AboutPage() {
             <ul>
               {l.links.map((x) => (
                 <li key={x.href}>
-                  <Link href={x.href}>{x.label}</Link>
+                  <Link href={x.href} rel={relFor(x.href)}>{x.label}</Link>
                 </li>
               ))}
             </ul>
