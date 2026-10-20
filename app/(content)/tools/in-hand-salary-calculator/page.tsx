@@ -7,7 +7,9 @@ import { JsonLd } from "@/components/JsonLd";
 import { faqJsonLd } from "@/lib/seo/jsonld";
 import { FaqBlock } from "@/components/content/FaqBlock";
 import { Breadcrumbs } from "@/components/content/bits";
-import { RATES_AS_OF } from "@/lib/tools/salary";
+import { RATES_AS_OF, calculateSalary, inr } from "@/lib/tools/salary";
+import { getPosts } from "@/lib/queries/posts";
+import { packageLakhs } from "@/lib/content/hub-groups";
 
 export const revalidate = 86400;
 
@@ -45,7 +47,28 @@ export const metadata: Metadata = buildMetadata({
   path: "/tools/in-hand-salary-calculator",
 });
 
-export default function SalaryCalculatorPage() {
+/**
+ * The in-hand guides, one per package, with what each pays a month under
+ * the calculator's own defaults. This is the hub for the LPA pages (SEO PRD,
+ * section B): every one of them is linked from here, in order of package.
+ */
+async function inHandGuides() {
+  const { posts } = await getPosts({ categorySlug: "salary", perPage: 300 });
+  const base = { basicPercent: 45, state: "Karnataka", capPfAtCeiling: true, includeGratuity: true, otherDeductionsMonthly: 0 };
+  return posts
+    .map((p) => ({ ...p, lakhs: packageLakhs(p.slug) }))
+    .filter((p): p is typeof p & { lakhs: number } => p.lakhs !== null)
+    .sort((a, b) => a.lakhs - b.lakhs)
+    .map((p) => ({
+      slug: p.slug,
+      label: p.lakhs >= 100 ? `₹${p.lakhs / 100} crore` : `₹${p.lakhs} LPA`,
+      newMonthly: calculateSalary({ ...base, ctc: p.lakhs * 100_000, regime: "new" }).netMonthly,
+      oldMonthly: calculateSalary({ ...base, ctc: p.lakhs * 100_000, regime: "old" }).netMonthly,
+    }));
+}
+
+export default async function SalaryCalculatorPage() {
+  const guides = await inHandGuides();
   const url = `${SITE.url}/tools/in-hand-salary-calculator`;
 
   return (
@@ -151,6 +174,42 @@ export default function SalaryCalculatorPage() {
             <Link href="/blog/notice-period-rules-india">notice period rules in India</Link>.
           </p>
         </div>
+
+        {guides.length > 0 && (
+          <section className="mx-auto mt-16 max-w-[44rem]">
+            <h2 className="text-[1.35rem] font-semibold tracking-[-0.02em]">In-hand salary by package</h2>
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-50">
+              Monthly take-home for common packages with the calculator&apos;s defaults — 45% basic, PF
+              capped at the wage ceiling, gratuity included, Karnataka professional tax, no HRA or 80C
+              claim. Each package has a full guide with the breakdown, both regimes and the neighbouring
+              levels.
+            </p>
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full min-w-[28rem] text-left text-[0.9rem] tabular-nums">
+                <thead>
+                  <tr className="border-b border-ink-15 text-[0.75rem] uppercase tracking-[0.1em] text-ink-30">
+                    <th className="py-2 pr-4 font-medium">Package (CTC)</th>
+                    <th className="py-2 pr-4 font-medium">In hand / month, new regime</th>
+                    <th className="py-2 font-medium">Old regime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guides.map((g) => (
+                    <tr key={g.slug} className="border-b border-ink-08">
+                      <td className="py-2.5 pr-4">
+                        <Link href={`/blog/${g.slug}`} className="underline underline-offset-4 hover:text-ink">
+                          {g.label} in-hand salary
+                        </Link>
+                      </td>
+                      <td className="py-2.5 pr-4">{inr(g.newMonthly)}</td>
+                      <td className="py-2.5 text-ink-50">{inr(g.oldMonthly)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         <FaqBlock items={FAQ} />
       </div>

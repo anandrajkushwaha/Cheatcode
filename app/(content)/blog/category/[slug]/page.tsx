@@ -7,6 +7,7 @@ import { ResumeCtaBar } from "@/components/content/ResumeCta";
 import { isResumeCategory } from "@/lib/content/resume-cta";
 import { JsonLd } from "@/components/JsonLd";
 import { ArticleCard, Breadcrumbs } from "@/components/content/bits";
+import { groupForHub } from "@/lib/content/hub-groups";
 
 export const revalidate = 300;
 
@@ -35,7 +36,11 @@ export default async function CategoryPage({ params }: Props) {
   const cat = await getCategoryBySlug(slug);
   if (!cat) notFound();
 
+  // Every guide in the category, on one page: a category is two clicks from
+  // /blog, so this keeps every post within three of the homepage. Hub
+  // categories show them grouped (lib/content/hub-groups.ts).
   const { posts } = await getPosts({ categorySlug: slug, perPage: 300 });
+  const groups = groupForHub(slug, posts);
 
   return (
     <>
@@ -77,9 +82,34 @@ export default async function CategoryPage({ params }: Props) {
           {posts.length} {posts.length === 1 ? "guide" : "guides"}
         </p>
 
+        {groups && groups.length > 1 && (
+          <nav aria-label="Sections" className="mt-6 flex flex-wrap gap-2">
+            {groups.map((g, i) => (
+              <a
+                key={g.title}
+                href={`#group-${i + 1}`}
+                className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.8rem] text-ink-50 transition-colors hover:border-ink-30 hover:text-ink"
+              >
+                {g.title} <span className="text-ink-30">{g.posts.length}</span>
+              </a>
+            ))}
+          </nav>
+        )}
+
         <div className="mt-10 max-w-3xl">
           {posts.length === 0 ? (
             <p className="text-ink-50">Nothing here yet.</p>
+          ) : groups ? (
+            groups.map((g, i) => (
+              <section key={g.title} id={`group-${i + 1}`} className="scroll-mt-24 pt-6 first:pt-0">
+                <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em]">{g.title}</h2>
+                <div className="mt-2">
+                  {g.posts.map((p) => (
+                    <ArticleCard key={p.id} post={p} />
+                  ))}
+                </div>
+              </section>
+            ))
           ) : (
             posts.map((p) => <ArticleCard key={p.id} post={p} />)
           )}

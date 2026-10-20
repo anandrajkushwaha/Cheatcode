@@ -48,7 +48,7 @@ const LAYERS: { name: string; blurb: string; links: { href: string; label: strin
     name: "Prepare",
     blurb: "Practice the interview before the one that counts.",
     links: [
-      { href: "/interview-questions", label: "Interview questions" },
+      { href: "/blog/category/interview-prep", label: "Interview questions" },
       { href: "/signin?next=/app/interviews", label: "AI mock interviews" },
     ],
   },

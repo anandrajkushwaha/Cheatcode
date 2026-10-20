@@ -40,6 +40,20 @@ const GROUPS: Group[] = [
       { href: "/tools", label: "Career Tools" },
     ],
   },
+  {
+    // The hubs, on every page: each is a list of every guide in its topic,
+    // so every guide is two clicks from anywhere on the site.
+    title: "Resources",
+    links: [
+      { href: "/blog/category/resume-format", label: "Resume Formats" },
+      { href: "/blog/category/interview-prep", label: "Interview Questions" },
+      { href: "/tools/in-hand-salary-calculator", label: "In-hand Salary" },
+      { href: "/blog/category/pf-tax", label: "PF, Tax & CTC" },
+      { href: "/blog/category/letters-formats", label: "Letters & Formats" },
+      { href: "/blog/category/career-growth", label: "Career Growth" },
+      { href: "/government-jobs", label: "Government Jobs" },
+    ],
+  },
 ];
 
 const LEGAL = [
@@ -95,7 +109,7 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
                 banner ? "pt-[11.5vw] lg:pt-[153px]" : "pt-14 lg:pt-[58px]"
               }`}
             >
-              <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)] lg:gap-8">
+              <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1.2fr)] lg:gap-8">
                 {/* ------------------------------------------------ brand */}
                 <div>
                   <Link

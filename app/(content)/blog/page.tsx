@@ -81,6 +81,24 @@ export default async function BlogIndex() {
               </li>
             ))}
           </ul>
+
+          {/* The hubs that are not categories. (/interview-questions is left out
+              while it is noindex with no published banks.) */}
+          <p className="mt-10 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+            Hubs
+          </p>
+          <ul className="mt-5 space-y-3 text-[0.9rem]">
+            <li>
+              <Link href="/tools/in-hand-salary-calculator" className="text-ink-50 transition-colors hover:text-ink">
+                In-hand salary by package
+              </Link>
+            </li>
+            <li>
+              <Link href="/government-jobs" className="text-ink-50 transition-colors hover:text-ink">
+                Government jobs
+              </Link>
+            </li>
+          </ul>
         </aside>
       </div>
 
