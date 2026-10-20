@@ -71,3 +71,11 @@ test("merged guides are linked directly, missing guides are unlinked", async () 
   assert.equal(relFor("/interview-questions"), "nofollow");
   assert.equal(relFor("/interview-questions/java"), undefined);
 });
+
+test("a guide merged into a tool links to the tool", async () => {
+  const { fixGuideLinks } = await import("@/lib/content/autolink");
+  assert.equal(
+    fixGuideLinks('<a href="/blog/old">x</a>', new Set(), { old: "/tools/t" }),
+    '<a href="/tools/t">x</a>',
+  );
+});

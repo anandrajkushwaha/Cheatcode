@@ -179,7 +179,7 @@ export function fixGuideLinks(html: string, live: Set<string>, merged: Record<st
       const slug = path ? /^\/blog\/([a-z0-9-]+)$/.exec(path)?.[1] : undefined;
       if (!slug) return whole;
       const to = merged[slug];
-      if (to) return `<a${pre}href=${q}/blog/${to}${q}${post}>${inner}</a>`;
+      if (to) return `<a${pre}href=${q}${to.startsWith("/") ? to : `/blog/${to}`}${q}${post}>${inner}</a>`;
       return live.has(`/blog/${slug}`) ? whole : inner;
     },
   );

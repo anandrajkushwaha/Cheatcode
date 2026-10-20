@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { MERGED_GUIDES } from "./lib/seo/merged-guides";
+import { MERGED_GUIDES, mergedTarget } from "./lib/seo/merged-guides";
 
 /**
  * Guides merged into another guide on the same search.
@@ -27,9 +27,9 @@ const nextConfig: NextConfig = {
     ],
   },
   async redirects() {
-    return Object.entries(MERGED_GUIDES).map(([from, to]) => ({
+    return Object.keys(MERGED_GUIDES).map((from) => ({
       source: `/blog/${from}`,
-      destination: `/blog/${to}`,
+      destination: mergedTarget(from)!,
       permanent: true,
     }));
   },

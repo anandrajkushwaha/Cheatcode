@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitiseHtml, slugify, textOf, wordCount } from "@/lib/content/sanitise";
-import { MERGED_GUIDES } from "@/lib/seo/merged-guides";
+import { mergedTarget } from "@/lib/seo/merged-guides";
 import { withHeadingIds } from "@/lib/content/render";
 
 export const dynamic = "force-dynamic";
@@ -65,9 +65,10 @@ export async function POST(request: Request) {
   // A merged guide's address redirects (lib/seo/merged-guides.ts), so
   // publishing it again only puts a redirect in the sitemap and the lists —
   // which is how seven of them went live again after the merge.
-  if (status === "published" && MERGED_GUIDES[slug]) {
+  const mergedInto = mergedTarget(slug);
+  if (status === "published" && mergedInto) {
     return bad(
-      `/blog/${slug} was merged into /blog/${MERGED_GUIDES[slug]} and redirects there. Edit that article instead, or save this one as a draft.`,
+      `/blog/${slug} was merged into ${mergedInto} and redirects there. Edit that page instead, or save this one as a draft.`,
     );
   }
 
