@@ -129,6 +129,17 @@ export default function AtsCheckerPage() {
             If you want the version that rewrites the lines for you rather than
             listing them, <Link href="/signin?next=/app/resume/builder">that is in the builder</Link>.
           </p>
+          <p>
+            Most failed checks trace back to how the resume was made. If yours
+            came out of Canva, read{" "}
+            <Link href="/blog/canva-resume-ats-friendly">whether a Canva resume is ATS friendly</Link>; if
+            it is a Google Doc, the{" "}
+            <Link href="/blog/google-docs-resume-template">Google Docs resume templates ranked by ATS safety</Link>{" "}
+            show which to keep. Starting again? Compare the{" "}
+            <Link href="/blog/ats-resume-builder">ATS resume builders that pass parsing tests</Link>, see{" "}
+            <Link href="/blog/free-resume-builder">which resume builders are actually free</Link>, or try a{" "}
+            <Link href="/blog/cv-maker-online-free">free online CV maker</Link> that gives you a real PDF.
+          </p>
         </div>
 
         <FaqBlock items={FAQ} />
