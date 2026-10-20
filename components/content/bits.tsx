@@ -109,8 +109,8 @@ export function Toc({ items }: { items: TocItem[] }) {
  * Numbered pages plus Newer / Older, all plain links in the server HTML.
  *
  * Numbers matter for crawling, not only for people: with Newer/Older alone,
- * page 20 was twenty hops from /blog. First, last and two either side of the
- * current page are always shown, so any page is a couple of hops away.
+ * page 20 was twenty hops from /blog, and with a window of five it was still
+ * eight (the crawl check found it). Every number is shown up to 30 pages.
  */
 export function Pagination({
   page,
@@ -125,8 +125,12 @@ export function Pagination({
   const href = (p: number) =>
     p === 1 ? basePath : `${basePath === "/blog" ? "/blog/page" : basePath}/${p}`;
 
+  // Every page number while there are few enough to show (one click to any
+  // page of the archive from any other); past that, first, last and two
+  // either side of the current page.
   const shown = new Set<number>([1, totalPages]);
-  for (let p = page - 2; p <= page + 2; p++) if (p >= 1 && p <= totalPages) shown.add(p);
+  const span = totalPages <= 30 ? totalPages : 2;
+  for (let p = page - span; p <= page + span; p++) if (p >= 1 && p <= totalPages) shown.add(p);
   const nums = [...shown].sort((a, b) => a - b);
 
   return (

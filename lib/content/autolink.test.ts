@@ -58,3 +58,16 @@ test("links to sign-in and the app are nofollowed, guides are not", async () => 
   assert.equal(relFor("/signup"), "nofollow");
   assert.equal(relFor("/signing-bonus"), undefined);
 });
+
+test("merged guides are linked directly, missing guides are unlinked", async () => {
+  const { fixGuideLinks, relFor } = await import("@/lib/content/autolink");
+  const live = new Set(["/blog/a", "/blog/b"]);
+  const out = fixGuideLinks(
+    '<a href="/blog/old">x</a> <a href="https://www.cheatcodeapp.com/blog/soon">y</a> <a href="/blog/a">z</a> <a href="/blog/category/c">w</a>',
+    live,
+    { old: "b" },
+  );
+  assert.equal(out, '<a href="/blog/b">x</a> y <a href="/blog/a">z</a> <a href="/blog/category/c">w</a>');
+  assert.equal(relFor("/interview-questions"), "nofollow");
+  assert.equal(relFor("/interview-questions/java"), undefined);
+});

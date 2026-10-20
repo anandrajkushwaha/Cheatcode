@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/seo/constants";
-import { getClosingSoon, getClosed, getNoticesResult, getUndated } from "@/lib/govt/query";
+import { getClosingSoon, getNoticesResult } from "@/lib/govt/query";
 import { KIND_LABEL, NOTICE_KINDS } from "@/lib/govt/types";
 import { CLOSING_SOON_DAYS } from "@/lib/govt/lifecycle";
 import { ExamCard, NoticeColumn } from "@/components/govt/bits";
@@ -36,13 +36,11 @@ export const metadata: Metadata = {
 };
 
 export default async function GovernmentJobsHub() {
-  const [results, closing, undated, closed] = await Promise.all([
+  const [results, closing] = await Promise.all([
     Promise.all(
       NOTICE_KINDS.map(async (k) => ({ kind: k, ...(await getNoticesResult(k, 10)) })),
     ),
     getClosingSoon(6),
-    getUndated(1),
-    getClosed(1),
   ]);
 
   // Ten per card, and the total so each card can say how many more there are.
@@ -116,26 +114,24 @@ export default async function GovernmentJobsHub() {
             ))}
           </div>
 
-          {(undated.length > 0 || closed.length > 0) && (
-            <nav className="mt-8 flex flex-wrap gap-2">
-              {undated.length > 0 && (
-                <Link
-                  href="/government-jobs/dates-not-stated"
-                  className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
-                >
-                  Recruitments with no stated closing date
-                </Link>
-              )}
-              {closed.length > 0 && (
-                <Link
-                  href="/government-jobs/closed"
-                  className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
-                >
-                  Closed recruitments
-                </Link>
-              )}
-            </nav>
-          )}
+          {/* Always all three: they are in the sitemap whether or not they
+              list anything today, and a page in the sitemap that nothing
+              links to is an orphan (the crawl check found these three). */}
+          <nav aria-label="More recruitments" className="mt-8 flex flex-wrap gap-2">
+            {[
+              { href: "/government-jobs/closing-soon", label: "Closing soon" },
+              { href: "/government-jobs/dates-not-stated", label: "Recruitments with no stated closing date" },
+              { href: "/government-jobs/closed", label: "Closed recruitments" },
+            ].map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="rounded-full border border-ink-15 px-3.5 py-1.5 text-[0.82rem] text-ink-50 transition-colors hover:border-ink hover:text-ink"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
         </>
       )}
 

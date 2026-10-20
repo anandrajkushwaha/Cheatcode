@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPostBySlug, getRelatedPosts, getAllPostSlugs, getLinkTargets, getPosts } from "@/lib/queries/posts";
-import { autolink, KEYWORD_LINKS, nofollowPrivate, type LinkTarget } from "@/lib/content/autolink";
+import { autolink, fixGuideLinks, KEYWORD_LINKS, nofollowPrivate, type LinkTarget } from "@/lib/content/autolink";
+import { MERGED_GUIDES } from "@/lib/seo/merged-guides";
 import { isHub, packageLakhs } from "@/lib/content/hub-groups";
 import { LpaCompare, type Package } from "@/components/content/LpaCompare";
 import { seriesFor } from "@/lib/content/series";
@@ -80,8 +81,13 @@ export default async function ArticlePage({ params }: Props) {
     getLinkTargets(),
     catSlug && isHub(catSlug) ? getPosts({ categorySlug: catSlug, perPage: 300 }) : null,
   ]);
+  const live = new Set(linkRows.map((r) => `/blog/${r.slug}`));
   const body = nofollowPrivate(
-    autolink(withHeadingIds(post.content_html, post.toc), linkTargets(linkRows), `/blog/${post.slug}`),
+    autolink(
+      fixGuideLinks(withHeadingIds(post.content_html, post.toc), live, MERGED_GUIDES),
+      linkTargets(linkRows),
+      `/blog/${post.slug}`,
+    ),
   );
   const series =
     catSlug && siblings ? seriesFor(catSlug, post.category?.name ?? "guides", siblings.posts, post.slug) : null;

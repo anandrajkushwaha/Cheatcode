@@ -144,8 +144,13 @@ export function autolink(html: string, targets: LinkTarget[], selfPath: string, 
   return parts.join("");
 }
 
-/** Paths that are noindex: sign-in, the app, the ad landing page. */
-const PRIVATE = /^(?:https?:\/\/(?:www\.)?cheatcodeapp\.com)?\/(?:signin|signup|app|admin|build-resume)(?:[/?#]|$)/i;
+/**
+ * Paths that are noindex: sign-in, the app, the ad landing page, and the
+ * interview question bank's index while it has no published banks (drop it
+ * from here when it does — see app/(content)/interview-questions/page.tsx).
+ */
+const PRIVATE =
+  /^(?:https?:\/\/(?:www\.)?cheatcodeapp\.com)?\/(?:(?:signin|signup|app|admin|build-resume)(?:[/?#]|$)|interview-questions(?:[?#]|$))/i;
 
 /** rel for a link: nofollow when it points at a noindex page, so crawl time goes to the guides. */
 export function relFor(href: string): "nofollow" | undefined {
@@ -158,4 +163,24 @@ export function nofollowPrivate(html: string): string {
     if (!relFor(href) || /\brel\s*=/i.test(pre + post)) return whole;
     return `<a${pre}href=${q}${href}${q}${post} rel="nofollow">`;
   });
+}
+
+/**
+ * Internal links as they should be served: a link to a merged guide goes
+ * straight to the guide that kept the topic (no redirect hop), and a link to
+ * a guide that is not live — scheduled, archived, unpublished — is removed,
+ * keeping its words. `live` holds "/blog/slug" for every published guide.
+ */
+export function fixGuideLinks(html: string, live: Set<string>, merged: Record<string, string>): string {
+  return html.replace(
+    /<a\b([^>]*?)\bhref\s*=\s*(["'])([^"']+)\2([^>]*)>([\s\S]*?)<\/a>/gi,
+    (whole, pre, q, href, post, inner) => {
+      const path = localPath(href);
+      const slug = path ? /^\/blog\/([a-z0-9-]+)$/.exec(path)?.[1] : undefined;
+      if (!slug) return whole;
+      const to = merged[slug];
+      if (to) return `<a${pre}href=${q}/blog/${to}${q}${post}>${inner}</a>`;
+      return live.has(`/blog/${slug}`) ? whole : inner;
+    },
+  );
 }

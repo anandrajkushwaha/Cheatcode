@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { MERGED_GUIDES } from "./lib/seo/merged-guides";
 
 /**
  * Guides merged into another guide on the same search.
@@ -9,16 +10,7 @@ import type { NextConfig } from "next";
  * the page that kept the topic. Add a pair here whenever the SEO audit's
  * "Competing articles" is resolved by a merge.
  */
-const MERGED_GUIDES: Record<string, string> = {
-  "tell-me-about-yourself-interview-answer": "tell-me-about-yourself",
-  "hr-interview-questions-freshers": "hr-interview-questions",
-  "software-engineer-resume-format-freshers": "software-engineer-resume-format",
-  "gratuity-calculation": "gratuity-calculation-india",
-  "group-discussion-topics-tips": "group-discussion-topics-for-freshers",
-  "how-to-calculate-in-hand-salary-from-ctc": "ctc-vs-in-hand-salary",
-  "what-are-your-salary-expectations": "expected-ctc-question",
-  "why-should-we-hire-you-answer": "why-should-we-hire-you",
-};
+
 
 const nextConfig: NextConfig = {
   images: {
