@@ -27,11 +27,28 @@ const nextConfig: NextConfig = {
     ],
   },
   async redirects() {
-    return Object.keys(MERGED_GUIDES).map((from) => ({
-      source: `/blog/${from}`,
-      destination: mergedTarget(from)!,
-      permanent: true,
-    }));
+    return [
+      // One host. Search Console found pages crawled on the bare domain as
+      // well as on www — two copies of each, neither indexed. www is the
+      // canonical everywhere (SITE.url), so the bare domain points there.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "cheatcodeapp.com" }],
+        destination: "https://www.cheatcodeapp.com/:path*",
+        permanent: true,
+      },
+      // An old landing page Google still remembers.
+      { source: "/lander", destination: "/", permanent: true },
+      ...Object.keys(MERGED_GUIDES).map((from) => ({
+        source: `/blog/${from}`,
+        destination: mergedTarget(from)!,
+        permanent: true,
+      })),
+    ];
+  },
+  async headers() {
+    // A file, not a page: keep it out of the indexing report.
+    return [{ source: "/manifest.webmanifest", headers: [{ key: "X-Robots-Tag", value: "noindex" }] }];
   },
 };
 

@@ -55,6 +55,9 @@ export const KEYWORD_LINKS: LinkTarget[] = [
   { phrase: "appraisal hike", href: "/blog/appraisal-hike-percentage-india" },
   { phrase: "counter-offer", href: "/blog/counter-offer-accept-or-not" },
   { phrase: "employment gap", href: "/blog/how-to-explain-employment-gap" },
+  { phrase: "technical interview", href: "/blog/technical-interview-questions-freshers" },
+  { phrase: "IT companies in Bangalore", href: "/blog/it-companies-in-bangalore-for-freshers" },
+  { phrase: "Google Docs", href: "/blog/google-docs-resume-template", caseSensitive: true },
 ];
 
 /** "/blog/x", whatever form the href was written in; null for other sites. */
