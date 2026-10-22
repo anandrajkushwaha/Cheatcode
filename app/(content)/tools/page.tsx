@@ -6,20 +6,27 @@ import { Breadcrumbs } from "@/components/content/bits";
 export const metadata: Metadata = buildMetadata({
   title: "Free Career Tools for Indian Job Seekers | Cheatcode",
   description:
-    "Free tools for Indian job seekers — a resume ATS checker and an in-hand salary calculator. Everything runs in your browser. No signup.",
+    "Free tools for Indian job seekers — a resume ATS checker, 60 free resume templates and an in-hand salary calculator. No signup to start.",
   path: "/tools",
 });
 
 const TOOLS = [
   {
-    slug: "resume-ats-checker",
+    href: "/resume-templates",
+    name: "Free resume templates",
+    tagline:
+      "60 ATS-friendly designs. Pick one and start typing — your resume builds as you go, and downloads as a PDF.",
+    meta: "60 templates · live preview · PDF",
+  },
+  {
+    href: "/tools/resume-ats-checker",
     name: "Resume ATS checker",
     tagline:
       "Upload the resume you're already sending and see what the software reads — with the exact weak points costing you interviews.",
     meta: "score · parse check · weak points",
   },
   {
-    slug: "in-hand-salary-calculator",
+    href: "/tools/in-hand-salary-calculator",
     name: "In-hand salary calculator",
     tagline:
       "Turn the CTC on your offer letter into the number that reaches your bank account.",
@@ -37,14 +44,15 @@ export default function ToolsHub() {
         <span className="text-ink-30"> No login, no catch.</span>
       </h1>
       <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-70">
-        Everything runs in your browser. Your files are never uploaded.
+        The checker and the calculator run in your browser, and your files are never uploaded.
+        The templates need no account until you save.
       </p>
 
-      <div className="mt-12 grid gap-4 sm:grid-cols-2">
+      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {TOOLS.map((t) => (
           <Link
-            key={t.slug}
-            href={`/tools/${t.slug}`}
+            key={t.href}
+            href={t.href}
             className="group rounded-3xl border border-ink-08 p-8 transition-colors hover:border-ink-30"
           >
             <p className="text-[1.2rem] font-medium tracking-[-0.02em]">{t.name}</p>

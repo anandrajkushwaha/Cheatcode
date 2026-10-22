@@ -28,11 +28,23 @@ export function SignInForm({
   next,
   initialMode = "choose",
   initialIdentifier = "",
+  initialName = "",
+  initialCity = "",
+  onSignedIn,
 }: {
   next: string;
   initialMode?: "choose" | "email";
   /** What was typed when Continue was pressed before React loaded (see below). */
   initialIdentifier?: string;
+  /** Prefill for the account step — the guest builder passes what the resume already says. */
+  initialName?: string;
+  initialCity?: string;
+  /**
+   * Called after a number/email sign-in instead of going to `next`. The guest
+   * builder uses it to save the resume on screen first. Google still leaves
+   * for Google and comes back to `next`.
+   */
+  onSignedIn?: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode === "email" ? "identify" : "choose");
@@ -40,8 +52,8 @@ export function SignInForm({
   const rawInput = useRef<HTMLInputElement>(null);
   const [id, setId] = useState<Identifier | null>(null);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [city, setCity] = useState("");
+  const [name, setName] = useState(initialName);
+  const [city, setCity] = useState(initialCity);
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +167,10 @@ export function SignInForm({
     const { error } = await supabase.auth.signInWithPassword({ email: who.email, password });
     if (error) throw error;
     setMode("done");
+    if (onSignedIn) {
+      await onSignedIn();
+      return;
+    }
     router.push(next);
     router.refresh();
   }

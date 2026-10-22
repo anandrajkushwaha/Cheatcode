@@ -1,29 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Builder, SECTION_KEY, type GuestHooks, type GuestState } from "@/components/app/builder/Builder";
-import { createAppBrowserClient } from "@/lib/supabase/app-client";
-import { parseIdentifier } from "@/lib/auth/identifier";
+import { SignInForm } from "@/app/(app)/signin/SignInForm";
 import { cleanResume, type Resume } from "@/lib/app/resume-schema";
 import { DEFAULT_TEMPLATE, isTemplateId } from "@/lib/app/resume-templates";
 import { sampleFor } from "@/lib/app/design-sample";
 import { filledCount, GATE_AT, guestStart } from "@/lib/app/guest-resume";
 import { EVENTS, track } from "@/lib/analytics/events";
-import { metaTrack } from "@/lib/analytics/meta";
 
 /**
  * The builder before an account — what a template on the home page opens.
  *
  * Everything is kept in this browser (localStorage) until they sign up, so a
- * closed tab or a trip to /signin loses nothing. After a few fields a sheet
- * asks them to save it: the name, number and email they already typed into
- * the resume are filled in for them, so it is a password and a city. Then a
+ * closed tab or a trip to Google loses nothing. After a few fields the
+ * ordinary sign-in card opens over the builder (Google, or number / email,
+ * with the number, name and city from the resume already filled in). Then a
  * draft is created from exactly what is on screen and the real builder opens
  * on the section they were in.
  *
- * Somebody who signs in another way (the /signin link) comes back here
- * signed in, and the same hand-over runs on arrival.
+ * Google sign-in leaves the page and comes back here signed in; the same
+ * hand-over runs on arrival.
  */
 
 const STORE = "cc_guest_resume";
@@ -199,7 +196,6 @@ function GuestSession({ saved }: { saved: Saved }) {
       {sheet && (
         <SaveSheet
           state={state}
-          reason={sheet}
           onClose={() => {
             dismissedAt.current = filledRef.current;
             track(EVENTS.BUILDER_STEP, { label: "gate_dismissed", reason: sheet });
@@ -211,201 +207,36 @@ function GuestSession({ saved }: { saved: Saved }) {
   );
 }
 
-function SaveSheet({
-  state,
-  reason,
-  onClose,
-}: {
-  state: GuestState;
-  reason: "auto" | "download" | "next";
-  onClose: () => void;
-}) {
+/**
+ * The same sign-in card as /signin — Google, or number / email — in a sheet
+ * over the builder. A number/email sign-in saves the resume and opens the
+ * editor from here; Google goes away and comes back to /resume-builder, where
+ * GuestBuilder finds the browser's copy and does the same on arrival.
+ */
+function SaveSheet({ state, onClose }: { state: GuestState; onClose: () => void }) {
   const r = state.resume;
-  const [mode, setMode] = useState<"details" | "login">("details");
-  const [name, setName] = useState(r.full_name ?? "");
-  const [phone, setPhone] = useState(r.phone ?? "");
-  const [email, setEmail] = useState(r.email ?? "");
-  const [city, setCity] = useState(r.location ?? "");
-  const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function fail(message: string, why = message) {
-    track(EVENTS.BUILDER_STEP, { label: "error", reason: why.slice(0, 100), where: "guest" });
-    setError(message);
-    setBusy(false);
-  }
-
-  async function signIn(loginEmail: string) {
-    const { error } = await createAppBrowserClient().auth.signInWithPassword({ email: loginEmail, password });
-    if (error) throw error;
-  }
-
-  async function submit() {
-    const number = parseIdentifier(phone);
-    if (!number || number.kind !== "phone") return fail("Enter a 10-digit mobile number.", "bad number");
-    // What they type here is what their resume says too.
-    const withDetails: GuestState = {
-      ...state,
-      resume: {
-        ...r,
-        full_name: name.trim() || r.full_name,
-        phone: phone.trim() || r.phone,
-        email: email.trim() || r.email,
-        location: city.trim() || r.location,
-      },
-    };
-
-    if (mode === "login") {
-      if (!password) return fail("Enter your password.");
-      setBusy(true);
-      setError(null);
-      try {
-        await signIn(number.email);
-        track(EVENTS.BUILDER_STEP, { label: "login", where: "guest" });
-        await handOver(withDetails);
-      } catch (e) {
-        fail(readable(e), String(e));
-      }
-      return;
-    }
-
-    if (name.trim().length < 2) return fail("Enter your full name.", "no name");
-    const mail = parseIdentifier(email);
-    if (!mail || mail.kind !== "email") return fail("Enter your email address.", "bad email");
-    if (city.trim().length < 2) return fail("Enter your city.", "no city");
-    if (password.length < 8) return fail("Use a password of at least 8 characters.", "short password");
-
-    track(EVENTS.BUILDER_STEP, { label: "details_submit", where: "guest" });
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/auth/email-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: number.phone, password, name, city, contactEmail: mail.email }),
-      });
-      if (res.status === 409) {
-        track(EVENTS.BUILDER_STEP, { label: "existing_account", where: "guest" });
-        setMode("login");
-        setPassword("");
-        setBusy(false);
-        return;
-      }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        return fail(body.error ?? "Couldn't save that. Try again in a moment.");
-      }
-      track(EVENTS.BUILDER_STEP, { label: "account_created", where: "guest" });
-      metaTrack("CompleteRegistration", { content_name: "guest-builder" });
-      await signIn(number.email);
-      await handOver(withDetails);
-    } catch (e) {
-      fail(readable(e), String(e));
-    }
-  }
-
-  const field =
-    "w-full rounded-xl border border-ink-15 px-4 py-3 text-[16px] outline-none transition-colors focus:border-ink-30 sm:text-[0.95rem]";
-  const heading =
-    mode === "login"
-      ? "Welcome back"
-      : reason === "download"
-        ? "Save your resume to download it"
-        : "Nice start — save your resume";
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true">
-      <button type="button" aria-label="Close" className="absolute inset-0 cursor-default" onClick={() => !busy && onClose()} />
-      <div className="relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-paper p-6 shadow-2xl sm:max-w-[28rem] sm:rounded-[1.75rem] sm:p-8">
-        <h2 className="text-[1.4rem] font-semibold leading-tight tracking-[-0.03em]">{heading}</h2>
-        <p className="mt-2 text-[0.9rem] leading-relaxed text-ink-50">
-          {mode === "login"
-            ? "This number already has a Cheatcode account. Enter its password and your resume moves into it."
-            : "Free. Takes 20 seconds, and you carry on exactly where you are."}
-        </p>
-
-        {error && <p className="mt-4 rounded-xl border border-ink-30 p-3 text-[0.85rem] leading-relaxed">{error}</p>}
-
-        <form
-          className="mt-5 space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
+      <button type="button" aria-label="Close" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <div className="relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-paper p-7 shadow-2xl sm:max-w-[34rem] sm:rounded-[1.75rem] sm:p-10">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 rounded-lg p-2 text-ink-30 transition-colors hover:bg-ink-04 hover:text-ink"
         >
-          {mode === "details" && (
-            <>
-              <input name="name" autoComplete="name" autoCapitalize="words" value={name} maxLength={80}
-                onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Full name" className={field} />
-              <input name="username" type="tel" inputMode="tel" autoComplete="tel" value={phone}
-                onChange={(e) => setPhone(e.target.value)} placeholder="Mobile number" aria-label="Mobile number" className={field} />
-              <input name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email}
-                onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email" className={field} />
-              <input name="city" autoComplete="address-level2" autoCapitalize="words" value={city} maxLength={60}
-                onChange={(e) => setCity(e.target.value)} placeholder="City" aria-label="City" className={field} />
-            </>
-          )}
-          {mode === "login" && (
-            <input name="username" type="tel" autoComplete="username" value={phone} readOnly className={`${field} text-ink-50`} />
-          )}
-
-          <span className="relative block">
-            <input
-              autoFocus
-              name="password"
-              type={show ? "text" : "password"}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "login" ? "Your password" : "Create a password (8+ characters)"}
-              aria-label="Password"
-              className={`${field} pr-16`}
-            />
-            <button type="button" onClick={() => setShow((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[0.8rem] text-ink-30 hover:text-ink">
-              {show ? "Hide" : "Show"}
-            </button>
-          </span>
-
-          <button type="submit" disabled={busy}
-            className="!mt-5 w-full rounded-full bg-ink px-5 py-3.5 text-[0.95rem] font-medium text-paper transition-opacity disabled:opacity-50">
-            {busy ? "Saving your resume…" : mode === "login" ? "Sign in & continue →" : "Save & continue →"}
-          </button>
-
-          <div className="flex items-center justify-between gap-3 pt-1 text-[0.8rem] text-ink-30">
-            {mode === "login" ? (
-              <button type="button" onClick={() => { setMode("details"); setError(null); }}
-                className="underline underline-offset-4 hover:text-ink">
-                Use a different number
-              </button>
-            ) : (
-              <Link href="/signin?next=%2Fresume-builder" rel="nofollow" className="underline underline-offset-4 hover:text-ink">
-                I have an account
-              </Link>
-            )}
-            {reason !== "download" && (
-              <button type="button" disabled={busy} onClick={onClose} className="hover:text-ink">
-                Not now
-              </button>
-            )}
-          </div>
-
-          <p className="pt-1 text-center text-[0.72rem] leading-relaxed text-ink-30">
-            By continuing you agree to our{" "}
-            <Link href="/terms" className="underline underline-offset-2">Terms</Link> and{" "}
-            <Link href="/privacy" className="underline underline-offset-2">Privacy Policy</Link>.
-          </p>
-        </form>
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+        <SignInForm
+          next="/resume-builder"
+          initialIdentifier={r.phone || r.email || ""}
+          initialName={r.full_name ?? ""}
+          initialCity={r.location ?? ""}
+          onSignedIn={() => handOver(state)}
+        />
       </div>
     </div>
   );
-}
-
-function readable(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  if (/invalid login credentials/i.test(raw)) return "That password doesn't match this number. Try again.";
-  if (/fetch|network/i.test(raw)) return "No connection. Check your internet and try again.";
-  return raw || "Something went wrong. Try again.";
 }
