@@ -22,7 +22,7 @@ import * as S from "@/components/app/builder/sections";
  * `design` is never sent. The column is left exactly as it was, so the PDF
  * and every share link behave today the way they behaved yesterday.
  */
-type SectionKey = "personal" | "summary" | "experience" | "education" | "skills" | "projects" | "extras";
+export type SectionKey = "personal" | "summary" | "experience" | "education" | "skills" | "projects" | "extras";
 
 const SECTIONS: { key: SectionKey; label: string; blurb: string; next?: string }[] = [
   { key: "personal", label: "Personal", blurb: "Your name, and the two ways somebody reaches you.", next: "Summary" },
@@ -50,6 +50,32 @@ function filled(r: Resume, k: SectionKey): boolean {
 /** 210mm at 96dpi. The page's true width in CSS pixels. */
 const PAGE_PX = 210 * (96 / 25.4);
 
+/**
+ * Where to reopen after a hop that reloads the page — the guest builder on
+ * the home page signs somebody up and lands them here, on the section they
+ * were filling in, not back at Personal.
+ */
+export const SECTION_KEY = "cc_builder_section";
+
+export type GuestState = {
+  resume: Resume;
+  template: string;
+  doc: DocStyle;
+  photo: string | null;
+  section: SectionKey;
+};
+
+/**
+ * The builder without an account (/resume-builder). Nothing is sent to the
+ * server: every change is handed to `onState` to keep in the browser, and
+ * the things that need an account — the PDF — ask `needAccount` instead.
+ */
+export type GuestHooks = {
+  onState: (s: GuestState) => void;
+  needAccount: (reason: "download" | "next") => void;
+  backHref: string;
+};
+
 export function Builder({
   draftId,
   initial,
@@ -57,6 +83,8 @@ export function Builder({
   initialStyles,
   initialPhoto,
   title,
+  guest,
+  initialSection = "personal",
 }: {
   draftId: string;
   initial: Resume;
@@ -64,13 +92,26 @@ export function Builder({
   initialStyles: Presentation;
   initialPhoto: string | null;
   title: string;
+  guest?: GuestHooks;
+  initialSection?: SectionKey;
 }) {
   const [resume, setResume] = useState<Resume>(initial);
   const [template, setTemplate] = useState(templateId);
   const [doc, setDoc] = useState<DocStyle>(initialStyles.doc ?? {});
   const [photo, setPhoto] = useState<string | null>(initialPhoto);
 
-  const [open, setOpen] = useState<SectionKey>("personal");
+  const [open, setOpen] = useState<SectionKey>(initialSection);
+  // After mount, not in the initial state: the page is server-rendered, and
+  // the server cannot see sessionStorage.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SECTION_KEY) as SectionKey | null;
+      if (saved && SECTIONS.some((s) => s.key === saved)) setOpen(saved);
+      sessionStorage.removeItem(SECTION_KEY);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [design, setDesign] = useState(false);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
@@ -103,7 +144,7 @@ export function Builder({
    * count on a page somebody types into for twenty minutes.
    */
   useEffect(() => {
-    if (!dirty.current) return;
+    if (guest || !dirty.current) return;
     const t = setTimeout(async () => {
       dirty.current = false;
       setState("saving");
@@ -120,7 +161,7 @@ export function Builder({
       }
     }, 800);
     return () => clearTimeout(t);
-  }, [resume, draftId]);
+  }, [resume, draftId, guest]);
 
   /**
    * The design, saved on its own.
@@ -133,7 +174,7 @@ export function Builder({
    */
   const designDirty = useRef(false);
   useEffect(() => {
-    if (!designDirty.current) return;
+    if (guest || !designDirty.current) return;
     const t = setTimeout(async () => {
       designDirty.current = false;
       setState("saving");
@@ -194,6 +235,10 @@ export function Builder({
   }, [draftId, resume, template, doc, photo, initialStyles]);
 
   const download = useCallback(async () => {
+    if (guest) {
+      guest.needAccount("download");
+      return;
+    }
     setGetting(true);
     setTrouble(null);
     try {
@@ -222,16 +267,22 @@ export function Builder({
     } finally {
       setGetting(false);
     }
-  }, [flush, draftId, resume.full_name, title]);
+  }, [flush, draftId, resume.full_name, title, guest]);
+
+  // The guest builder keeps everything in the browser instead.
+  useEffect(() => {
+    guest?.onState({ resume, template, doc, photo, section: open });
+  }, [guest, resume, template, doc, photo, open]);
 
   // Nothing is lost to a closed tab in the second and a half we might owe.
   useEffect(() => {
+    if (guest) return;
     const warn = (e: BeforeUnloadEvent) => {
       if (dirty.current || designDirty.current) e.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, []);
+  }, [guest]);
 
   const overrides = useMemo(
     () => ({
@@ -272,7 +323,7 @@ export function Builder({
     <div className="flex min-h-dvh flex-col bg-paper">
       {/* --------------------------------------------------------- top bar */}
       <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-ink-08 bg-paper px-3 sm:px-4">
-        <Link href="/app/resume" aria-label="Back" className="px-1 text-ink-50 hover:text-ink">←</Link>
+        <Link href={guest?.backHref ?? "/app/resume"} aria-label="Back" className="px-1 text-ink-50 hover:text-ink">←</Link>
         <p className="min-w-0 flex-1 truncate text-[0.9rem] font-medium">{title}</p>
         <span className="hidden text-[0.78rem] text-ink-30 sm:inline">
           {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : ""}
@@ -377,7 +428,10 @@ export function Builder({
                 Back
               </button>
               {section.next && (
-                <button type="button" onClick={() => setOpen(SECTIONS[idx + 1].key)}
+                <button type="button" onClick={() => {
+                  setOpen(SECTIONS[idx + 1].key);
+                  guest?.needAccount("next");
+                }}
                   className="rounded-full bg-ink px-5 py-2.5 text-[0.86rem] font-medium text-paper transition-opacity hover:opacity-90">
                   Next: {section.next}
                 </button>

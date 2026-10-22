@@ -34,10 +34,10 @@ const GROUPS: Group[] = [
   {
     title: "Features",
     links: [
-      { href: "/signin?next=/app/resume", label: "AI Resume Builder" },
+      { href: "/resume-builder", label: "Free Resume Builder" },
       { href: "/tools/resume-ats-checker", label: "ATS Resume Checker" },
       { href: "/signin?next=/app/interviews", label: "AI Mock Interview" },
-      { href: "/signin?next=/app/resume", label: "Resume Templates" },
+      { href: "/resume-templates", label: "Resume Templates" },
       { href: "/tools", label: "Career Tools" },
     ],
   },

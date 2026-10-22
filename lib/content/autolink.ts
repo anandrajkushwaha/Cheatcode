@@ -145,12 +145,12 @@ export function autolink(html: string, targets: LinkTarget[], selfPath: string, 
 }
 
 /**
- * Paths that are noindex: sign-in, the app, the ad landing page, and the
- * interview question bank's index while it has no published banks (drop it
+ * Paths that are noindex: sign-in, the app, the ad landing pages, the guest
+ * builder, and the interview question bank's index while it has no published banks (drop it
  * from here when it does — see app/(content)/interview-questions/page.tsx).
  */
 const PRIVATE =
-  /^(?:https?:\/\/(?:www\.)?cheatcodeapp\.com)?\/(?:(?:signin|signup|app|admin|build-resume)(?:[/?#]|$)|interview-questions(?:[?#]|$))/i;
+  /^(?:https?:\/\/(?:www\.)?cheatcodeapp\.com)?\/(?:(?:signin|signup|app|admin|build-resume|resume-builder)(?:[/?#]|$)|interview-questions(?:[?#]|$))/i;
 
 /** rel for a link: nofollow when it points at a noindex page, so crawl time goes to the guides. */
 export function relFor(href: string): "nofollow" | undefined {

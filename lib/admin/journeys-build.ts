@@ -139,7 +139,9 @@ function eventText(e: Event): string | null {
     const p = e.params ?? {};
     switch (e.label) {
       case "template_click":
-        return `Picked template "${String(p.template ?? "?")}" — details form opened`;
+        return p.where === "resume-templates" || p.where === "home"
+          ? `Picked template "${String(p.template ?? "?")}" on ${p.where === "home" ? "the home page" : "/resume-templates"}`
+          : `Picked template "${String(p.template ?? "?")}" — details form opened`;
       case "details_submit":
         return "Filled details, tapped Continue";
       case "account_created":
@@ -150,6 +152,12 @@ function eventText(e: Event): string | null {
         return "Signed in with password";
       case "draft_created":
         return "Resume opened in the editor";
+      case "guest_open":
+        return `Opened the free builder (no login), template "${String(p.template ?? "?")}"`;
+      case "gate_shown":
+        return `Save popup shown (${String(p.reason ?? "auto")}, ${String(p.fields ?? "?")} fields filled)`;
+      case "gate_dismissed":
+        return "Closed the save popup";
       case "error":
         return `Form error: ${String(p.reason ?? "unknown").slice(0, 80)}`;
       default:
@@ -263,7 +271,12 @@ export function buildJourneys(
     }
     for (const ev of s.events) {
       if (ev.event === "builder_step") {
-        reach(1);
+        // The guest builder is not a sign-up form until its popup opens.
+        const browsing =
+          ev.label === "guest_open" ||
+          (ev.label === "template_click" &&
+            (ev.params?.where === "resume-templates" || ev.params?.where === "home"));
+        if (!browsing) reach(1);
         if (ev.label === "details_submit" || ev.label === "existing_account")
           reach(2);
         if (ev.label === "account_created" || ev.label === "login") reach(3);

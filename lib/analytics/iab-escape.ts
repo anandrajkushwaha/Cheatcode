@@ -42,7 +42,7 @@ export const IAB_ESCAPE_SNIPPET = `
     //    in. Marking the hop as tried keeps the next page (after sign-up) in
     //    the webview too, where the person is signed in.
     var here = window.location.pathname;
-    var stay = ['/signin', '/signup', '/build-resume'].some(function (p) {
+    var stay = ['/signin', '/signup', '/build-resume', '/resume-builder'].some(function (p) {
       return here === p || here.indexOf(p + '/') === 0;
     });
     if (stay) {

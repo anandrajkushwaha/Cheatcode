@@ -3,6 +3,7 @@ import { Nav } from "@/components/site/Nav";
 import { Hero } from "@/components/site/Hero";
 import { Shortcut } from "@/components/site/Shortcut";
 import { Rulebook } from "@/components/site/Rulebook";
+import { ResumeTemplates } from "@/components/site/ResumeTemplates";
 import { FreeTools } from "@/components/site/FreeTools";
 import { Problem } from "@/components/site/Problem";
 import { Questions } from "@/components/site/Questions";
@@ -20,6 +21,7 @@ export default function HomePage() {
       <main id="main">
         <Hero />
         <Shortcut />
+        <ResumeTemplates />
         <Rulebook />
         <FreeTools />
         <Problem />

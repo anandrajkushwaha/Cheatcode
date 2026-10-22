@@ -815,10 +815,16 @@ export function previewDesign(templateId: string): Design {
   const face = portraitFor(templateId);
   return {
     ...design,
-    pages: design.pages.map((p) => ({
+    // Ids by position rather than the random ones seeding gives: a card is
+    // rendered on the server and again in the browser, and two different
+    // random ids there are a hydration mismatch on every card.
+    pages: design.pages.map((p, pi) => ({
       ...p,
       elements: trimToPage(
-        p.elements.map((el) => (el.type === "image" && !el.src ? { ...el, src: face } : el)),
+        p.elements.map((el, i) => ({
+          ...(el.type === "image" && !el.src ? { ...el, src: face } : el),
+          id: `${templateId}-${pi}-${i}`,
+        })),
       ),
     })),
   };
