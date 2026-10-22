@@ -5,7 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Resume } from "@/lib/app/resume-schema";
 import type { DocStyle, Presentation } from "@/lib/app/resume-style";
 import { fontStack } from "@/lib/app/resume-style";
-import { templateById } from "@/lib/app/resume-templates";
+import { showsPhoto, templateById } from "@/lib/app/resume-templates";
+import { shapeOf } from "@/lib/app/flow/theme";
 import { FlowDoc } from "@/components/app/flow/FlowDoc";
 import { DesignPanel } from "@/components/app/builder/DesignPanel";
 import * as S from "@/components/app/builder/sections";
@@ -414,7 +415,17 @@ export function Builder({
               <p className="mt-1 text-[0.84rem] leading-relaxed text-ink-50">{section.blurb}</p>
             </div>
 
-            {open === "personal" && <S.Personal r={resume} patch={patch} />}
+            {open === "personal" && (
+              <S.Personal
+                r={resume}
+                patch={patch}
+                photo={
+                  showsPhoto(templateById(template))
+                    ? { photo, onPhoto: mark(setPhoto), round: !shapeOf(template).squarePhoto }
+                    : undefined
+                }
+              />
+            )}
             {open === "summary" && <S.Summary r={resume} patch={patch} />}
             {open === "experience" && <S.Experience r={resume} patch={patch} />}
             {open === "education" && <S.Education r={resume} patch={patch} />}

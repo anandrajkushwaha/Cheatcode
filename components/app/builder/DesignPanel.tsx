@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { compressPhoto } from "@/lib/app/photo";
+import { useMemo, useState } from "react";
+import { PhotoField } from "@/components/app/builder/PhotoField";
 import { FONTS, SWATCHES, fontStack, type DocStyle } from "@/lib/app/resume-style";
 import { TEMPLATES, showsPhoto, templateById, type Template } from "@/lib/app/resume-templates";
 import { shapeOf, type Shape } from "@/lib/app/flow/theme";
@@ -43,9 +43,6 @@ export function DesignPanel({
   const [q, setQ] = useState("");
   const current = templateById(templateId);
   const takesPhoto = showsPhoto(current);
-  const file = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -192,56 +189,7 @@ export function DesignPanel({
               {/* -------------------------------------------------- photo */}
               {takesPhoto && (
                 <Field label="Photo">
-                  <div className="flex items-center gap-3">
-                    {photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo} alt="" className="h-14 w-14 rounded-full object-cover" />
-                    ) : (
-                      <div className="grid h-14 w-14 place-items-center rounded-full border border-dashed border-ink-15 text-[0.7rem] text-ink-30">
-                        none
-                      </div>
-                    )}
-                    <div className="flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => file.current?.click()}
-                        className="rounded-lg border border-ink-15 px-3 py-1.5 text-[0.8rem] transition-colors hover:border-ink disabled:opacity-40"
-                      >
-                        {busy ? "Working…" : photo ? "Replace" : "Upload"}
-                      </button>
-                      {photo && (
-                        <button
-                          type="button"
-                          onClick={() => onPhoto(null)}
-                          className="text-left text-[0.78rem] text-ink-30 transition-colors hover:text-ink"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {error && <p className="mt-2 text-[0.76rem] text-[#c0392b]">{error}</p>}
-                  <input
-                    ref={file}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    hidden
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      setBusy(true);
-                      setError(null);
-                      try {
-                        onPhoto(await compressPhoto(f));
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "That image could not be read.");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  />
+                  <PhotoField photo={photo} onPhoto={onPhoto} round={!shapeOf(current.id).squarePhoto} />
                 </Field>
               )}
 

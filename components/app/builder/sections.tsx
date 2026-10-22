@@ -3,6 +3,7 @@
 import type { Resume, ResumeRole, ResumeEducation, ResumeProject } from "@/lib/app/resume-schema";
 import { Area, Bullets, Chips, Move, Text, isEmail, isPhone } from "@/components/app/builder/fields";
 import { bulletsFor, skillsFor } from "@/lib/app/builder/suggestions";
+import { PhotoField } from "@/components/app/builder/PhotoField";
 
 /**
  * One card per section, in the order the PRD lists them.
@@ -17,9 +18,18 @@ export type Patch = (fn: (r: Resume) => Resume) => void;
 const card = "rounded-2xl border border-ink-08 bg-paper p-5 sm:p-6";
 const grid = "grid gap-4 sm:grid-cols-2";
 
-export function Personal({ r, patch }: { r: Resume; patch: Patch }) {
+/** Present only when the template has a photo frame. */
+export type PhotoProps = { photo: string | null; onPhoto: (next: string | null) => void; round: boolean };
+
+export function Personal({ r, patch, photo }: { r: Resume; patch: Patch; photo?: PhotoProps }) {
   return (
     <div className={card}>
+      {photo && (
+        <div className="mb-5 border-b border-ink-08 pb-5">
+          <p className="mb-2.5 text-[0.84rem] font-medium">Photo</p>
+          <PhotoField {...photo} />
+        </div>
+      )}
       <div className={grid}>
         <Text label="Full name" value={r.full_name ?? ""} placeholder="Your name as on your ID"
           onChange={(v) => patch((x) => ({ ...x, full_name: v }))} />
