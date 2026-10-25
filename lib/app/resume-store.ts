@@ -970,3 +970,54 @@ export async function absorbUpload(
   });
   return { ...result, draft: saved };
 }
+
+/**
+ * A copy of their resume tailored to one job (lib/jobs/apply-pack.ts).
+ *
+ * Not primary: the resume they keep working on stays the one the builder
+ * opens. Same template, styles and photo, so the tailored PDF looks like
+ * theirs; only the words differ.
+ */
+export async function createTailoredDraft(
+  userId: string,
+  base: ResumeDraft | null,
+  content: Resume,
+  title: string,
+): Promise<ResumeDraft> {
+  const supabase = await client();
+  const template = base?.template ?? templateById(null).id;
+  const clean = cleanResume(content);
+  const result = scoreDraft(clean, template);
+  const { data, error } = await supabase
+    .from("resume_drafts")
+    .insert({
+      user_id: userId,
+      source_resume_id: base?.source_resume_id ?? null,
+      title: title.slice(0, 120),
+      content: clean,
+      template,
+      styles: base?.styles ?? undefined,
+      photo: base?.photo ?? null,
+      ats_score: result.score,
+      ats_result: result,
+      is_primary: false,
+    })
+    .select(COLUMNS)
+    .limit(1);
+  if (error) throw setupProblem(error.message) ?? new StoreError(error.message);
+  const row = (data ?? [])[0];
+  if (!row) throw new StoreError("The resume did not save.");
+  return normalise(row);
+}
+
+/** Make one of their drafts the one the builder opens. */
+export async function makePrimary(userId: string, draftId: string): Promise<void> {
+  const supabase = await client();
+  await supabase.from("resume_drafts").update({ is_primary: false }).eq("user_id", userId);
+  const { error } = await supabase
+    .from("resume_drafts")
+    .update({ is_primary: true })
+    .eq("id", draftId)
+    .eq("user_id", userId);
+  if (error) throw new StoreError(error.message);
+}

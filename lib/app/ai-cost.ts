@@ -50,6 +50,8 @@ export const FEATURES = [
   // Reading a recruitment board's page and deciding which links are notices.
   // Also unattended, also always null.
   "govt_ingest",
+  // Tailoring one application: a draft and a review, both per job.
+  "job_application",
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];
@@ -67,6 +69,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   interview_feedback: "Marking a mock interview",
   insights: "Writing Insights (daily news)",
   govt_ingest: "Reading government recruitment boards",
+  job_application: "Preparing a job application",
 };
 
 /** Who and what a call belongs to. Required, so a call cannot go unattributed. */

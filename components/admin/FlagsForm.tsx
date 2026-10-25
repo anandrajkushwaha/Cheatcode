@@ -80,6 +80,7 @@ const KIND: Record<Feature, "chat" | "realtime"> = {
   interview_feedback: "chat",
   insights: "chat",
   govt_ingest: "chat",
+  job_application: "chat",
 };
 
 export function FlagsForm({ initial, features, configured, seen }: Props) {

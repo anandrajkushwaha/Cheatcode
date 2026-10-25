@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { JobRow } from "@/lib/jobs/query";
+import type { Match } from "@/lib/jobs/match";
 
 /**
  * One job, as a full-width row.
@@ -15,7 +17,7 @@ import type { JobRow } from "@/lib/jobs/query";
  * step between somebody and the job.
  */
 
-export function JobListCard({ job }: { job: JobRow }) {
+export function JobListCard({ job, match, prepared }: { job: JobRow; match?: Match | null; prepared?: boolean }) {
   const where = job.is_remote
     ? "Remote"
     : job.cities?.length
@@ -26,11 +28,12 @@ export function JobListCard({ job }: { job: JobRow }) {
   const pay = money(job);
 
   return (
+    <div className="rounded-2xl border border-ink-08 bg-paper transition-all hover:border-ink-30 hover:shadow-[0_2px_14px_-6px_rgb(0_0_0/0.12)]">
     <a
       href={job.apply_url}
       target="_blank"
       rel="noopener noreferrer nofollow"
-      className="group block rounded-2xl border border-ink-08 bg-paper p-5 transition-all hover:border-ink-30 hover:shadow-[0_2px_14px_-6px_rgb(0_0_0/0.12)]"
+      className="group block p-5 pb-4"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -73,7 +76,38 @@ export function JobListCard({ job }: { job: JobRow }) {
         </div>
       )}
     </a>
+
+    {/* Outside the link: a second action inside an <a> is not allowed, and
+        this one stays on our site while the card goes to the company's. */}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-08 px-5 py-3">
+      {match && match.score > 0 ? (
+        <p className="min-w-0 text-[0.8rem] text-ink-50">
+          <span className={`mr-2 rounded-full px-2 py-0.5 font-semibold tabular-nums ${tone(match.score)}`}>
+            {match.score}% match
+          </span>
+          {match.missing.length > 0 && (
+            <span className="text-ink-30">Missing: {match.missing.slice(0, 3).join(", ")}</span>
+          )}
+        </p>
+      ) : (
+        <span />
+      )}
+      <Link
+        href={`/app/jobs/${job.id}/apply`}
+        rel="nofollow"
+        className="shrink-0 rounded-full bg-ink px-3.5 py-1.5 text-[0.8rem] font-medium text-paper transition-opacity hover:opacity-90"
+      >
+        {prepared ? "View application" : "Prepare my application"}
+      </Link>
+    </div>
+    </div>
   );
+}
+
+function tone(score: number): string {
+  if (score >= 75) return "bg-[#e7f6ec] text-[#1a7f37]";
+  if (score >= 50) return "bg-[#fff4e0] text-[#9a6400]";
+  return "bg-ink-04 text-ink-50";
 }
 
 function Fact({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {

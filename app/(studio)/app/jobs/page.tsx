@@ -4,6 +4,9 @@ import { searchJobs, countJobs, PER_PAGE, type JobSort } from "@/lib/jobs/query"
 import { CANONICAL_CITIES } from "@/lib/geo/cities";
 import { JobFilterRail, JobSearchBar, type Filters } from "@/components/studio/JobFilterRail";
 import { JobListCard } from "@/components/studio/JobListCard";
+import { getApplicant } from "@/lib/jobs/candidate";
+import { listApplications } from "@/lib/jobs/applications";
+import { matchJob } from "@/lib/jobs/match";
 
 export const dynamic = "force-dynamic";
 
@@ -71,10 +74,15 @@ export default async function StudioJobsPage({
 
   const page = Math.max(1, Number(one("page") ?? 1) || 1);
 
-  const [{ jobs, total, error }, totalInDb] = await Promise.all([
+  const [{ jobs, total, error }, totalInDb, applicant, applications] = await Promise.all([
     searchJobs({ q, cities, remote, maxYears, maxAgeDays, sort, page }),
     countJobs(),
+    getApplicant(),
+    listApplications(),
   ]);
+  // No resume, no score: a number computed from nothing would read as a verdict.
+  const scored = Boolean(applicant.resume);
+  const preparedJobs = new Set(applications.map((a) => a.job_id));
 
   const lastPage = Math.max(1, Math.ceil(total / PER_PAGE));
   const filtered = Boolean(q || cities.length || remote || maxYears !== null || maxAgeDays);
@@ -99,11 +107,16 @@ export default async function StudioJobsPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-[1.38rem] font-semibold tracking-[-0.03em]">Jobs</h1>
-        {totalInDb > 0 && (
-          <p className="text-[0.8rem] text-ink-30">
-            {totalInDb.toLocaleString("en-IN")} open roles
-          </p>
-        )}
+        <div className="flex items-baseline gap-4">
+          {totalInDb > 0 && (
+            <p className="text-[0.8rem] text-ink-30">
+              {totalInDb.toLocaleString("en-IN")} open roles
+            </p>
+          )}
+          <Link href="/app/applications" className="text-[0.82rem] font-medium underline underline-offset-4">
+            My applications{applications.length ? ` (${applications.length})` : ""}
+          </Link>
+        </div>
       </div>
 
       <JobSearchBar q={q} sort={sort} base={pageHref(1).split("?")[1] ?? ""} />
@@ -157,7 +170,12 @@ export default async function StudioJobsPage({
 
               <div className="space-y-3">
                 {jobs.map((job) => (
-                  <JobListCard key={job.id} job={job} />
+                  <JobListCard
+                    key={job.id}
+                    job={job}
+                    match={scored ? matchJob(applicant.candidate, job) : null}
+                    prepared={preparedJobs.has(job.id)}
+                  />
                 ))}
               </div>
 
