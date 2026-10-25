@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/supabase/app";
 import { getDraftById, getShared, StoreError } from "@/lib/app/resume-store";
-import { designHtml, pdfFileName } from "@/lib/app/design-html";
+import { asciiFileName, designHtml, pdfFileName } from "@/lib/app/design-html";
 import { designIsEmpty } from "@/lib/app/design";
 import { seedDesign } from "@/lib/app/design-seed";
 import { htmlToPdf } from "@/lib/app/pdf";
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/pdf",
         // `attachment` is what makes it download rather than open in a tab,
         // and the filename is what stops four résumés all being Cheatcode.pdf.
-        "Content-Disposition": `attachment; filename="${pdfFileName(title)}"; filename*=UTF-8''${encodeURIComponent(pdfFileName(title))}`,
+        "Content-Disposition": `attachment; filename="${asciiFileName(pdfFileName(title))}"; filename*=UTF-8''${encodeURIComponent(pdfFileName(title))}`,
         "Cache-Control": "no-store",
       },
     });

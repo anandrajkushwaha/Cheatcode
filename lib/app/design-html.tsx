@@ -82,3 +82,22 @@ export function pdfFileName(title: string): string {
     .slice(0, 80);
   return `${clean || "Resume"}.pdf`;
 }
+
+/**
+ * The same name in plain ASCII, for the header's `filename=` part.
+ *
+ * A header value may only hold bytes up to 255, and building a Response with
+ * anything else throws — so a title with a dash like "—", an accented letter
+ * or a name in Devanagari failed the whole download. The full name still
+ * travels in `filename*`, which every current browser prefers.
+ */
+export function asciiFileName(name: string): string {
+  const ascii = name
+    .replace(/[\u2013\u2014]/g, "-")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7e]/g, "")
+    .replace(/"/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return ascii && ascii !== ".pdf" ? ascii : "Resume.pdf";
+}
