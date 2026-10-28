@@ -29,8 +29,17 @@ export async function matchingJobs(candidate: Candidate): Promise<Matched[]> {
     .order("posted_at", { ascending: false, nullsFirst: false })
     .limit(POOL);
   const rows = ((data ?? []) as Omit<JobRow, "total_count">[]).map((r) => ({ ...r, skills: r.skills ?? [], cities: r.cities ?? [], total_count: 0 }));
-  return rows
+  const scored = rows
     .map((job) => ({ job, match: matchJob(candidate, job) }))
     .filter(({ job, match }) => isGenuine(match, job))
     .sort((a, b) => b.match.score - a.match.score);
+  // One company often posts the same role more than once (a city each, or a
+  // re-post). Counted once, or "2 jobs" is one job shown twice.
+  const seen = new Set<string>();
+  return scored.filter(({ job }) => {
+    const k = `${job.company}|${job.title}`.toLowerCase().replace(/\s+/g, " ").trim();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }

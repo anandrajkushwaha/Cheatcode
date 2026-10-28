@@ -72,51 +72,58 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
   }
 
   const n = data.count;
+  const perDay = Math.round(data.prices.pass / data.prices.passDays);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" role="dialog" aria-modal="true">
       <button type="button" aria-label="Close" className="absolute inset-0 cursor-default" onClick={() => !busy && onClose()} />
-      <div className="relative max-h-[94dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-paper p-6 shadow-2xl sm:max-w-[32rem] sm:rounded-[1.75rem] sm:p-8">
-        <p className="text-[0.8rem] font-medium text-[#1a7f37]">✓ Resume downloaded</p>
-        <h2 className="mt-2 text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.03em]">
-          You’re a <span className="text-[#c2410c]">{best}% match</span> for {n} {n === 1 ? "job" : "jobs"} hiring right now
+      <div className="relative max-h-[94dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-paper p-6 shadow-2xl sm:max-w-[30rem] sm:rounded-[1.75rem] sm:p-7">
+        <p className="text-[0.82rem] font-semibold text-[#1a7f37]">✓ Your resume is ready</p>
+        <h2 className="mt-2 text-[1.75rem] font-bold leading-[1.12] tracking-[-0.03em]">
+          {n === 1 ? "1 company wants" : `${n} companies want`} someone with{" "}
+          <span className="text-[#c2410c]">your skills</span>
         </h2>
-        <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-50">
-          {n === 1 ? "This company is" : "These companies are"} asking for the skills on your resume. Apply while the
-          posting is fresh — before the pile builds up.
+        <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#e7f6ec] px-3 py-1 text-[0.82rem] font-semibold text-[#14532d]">
+          Your resume matches {best}% of what they want
+        </p>
+        <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-70">
+          Don’t miss it. Apply early, before others do — it takes 1 minute.
         </p>
 
-        <ul className="mt-5 space-y-2.5">
+        <ul className="mt-5 space-y-3">
           {data.top.map((j) => (
-            <li key={j.id} className="rounded-2xl border border-ink-08 p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[0.92rem] font-semibold">{j.title}</p>
-                  {j.locked ? (
-                    <p className="mt-0.5 select-none text-[0.8rem] text-ink-50">
-                      <span className="inline-block rounded bg-ink-08 px-1.5 blur-[3px]" aria-hidden>
-                        Hidden Company Pvt
-                      </span>{" "}
-                      <span className="sr-only">Company hidden until unlocked.</span>· {j.matched.join(", ")}
-                    </p>
-                  ) : (
-                    <p className="mt-0.5 truncate text-[0.8rem] text-ink-50">
-                      {j.company} · {j.where}
-                    </p>
-                  )}
-                </div>
-                <span className="shrink-0 rounded-full bg-[#e7f6ec] px-2.5 py-1 text-[0.76rem] font-semibold tabular-nums text-[#1a7f37]">
-                  {j.score}%
+            <li key={j.id} className="rounded-2xl border-2 border-ink-08 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="rounded-full bg-[#e7f6ec] px-2.5 py-1 text-[0.76rem] font-bold tabular-nums text-[#1a7f37]">
+                  {j.score}% match
                 </span>
+                {j.where && <span className="truncate text-[0.78rem] text-ink-50">📍 {j.where}</span>}
               </div>
+              <p className="mt-2.5 text-[1rem] font-semibold leading-snug">{j.title}</p>
+              {j.locked ? (
+                <p className="mt-1 flex items-center gap-1.5 text-[0.82rem] text-ink-50">
+                  <span aria-hidden>🔒</span>
+                  <span className="inline-block select-none rounded bg-ink-08 px-1.5 blur-[3px]" aria-hidden>
+                    Hidden Company Pvt
+                  </span>
+                  <span className="sr-only">Company name hidden until unlocked.</span>
+                </p>
+              ) : (
+                <p className="mt-1 text-[0.85rem] font-medium text-ink-70">{j.company}</p>
+              )}
+              {j.matched.length > 0 && (
+                <p className="mt-2 text-[0.78rem] text-ink-50">
+                  They want: {j.matched.map((m) => `✓ ${m}`).join("  ")}
+                </p>
+              )}
               {j.locked ? (
                 <button
                   type="button"
                   disabled={Boolean(busy)}
                   onClick={() => void buy("job", j.id)}
-                  className="mt-3 w-full rounded-full border border-ink-15 py-2 text-[0.82rem] font-medium transition-colors hover:border-ink disabled:opacity-50"
+                  className="mt-3.5 w-full rounded-full bg-ink py-3 text-[0.92rem] font-semibold text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  {busy === j.id ? "Opening payment…" : `Unlock & apply · ₹${data.prices.job}`}
+                  {busy === j.id ? "Opening payment…" : `See company & apply · ₹${data.prices.job}`}
                 </button>
               ) : (
                 j.applyUrl && (
@@ -125,7 +132,7 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                     onClick={() => track(EVENTS.BUILDER_STEP, { label: "matches_apply_click", score: j.score })}
-                    className="mt-3 flex w-full items-center justify-center rounded-full bg-ink py-2 text-[0.82rem] font-medium text-paper"
+                    className="mt-3.5 flex w-full items-center justify-center rounded-full bg-[#1a7f37] py-3 text-[0.92rem] font-semibold text-white"
                   >
                     Apply now ↗
                   </a>
@@ -145,24 +152,31 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
             See all {n} matching jobs →
           </Link>
         ) : (
-          <>
+          <div className="mt-6 rounded-2xl bg-[#fff4ec] p-4">
             <button
               type="button"
               disabled={Boolean(busy)}
               onClick={() => void buy("pass")}
-              className="mt-6 w-full rounded-full bg-[#c2410c] px-5 py-4 text-[1rem] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(194,65,12,0.7)] transition-transform hover:scale-[1.01] disabled:opacity-60"
+              className="w-full rounded-full bg-[#c2410c] px-5 py-4 text-[1.02rem] font-bold text-white shadow-[0_10px_30px_-10px_rgba(194,65,12,0.7)] transition-transform hover:scale-[1.01] disabled:opacity-60"
             >
-              {busy === "pass" ? "Opening payment…" : `Unlock all ${n} matches · ₹${data.prices.pass}`}
+              {busy === "pass"
+                ? "Opening payment…"
+                : n > 1
+                  ? `Unlock all ${n} jobs · ₹${data.prices.pass}`
+                  : `This job + every new match · ₹${data.prices.pass}`}
             </button>
-            <p className="mt-2 text-center text-[0.76rem] text-ink-30">
-              {data.prices.passDays} days · new matches included · one-time, no auto-renew
+            <p className="mt-2 text-center text-[0.8rem] font-medium text-[#7a3412]">
+              Just ₹{perDay} a day · {data.prices.passDays} days · new matches included
             </p>
-            <Link href="/app/upgrade" className="mt-3 block text-center text-[0.8rem] text-ink-50 underline underline-offset-4 hover:text-ink">
-              Or go Pro — every match, unlimited applications & AI coach
-            </Link>
-          </>
+            <p className="mt-0.5 text-center text-[0.72rem] text-ink-30">One-time payment. No auto-renew.</p>
+          </div>
         )}
 
+        {!data.all && (
+          <Link href="/app/upgrade" className="mt-3 block text-center text-[0.8rem] text-ink-50 underline underline-offset-4 hover:text-ink">
+            Or go Pro — every match, unlimited applications & AI coach
+          </Link>
+        )}
         <button type="button" disabled={Boolean(busy)} onClick={onClose} className="mt-3 w-full text-[0.8rem] text-ink-30 hover:text-ink">
           Maybe later
         </button>

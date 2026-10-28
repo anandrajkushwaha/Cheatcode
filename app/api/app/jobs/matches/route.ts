@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * How many open jobs genuinely fit their resume, and the best three — for the
- * post-download popup. A locked match comes back without its company, place
- * or link: hidden on the server, not blurred over data the page already has.
+ * post-download popup. A locked match comes back without its company or
+ * link: hidden on the server, not blurred over data the page already has.
  */
 export async function GET() {
   const user = await getSessionUser();
@@ -34,7 +34,9 @@ export async function GET() {
         matched: match.matched.slice(0, 3),
         locked: !open,
         company: open ? job.company : null,
-        where: open ? (job.is_remote ? "Remote" : job.cities.slice(0, 2).join(", ") || job.location_raw || "India") : null,
+        // The city is shown even when locked — it helps them decide, and it
+        // doesn't give the job away. Company and link stay hidden.
+        where: job.is_remote ? "Remote" : job.cities.slice(0, 2).join(", ") || job.location_raw || "India",
         applyUrl: open ? job.apply_url : null,
       };
     }),
