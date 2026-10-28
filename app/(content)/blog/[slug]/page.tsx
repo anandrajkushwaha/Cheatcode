@@ -61,7 +61,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: post.published_at,
       modifiedTime: post.updated_at,
       authors: post.author?.name ? [post.author.name] : undefined,
-      // The image is ./opengraph-image.tsx: the title beside the cover.
+      ...(post.cover_image
+        ? { images: [{ url: post.cover_image, alt: post.cover_alt ?? post.title }] }
+        : {}),
     },
   };
 }
