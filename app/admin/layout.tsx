@@ -61,6 +61,8 @@ const NAV = [
   // Beside People: the same kind of list, from the free ATS checker, with or
   // without an account.
   { href: "/admin/leads", label: "ATS leads" },
+  // The post-download match popup: who saw it, what they clicked, what they paid.
+  { href: "/admin/match-popup", label: "Match popup" },
   // After People because it answers the next question: People says how many
   // signed up, this says who they are — read out of their own résumés.
   { href: "/admin/user-analytics", label: "User analytics" },

@@ -74,7 +74,7 @@ export const SECTIONS: readonly Section[] = [
     key: "people",
     label: "People",
     detail: "The list of signed-up users, ATS checker leads and who reached for Pro. Read only, but it is personal data.",
-    pages: ["/admin/users", "/admin/leads", "/admin/pro", "/admin/user-analytics"],
+    pages: ["/admin/users", "/admin/leads", "/admin/match-popup", "/admin/pro", "/admin/user-analytics"],
     apis: [],
   },
   {

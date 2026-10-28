@@ -36,7 +36,22 @@ export type MatchesData = {
   }[];
 };
 
-export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClose: () => void }) {
+/** Recorded against the user for /admin/match-popup. Fire and forget. */
+function log(event: string, extra: { jobId?: string; props?: Record<string, unknown> } = {}) {
+  void fetch("/api/app/funnel/popup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event, ...extra }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+export function MatchesPopup({ initial, onClose: close }: { initial: MatchesData; onClose: () => void }) {
+  const [openedAt] = useState(() => Date.now());
+  const onClose = useCallback(() => {
+    log("closed", { props: { ms: Date.now() - openedAt } });
+    close();
+  }, [close, openedAt]);
   const [data, setData] = useState<MatchesData>(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -44,6 +59,7 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
 
   useEffect(() => {
     track(EVENTS.BUILDER_STEP, { label: "matches_shown", count: initial.count, best });
+    log("shown", { props: { count: initial.count, best, jobs: initial.top.map((j) => j.id) } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -61,6 +77,7 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
   }, []);
 
   async function buy(kind: "job" | "pass", jobId?: string) {
+    log(kind === "pass" ? "pass_click" : "unlock_click", { jobId, props: { count: data.count } });
     setBusy(jobId ?? kind);
     setNote(null);
     const r = await buyUnlock(kind, jobId);
@@ -131,7 +148,10 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
                     href={j.applyUrl}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    onClick={() => track(EVENTS.BUILDER_STEP, { label: "matches_apply_click", score: j.score })}
+                    onClick={() => {
+                      track(EVENTS.BUILDER_STEP, { label: "matches_apply_click", score: j.score });
+                      log("apply_click", { jobId: j.id, props: { score: j.score } });
+                    }}
                     className="mt-3.5 flex w-full items-center justify-center rounded-full bg-[#1a7f37] py-3 text-[0.92rem] font-semibold text-white"
                   >
                     Apply now ↗
@@ -147,6 +167,7 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
         {data.all ? (
           <Link
             href="/app/jobs?for=me"
+            onClick={() => log("see_all_click")}
             className="mt-6 flex w-full items-center justify-center rounded-full bg-ink px-5 py-3.5 text-[0.95rem] font-medium text-paper"
           >
             See all {n} matching jobs →
@@ -173,7 +194,7 @@ export function MatchesPopup({ initial, onClose }: { initial: MatchesData; onClo
         )}
 
         {!data.all && (
-          <Link href="/app/upgrade" className="mt-3 block text-center text-[0.8rem] text-ink-50 underline underline-offset-4 hover:text-ink">
+          <Link href="/app/upgrade" onClick={() => log("pro_click")} className="mt-3 block text-center text-[0.8rem] text-ink-50 underline underline-offset-4 hover:text-ink">
             Or go Pro — every match, unlimited applications & AI coach
           </Link>
         )}
