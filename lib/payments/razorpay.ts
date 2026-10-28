@@ -216,3 +216,68 @@ export function verifyOrderSignature(
   const expected = createHmac("sha256", keys.keySecret).update(`${args.orderId}|${args.paymentId}`).digest("hex");
   return safeEqualHex(expected, args.signature);
 }
+
+/* ------------------------------------------------------ the Pro plan price */
+
+/** Pro is ₹299 a month (lib/studio/plan.ts shows the same number). */
+export const PRO_AMOUNT_PAISE = 29900;
+
+let proPlanCache: string | null = null;
+
+/**
+ * The id of a Razorpay plan that charges exactly PRO_AMOUNT_PAISE a month.
+ *
+ * Razorpay plans can't be repriced, so a price change means a new plan — and
+ * a new plan id pasted into the environment, which is easy to forget (the
+ * screen said ₹299 while checkout still charged the old ₹99). Instead: use
+ * RAZORPAY_PLAN_ID if it already charges the right amount; otherwise use the
+ * plan this function created before (remembered in feature_flags); otherwise
+ * create one through the API and remember it.
+ */
+export async function ensureProPlan(cfg: RazorpayConfig): Promise<string> {
+  if (proPlanCache) return proPlanCache;
+  const auth = authHeader(cfg);
+  const { createAppAdminClient } = await import("@/lib/supabase/app");
+  const db = createAppAdminClient();
+  const KEY = "razorpay_pro_plan";
+
+  if (db) {
+    const { data } = await db.from("feature_flags").select("value").eq("key", KEY).maybeSingle();
+    const v = (data as { value?: { planId?: string; amount?: number } } | null)?.value;
+    if (v?.planId && v.amount === PRO_AMOUNT_PAISE) return (proPlanCache = v.planId);
+  }
+
+  const amountOf = async (id: string): Promise<number | null> => {
+    const r = await fetch(`${API}/plans/${encodeURIComponent(id)}`, { headers: { Authorization: auth }, cache: "no-store" }).catch(() => null);
+    const b = (await r?.json().catch(() => null)) as { item?: { amount?: number } } | null;
+    return r?.ok ? (b?.item?.amount ?? null) : null;
+  };
+
+  let planId: string | null = (await amountOf(cfg.planId)) === PRO_AMOUNT_PAISE ? cfg.planId : null;
+  if (!planId) {
+    const r = await fetch(`${API}/plans`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        period: "monthly",
+        interval: 1,
+        item: { name: "Cheatcode Pro", amount: PRO_AMOUNT_PAISE, currency: "INR", description: "Cheatcode Pro – monthly" },
+      }),
+      cache: "no-store",
+    }).catch(() => null);
+    const b = (await r?.json().catch(() => null)) as { id?: string; error?: { description?: string } } | null;
+    if (!r?.ok || !b?.id) {
+      console.error("[razorpay] create plan failed", { status: r?.status, body: b });
+      // Fall back to the configured plan rather than refusing the sale.
+      return cfg.planId;
+    }
+    planId = b.id;
+  }
+
+  if (db) {
+    await db
+      .from("feature_flags")
+      .upsert({ key: KEY, enabled: true, value: { planId, amount: PRO_AMOUNT_PAISE }, updated_at: new Date().toISOString(), note: "Created by ensureProPlan" }, { onConflict: "key" });
+  }
+  return (proPlanCache = planId);
+}

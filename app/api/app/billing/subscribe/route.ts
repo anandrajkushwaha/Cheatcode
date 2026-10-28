@@ -1,7 +1,7 @@
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { getSessionUser } from "@/lib/supabase/app";
 import { getProfile, isPaid } from "@/lib/app/account";
-import { createSubscription, razorpayConfig } from "@/lib/payments/razorpay";
+import { createSubscription, ensureProPlan, razorpayConfig } from "@/lib/payments/razorpay";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +55,15 @@ export async function POST() {
    * end — each of which can still be authorised later, and two authorised
    * mandates means two charges a month.
    */
+  // The plan at today's price (₹299) — an open mandate on an older plan is
+  // not reused, or the old price would be charged.
+  const planId = await ensureProPlan(cfg);
+
   const { data: open } = await db
     .from("subscriptions")
     .select("rzp_subscription_id, status")
     .eq("user_id", user.id)
+    .eq("rzp_plan_id", planId)
     .in("status", ["created", "authenticated"])
     .order("created_at", { ascending: false })
     .limit(1);
@@ -68,7 +73,7 @@ export async function POST() {
     return Response.json({ ok: true, subscriptionId: reusable, keyId: cfg.keyId });
   }
 
-  const created = await createSubscription(cfg, {
+  const created = await createSubscription({ ...cfg, planId }, {
     userId: user.id,
     email: user.email ?? null,
     name: profile?.full_name ?? null,
