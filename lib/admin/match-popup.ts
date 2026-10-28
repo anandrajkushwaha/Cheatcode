@@ -12,6 +12,10 @@ import { createAppAdminClient } from "@/lib/supabase/app";
 
 export type PopupRow = {
   userId: string;
+  /** Not signed in: seen after the free ATS check, known by visitor id and the resume's contact block. */
+  anonymous: boolean;
+  /** Where they saw it: after a resume download, after the ATS check, or both. */
+  where: string;
   name: string | null;
   email: string | null;
   phone: string | null;
@@ -61,7 +65,18 @@ export type PopupReport =
       rows: PopupRow[];
     };
 
-type Ev = { user_id: string; event: string; job_id: string | null; props: Record<string, unknown>; created_at: string };
+type Ev = {
+  user_id: string | null;
+  visitor: string | null;
+  source: string;
+  contact: { name?: string | null; email?: string | null; phone?: string | null } | null;
+  event: string;
+  job_id: string | null;
+  props: Record<string, unknown>;
+  created_at: string;
+};
+/** A person: the account when signed in, else the browser. */
+const who = (e: Ev) => e.user_id ?? `v:${e.visitor ?? "?"}`;
 
 function fieldOf(content: Record<string, unknown> | null, p: Record<string, unknown> | null): string | null {
   const c = content ?? {};
@@ -76,13 +91,16 @@ function fieldOf(content: Record<string, unknown> | null, p: Record<string, unkn
   return typeof pick === "string" ? pick.trim().slice(0, 60) : null;
 }
 
-export async function getPopupReport(days: number | null): Promise<PopupReport> {
+export async function getPopupReport(days: number | null, source: "all" | "resume" | "ats" = "all"): Promise<PopupReport> {
   const db = createAppAdminClient();
   if (!db) return { ok: false, missing: "service key" };
   const since = days ? new Date(Date.now() - days * 86_400_000).toISOString() : "2000-01-01";
 
   const [evRes, dlRes] = await Promise.all([
-    db.from("match_popup_events").select("user_id,event,job_id,props,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(20000),
+    (source === "all"
+      ? db.from("match_popup_events").select("user_id,visitor,source,contact,event,job_id,props,created_at")
+      : db.from("match_popup_events").select("user_id,visitor,source,contact,event,job_id,props,created_at").eq("source", source)
+    ).gte("created_at", since).order("created_at", { ascending: true }).limit(20000),
     db.from("account_events").select("user_id,created_at").eq("kind", "resume_download").gte("created_at", since).limit(20000),
   ]);
   if (evRes.error) return { ok: false, missing: "116_match_popup_events.sql" };
@@ -90,7 +108,8 @@ export async function getPopupReport(days: number | null): Promise<PopupReport> 
   const downloads = new Map<string, number>();
   for (const d of (dlRes.data ?? []) as { user_id: string }[]) downloads.set(d.user_id, (downloads.get(d.user_id) ?? 0) + 1);
 
-  const userIds = [...new Set(events.map((e) => e.user_id))];
+  const people = [...new Set(events.map(who))];
+  const userIds = [...new Set(events.map((e) => e.user_id).filter(Boolean) as string[])];
   const jobIds = [...new Set(events.map((e) => e.job_id).filter(Boolean) as string[])];
 
   const [profRes, draftRes, unlockRes, jobRes] = await Promise.all([
@@ -115,8 +134,12 @@ export async function getPopupReport(days: number | null): Promise<PopupReport> 
   }
   const jobs = new Map(((jobRes.data ?? []) as { id: string; title: string; company: string }[]).map((j) => [j.id, j]));
 
-  const rows: PopupRow[] = userIds.map((uid) => {
-    const evs = events.filter((e) => e.user_id === uid);
+  const rows: PopupRow[] = people.map((uid) => {
+    const evs = events.filter((e) => who(e) === uid);
+    const anonymous = uid.startsWith("v:");
+    const contact = evs.map((e) => e.contact).filter(Boolean).pop() ?? null;
+    const sources = new Set(evs.map((e) => e.source));
+    const where = sources.size > 1 ? "Download + ATS" : sources.has("ats") ? "ATS check" : "Resume download";
     const p = (profiles.get(uid) ?? null) as Record<string, unknown> | null;
     const content = drafts.get(uid) ?? null;
     const count = (name: string) => evs.filter((e) => e.event === name).length;
@@ -155,11 +178,13 @@ export async function getPopupReport(days: number | null): Promise<PopupReport> 
     const cities = Array.isArray(p?.preferred_cities) ? (p!.preferred_cities as string[]) : [];
     return {
       userId: uid,
-      name: (p?.full_name as string) ?? null,
-      email: (p?.email as string) ?? null,
-      phone: (p?.phone as string) ?? null,
+      anonymous,
+      where,
+      name: (p?.full_name as string) ?? contact?.name ?? null,
+      email: (p?.email as string) ?? contact?.email ?? null,
+      phone: (p?.phone as string) ?? contact?.phone ?? null,
       city: (p?.city as string) ?? cities[0] ?? null,
-      source: (p?.signup_source as string) ?? null,
+      source: (p?.signup_source as string) ?? (anonymous ? "not signed in" : null),
       field: fieldOf(content, p),
       years: (p?.years_experience as number) ?? (typeof content?.years_experience === "number" ? (content.years_experience as number) : null),
       skills,

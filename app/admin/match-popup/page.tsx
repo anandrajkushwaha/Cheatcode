@@ -31,10 +31,18 @@ const TONE: Record<string, string> = {
   "No action": "bg-ink-04 text-ink-50",
 };
 
-export default async function AdminMatchPopup({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
-  const { days: raw } = await searchParams;
+const SOURCES = [
+  { id: "all", label: "Both" },
+  { id: "resume", label: "After resume download" },
+  { id: "ats", label: "After ATS check" },
+] as const;
+
+export default async function AdminMatchPopup({ searchParams }: { searchParams: Promise<{ days?: string; src?: string }> }) {
+  const { days: raw, src: rawSrc } = await searchParams;
   const range = RANGES.some((r) => r.id === raw) ? raw! : "30";
-  const report = await getPopupReport(range === "all" ? null : Number(range));
+  const src = (SOURCES.find((x) => x.id === rawSrc)?.id ?? "all") as "all" | "resume" | "ats";
+  const report = await getPopupReport(range === "all" ? null : Number(range), src);
+  const link = (q: { days?: string; src?: string }) => `/admin/match-popup?days=${q.days ?? range}&src=${q.src ?? src}`;
 
   if (!report.ok) {
     return (
@@ -45,13 +53,13 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
   }
   const t = report.totals;
   const steps = [
-    { label: "Downloaded a resume", value: t.downloaders },
+    ...(src === "resume" ? [{ label: "Downloaded a resume", value: t.downloaders }] : []),
     { label: "Saw the match popup", value: t.shownUsers },
     { label: "Clicked something", value: t.clickedUsers },
     { label: "Started a payment (₹49 / ₹99)", value: t.startedPayUsers },
     { label: "Paid", value: t.paidUsers },
   ];
-  const top = Math.max(1, steps[0].value, steps[1].value);
+  const top = Math.max(1, ...steps.map((x) => x.value));
 
   return (
     <div className="space-y-8">
@@ -59,25 +67,44 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
         <div>
           <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Match popup</h1>
           <p className="mt-2 max-w-[72ch] text-[0.85rem] leading-relaxed text-ink-50">
-            The popup that appears right after a resume download — “N companies want someone with your skills”. Who saw it,
-            what field they are in, what they clicked and what they paid. One row per person, latest first.
+            The popup that appears right after a resume download, and after the free ATS check — “N companies want someone
+            with your skills”. Who saw it, what field they are in, what they clicked and what they paid. One row per person,
+            latest first; people who ran the ATS check without signing in are shown with the contact details read from their
+            resume.
           </p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {SOURCES.map((x) => (
+            <Link
+              key={x.id}
+              href={link({ src: x.id })}
+              className={`rounded-full px-3.5 py-1.5 text-[0.8rem] ${src === x.id ? "bg-ink text-paper" : "border border-ink-15 text-ink-50 hover:text-ink"}`}
+            >
+              {x.label}
+            </Link>
+          ))}
         </div>
         <div className="flex gap-1.5">
           {RANGES.map((r) => (
             <Link
               key={r.id}
-              href={`/admin/match-popup?days=${r.id}`}
+              href={link({ days: r.id })}
               className={`rounded-full px-3.5 py-1.5 text-[0.8rem] ${range === r.id ? "bg-ink text-paper" : "border border-ink-15 text-ink-50 hover:text-ink"}`}
             >
               {r.label}
             </Link>
           ))}
         </div>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Saw popup" value={t.shownUsers} hint={`${t.shows} times · ${pct(t.shownUsers, t.downloaders)} of downloaders`} />
+        <Stat
+          label="Saw popup"
+          value={t.shownUsers}
+          hint={src === "resume" ? `${t.shows} times · ${pct(t.shownUsers, t.downloaders)} of downloaders` : `${t.shows} times`}
+        />
         <Stat label="Clicked" value={t.clickedUsers} hint={`${pct(t.clickedUsers, t.shownUsers)} of those who saw it`} />
         <Stat label="Started payment" value={t.startedPayUsers} hint={pct(t.startedPayUsers, t.shownUsers)} />
         <Stat label="Paid" value={t.paidUsers} hint={pct(t.paidUsers, t.shownUsers)} />
@@ -101,7 +128,7 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
           ))}
         </ol>
         <p className="mt-4 text-[0.76rem] text-ink-30">
-          A download without a popup means the resume had no genuine match (2+ shared skills, 60%+) — or the popup had
+          No popup means the resume had no genuine match (2+ shared skills, 60%+) — or, after a download, the popup had
           already shown in that session.
         </p>
       </Panel>
@@ -136,7 +163,10 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
                 {report.rows.map((r) => (
                   <tr key={r.userId} className="border-b border-ink-08 align-top">
                     <td className="py-3 pr-3">
-                      <p className="font-medium">{r.name ?? "—"}</p>
+                      <p className="font-medium">
+                        {r.name ?? "—"}
+                        {r.anonymous && <span className="ml-1.5 rounded bg-ink-04 px-1.5 py-0.5 text-[0.68rem] font-normal text-ink-50">not signed in</span>}
+                      </p>
                       <p className="text-ink-50">{r.phone ?? r.email ?? ""}</p>
                       {r.phone && r.email && <p className="text-ink-30">{r.email}</p>}
                     </td>
@@ -152,11 +182,13 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
                       <p className="text-ink-30">{r.source ?? "—"}</p>
                     </td>
                     <td className="py-3 pr-3">
+                      <p className="font-medium">{r.where}</p>
                       <p>
                         {r.shown}× · {r.matches ?? "?"} matches · best {r.best ?? "?"}%
                       </p>
                       <p className="text-ink-30">
-                        {r.downloads} downloads · {r.avgSeconds !== null ? `${r.avgSeconds}s on popup` : "—"}
+                        {r.anonymous ? "" : `${r.downloads} downloads · `}
+                        {r.avgSeconds !== null ? `${r.avgSeconds}s on popup` : "—"}
                       </p>
                       <p className="text-ink-30">{when(r.lastAt)}</p>
                     </td>

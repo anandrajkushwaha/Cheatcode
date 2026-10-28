@@ -43,3 +43,13 @@ export async function matchingJobs(candidate: Candidate): Promise<Matched[]> {
     return true;
   });
 }
+
+/** Specific active jobs, in the order given — the ATS checker's matches (/app/jobs?picked=…). */
+export async function jobsByIds(ids: string[]): Promise<JobRow[]> {
+  if (!ids.length) return [];
+  const supabase = await createAppServerClient();
+  if (!supabase) return [];
+  const { data } = await supabase.from("jobs").select(COLUMNS).eq("is_active", true).in("id", ids);
+  const byId = new Map(((data ?? []) as Omit<JobRow, "total_count">[]).map((r) => [r.id, { ...r, skills: r.skills ?? [], cities: r.cities ?? [], total_count: 0 }]));
+  return ids.map((id) => byId.get(id)).filter((r): r is JobRow => Boolean(r));
+}

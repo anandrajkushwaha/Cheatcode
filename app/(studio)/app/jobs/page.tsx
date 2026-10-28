@@ -7,7 +7,7 @@ import { JobListCard } from "@/components/studio/JobListCard";
 import { getApplicant } from "@/lib/jobs/candidate";
 import { listApplications } from "@/lib/jobs/applications";
 import { matchJob } from "@/lib/jobs/match";
-import { matchingJobs } from "@/lib/jobs/matching";
+import { jobsByIds, matchingJobs } from "@/lib/jobs/matching";
 import { accessFor, canSee, PASS_DAYS, PRICES } from "@/lib/jobs/unlocks";
 import { getSessionUser } from "@/lib/supabase/app";
 import { LockedJobCard, PassBanner } from "@/components/studio/LockedJob";
@@ -94,6 +94,17 @@ export default async function StudioJobsPage({
    * Filters don't apply here; the resume is the filter.
    */
   const forMe = one("for") === "me";
+  /**
+   * "picked": the jobs the free ATS checker matched in their browser, carried
+   * here as id:score pairs. Shown locked until unlocked (₹49 / ₹99), like
+   * every match; the score is display only.
+   */
+  const pickedScores = new Map<string, number>();
+  for (const pair of (one("picked") ?? "").split(",").slice(0, 20)) {
+    const [id, sc] = pair.split(":");
+    if (/^[0-9a-f-]{36}$/i.test(id ?? "")) pickedScores.set(id, Math.max(0, Math.min(100, Math.round(Number(sc) || 0))));
+  }
+  const picked = pickedScores.size ? await jobsByIds([...pickedScores.keys()]) : [];
   const [forYou, user] = await Promise.all([
     scored ? matchingJobs(applicant.candidate) : Promise.resolve([]),
     getSessionUser(),
@@ -102,11 +113,12 @@ export default async function StudioJobsPage({
   // other job stays free. Locked ones are rendered without company or link.
   const access = user ? await accessFor(user.id, user.email ?? null, applicant.profile) : null;
   const matchById = new Map(forYou.map((x) => [x.job.id, x.match]));
-  const locked = (id: string) => matchById.has(id) && !(access && canSee(access, id));
-  const lockedCount = forYou.filter((x) => locked(x.job.id)).length;
-  const best = forYou[0]?.match.score ?? 0;
-  const list = forMe ? forYou.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((x) => x.job) : jobs;
-  const listTotal = forMe ? forYou.length : total;
+  const locked = (id: string) => (matchById.has(id) || pickedScores.has(id)) && !(access && canSee(access, id));
+  const lockedCount = (picked.length ? picked.map((j) => j.id) : forYou.map((x) => x.job.id)).filter(locked).length;
+  const best = picked.length ? Math.max(...picked.map((j) => pickedScores.get(j.id) ?? 0)) : (forYou[0]?.match.score ?? 0);
+  const showPicked = picked.length > 0;
+  const list = showPicked ? picked : forMe ? forYou.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((x) => x.job) : jobs;
+  const listTotal = showPicked ? picked.length : forMe ? forYou.length : total;
 
   const lastPage = Math.max(1, Math.ceil(listTotal / PER_PAGE));
   const filtered = Boolean(q || cities.length || remote || maxYears !== null || maxAgeDays);
@@ -229,12 +241,12 @@ export default async function StudioJobsPage({
             <>
               {lockedCount > 0 && !access?.all && (
                 <div className="pb-4">
-                  <PassBanner count={forYou.length} best={best} price={PRICES.pass / 100} days={PASS_DAYS} />
+                  <PassBanner count={showPicked ? picked.length : forYou.length} best={best} price={PRICES.pass / 100} days={PASS_DAYS} />
                 </div>
               )}
               <p className="pb-3 text-[0.8rem] text-ink-30">
                 {listTotal.toLocaleString("en-IN")} {listTotal === 1 ? "role" : "roles"}
-                {forMe ? " fit your resume, best first" : filtered ? " match" : ""}
+                {showPicked ? " match the resume you checked" : forMe ? " fit your resume, best first" : filtered ? " match" : ""}
                 {lastPage > 1 ? ` · page ${page} of ${lastPage}` : ""}
               </p>
 
@@ -245,8 +257,8 @@ export default async function StudioJobsPage({
                       key={job.id}
                       jobId={job.id}
                       title={job.title}
-                      score={matchById.get(job.id)!.score}
-                      matched={matchById.get(job.id)!.matched}
+                      score={matchById.get(job.id)?.score ?? pickedScores.get(job.id) ?? 0}
+                      matched={matchById.get(job.id)?.matched ?? []}
                       price={PRICES.job / 100}
                     />
                   ) : (

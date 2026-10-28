@@ -7,12 +7,13 @@ import { EVENTS, currentTouch, track } from "@/lib/analytics/events";
 import { metaTrack } from "@/lib/analytics/meta";
 import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
 import { ExtractError, extractResume } from "@/lib/tools/extract";
+import { AtsMatches } from "@/components/tools/AtsMatches";
 import { findContact } from "@/lib/tools/contact";
 
 type State =
   | { phase: "idle" }
   | { phase: "reading"; name: string }
-  | { phase: "done"; name: string; result: AtsResult }
+  | { phase: "done"; name: string; result: AtsResult; text: string }
   | { phase: "error"; message: string; detail?: string };
 
 // Both the MIME types and the extensions. Android's WebView maps `accept`
@@ -86,7 +87,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
       }
 
       const result = analyseResume(facts);
-      setState({ phase: "done", name: file.name, result });
+      setState({ phase: "done", name: file.name, result, text: facts.text });
       // A finished free check is the lead the ads are optimised for.
       metaTrack("Lead", { content_name: "resume-ats-checker" });
       saveLead(facts.text, result.score, facts.fileType);
@@ -234,7 +235,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
   }
 
   // ------------------------------------------------------------- results
-  const { result, name } = state;
+  const { result, name, text } = state;
   const failing = result.checks.filter((c) => c.status === "fail");
   const warning = result.checks.filter((c) => c.status === "warn");
   const passing = result.checks.filter((c) => c.status === "pass");
@@ -284,6 +285,9 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
           ))}
         </ul>
       </div>
+
+      {/* The jobs this resume genuinely fits — matched in the browser. */}
+      <AtsMatches text={text} />
 
       {/* the actual findings */}
       {failing.length > 0 && (

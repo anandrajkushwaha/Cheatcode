@@ -20,3 +20,12 @@ create index if not exists match_popup_events_user_idx on public.match_popup_eve
 
 alter table public.match_popup_events enable row level security;
 revoke all on public.match_popup_events from anon, authenticated;
+
+-- The same popup after the free ATS check, where the person may not be
+-- signed in: then the row carries the browser's visitor id and the contact
+-- block the checker already read from the resume (see /admin/leads).
+alter table public.match_popup_events alter column user_id drop not null;
+alter table public.match_popup_events add column if not exists source text not null default 'resume' check (source in ('resume','ats'));
+alter table public.match_popup_events add column if not exists visitor text;
+alter table public.match_popup_events add column if not exists contact jsonb;
+create index if not exists match_popup_events_visitor_idx on public.match_popup_events (visitor, created_at desc);

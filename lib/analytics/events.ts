@@ -98,7 +98,7 @@ declare global {
  * across sessions and tabs — that is what separates "unique users" from
  * "sessions". No cookie is set and nothing leaves your own domain.
  */
-function visitorId() {
+export function visitorId() {
   try {
     const KEY = "cc_vid";
     let id = localStorage.getItem(KEY);
