@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/app";
 import { getApplicant } from "@/lib/jobs/candidate";
 import { getApplicationForJob, getJob, packsLeft, FREE_PACKS_PER_MONTH } from "@/lib/jobs/applications";
-import { matchJob } from "@/lib/jobs/match";
+import { isGenuine, matchJob } from "@/lib/jobs/match";
+import { accessFor, canSee, PASS_DAYS, PRICES } from "@/lib/jobs/unlocks";
+import { LockedJobCard } from "@/components/studio/LockedJob";
 import { ApplyPanel } from "@/components/studio/ApplyPanel";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,24 @@ export default async function ApplyPage({ params }: { params: Promise<{ id: stri
   const left = await packsLeft(user.id, user.email ?? null, applicant.profile);
   const match = applicant.resume ? matchJob(applicant.candidate, job) : null;
   const where = job.is_remote ? "Remote" : job.cities.join(", ") || job.location_raw || "India";
+
+  // A job that genuinely fits their resume is a paid unlock (lib/jobs/unlocks.ts).
+  const access = await accessFor(user.id, user.email ?? null, applicant.profile);
+  if (match && isGenuine(match, job) && !canSee(access, job.id) && !application) {
+    return (
+      <div className="mx-auto max-w-[860px] space-y-6">
+        <Link href="/app/jobs?for=me" className="text-[0.82rem] text-ink-50 hover:text-ink">
+          ← Your matches
+        </Link>
+        <LockedJobCard jobId={job.id} title={job.title} score={match.score} matched={match.matched} price={PRICES.job / 100} />
+        <p className="text-[0.84rem] text-ink-50">
+          Unlocking shows the company and the apply link, and prepares a tailored resume and cover letter for this job.
+          Or unlock every match for {PASS_DAYS} days for ₹{PRICES.pass / 100} on{" "}
+          <Link href="/app/jobs?for=me" className="underline underline-offset-2">your matches</Link>.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[860px] space-y-6">

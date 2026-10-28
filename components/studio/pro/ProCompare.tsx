@@ -16,7 +16,7 @@ import { ALL_PERKS } from "@/lib/studio/plan";
  *
  * "Coming soon" is not in the design. It is here because two of these five
  * perks do not exist yet, and this card sits directly above a button that
- * takes ₹99 — a list that quietly promises a mock-interview feature nobody
+ * takes ₹299 — a list that quietly promises a mock-interview feature nobody
  * has built is a refund conversation, not a marketing one.
  */
 

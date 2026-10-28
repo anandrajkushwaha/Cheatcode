@@ -23,7 +23,7 @@ type Item = { q: string; a: string };
 const FAQ: Item[] = [
   {
     q: "What is Cheatcode Pro?",
-    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, AI mock interviews with a written report, and an expert review of your resume. The resume builder and every template stay free on every account; Pro is ₹99 a month.",
+    a: "Cheatcode Pro brings together everything you need to build a strong resume, find roles worth applying to, and prepare for the interview — an AI career agent that knows your profile, AI mock interviews with a written report, and an expert review of your resume. The resume builder and every template stay free on every account; Pro is ₹299 a month.",
   },
   {
     q: "Who can benefit from Cheatcode Pro?",
@@ -31,7 +31,7 @@ const FAQ: Item[] = [
   },
   {
     q: "How long is Cheatcode Pro valid, and how do I cancel?",
-    a: "Pro is a monthly plan. ₹99 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time by writing to hello@cheatcodeapp.com — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
+    a: "Pro is a monthly plan. ₹299 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time by writing to hello@cheatcodeapp.com — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
   },
   {
     q: "What kind of mock interviews are available?",

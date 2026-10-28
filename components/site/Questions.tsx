@@ -77,7 +77,7 @@ export function Questions() {
       <div className="container-page mt-14 text-center">
         <Reveal delay={120}>
           <AuthCta location="agent" invert />
-          <p className="mt-4 text-[0.8rem] text-white/40">Part of Pro, ₹99 a month.</p>
+          <p className="mt-4 text-[0.8rem] text-white/40">Part of Pro, ₹299 a month.</p>
         </Reveal>
       </div>
 

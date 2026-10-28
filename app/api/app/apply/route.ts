@@ -3,6 +3,7 @@ import { getApplicant } from "@/lib/jobs/candidate";
 import { getApplicationForJob, getJob, packsLeft, savePack, FREE_PACKS_PER_MONTH } from "@/lib/jobs/applications";
 import { preparePack } from "@/lib/jobs/apply-pack";
 import { matchJob } from "@/lib/jobs/match";
+import { accessFor } from "@/lib/jobs/unlocks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -39,7 +40,9 @@ export async function POST(request: Request) {
     return bad("Add your resume first — the application is built from it.", 409, { needsResume: true });
   }
 
-  const left = await packsLeft(user.id, user.email ?? null, applicant.profile);
+  // A job bought for ₹49 includes its tailored pack, outside the free allowance.
+  const access = await accessFor(user.id, user.email ?? null, applicant.profile);
+  const left = access.jobs.has(job.id) ? 1 : await packsLeft(user.id, user.email ?? null, applicant.profile);
   if (left <= 0) {
     return bad(
       `You've used your ${FREE_PACKS_PER_MONTH} free applications this month. Upgrade to Pro for unlimited.`,

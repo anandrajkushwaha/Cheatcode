@@ -37,7 +37,7 @@ declare global {
 
 const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
-function loadCheckout(): Promise<boolean> {
+export function loadCheckout(): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
   if (window.Razorpay) return Promise.resolve(true);
 
@@ -143,7 +143,7 @@ export function PayButton({
       key: data.keyId,
       subscription_id: data.subscriptionId,
       name: "Cheatcode",
-      description: "Pro — ₹99 a month",
+      description: "Pro — ₹299 a month",
       prefill: {
         name: name ?? undefined,
         email: email ?? undefined,

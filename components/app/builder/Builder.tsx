@@ -9,7 +9,7 @@ import { showsPhoto, templateById } from "@/lib/app/resume-templates";
 import { shapeOf } from "@/lib/app/flow/theme";
 import { FlowDoc } from "@/components/app/flow/FlowDoc";
 import { DesignPanel } from "@/components/app/builder/DesignPanel";
-import { MatchesPopup } from "@/components/app/builder/MatchesPopup";
+import { MatchesPopup, type MatchesData } from "@/components/app/builder/MatchesPopup";
 import * as S from "@/components/app/builder/sections";
 
 /**
@@ -120,8 +120,8 @@ export function Builder({
   const [pages, setPages] = useState(1);
   const [getting, setGetting] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
-  const [matches, setMatches] = useState(false);
-  const closeMatches = useCallback(() => setMatches(false), []);
+  const [matches, setMatches] = useState<MatchesData | null>(null);
+  const closeMatches = useCallback(() => setMatches(null), []);
 
   const past = useRef<Resume[]>([]);
   const dirty = useRef(false);
@@ -247,6 +247,17 @@ export function Builder({
     setTrouble(null);
     try {
       await flush();
+      // Asked for while the PDF is built, so the popup opens the moment the
+      // file lands. Once a session: the second download is an edit.
+      let firstTime = true;
+      try {
+        firstTime = !sessionStorage.getItem("cc_matches_shown");
+      } catch {
+        /* storage blocked: treat as first */
+      }
+      const matchesP: Promise<(MatchesData & { ok?: boolean }) | null> = firstTime
+        ? fetch("/api/app/jobs/matches").then((r) => r.json()).catch(() => null)
+        : Promise.resolve(null);
       const res = await fetch("/api/app/resume/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -266,14 +277,14 @@ export function Builder({
       // Revoked a beat later: Safari has not finished reading the blob when
       // the click returns, and revoking immediately gives an empty file.
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      // Once a session: the second download is an edit, not a finished resume.
-      try {
-        if (!sessionStorage.getItem("cc_matches_shown")) {
+      const m = await matchesP;
+      if (m?.ok && m.count > 0 && m.top?.length) {
+        try {
           sessionStorage.setItem("cc_matches_shown", "1");
-          setMatches(true);
+        } catch {
+          /* fine */
         }
-      } catch {
-        setMatches(true);
+        setMatches(m);
       }
     } catch (e) {
       setTrouble(e instanceof Error ? e.message : "That did not work.");
@@ -508,7 +519,7 @@ export function Builder({
         </div>
       </div>
 
-      {matches && <MatchesPopup onClose={closeMatches} />}
+      {matches && <MatchesPopup initial={matches} onClose={closeMatches} />}
 
       <DesignPanel
         open={design}

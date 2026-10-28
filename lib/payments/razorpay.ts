@@ -15,7 +15,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  *   RAZORPAY_KEY_ID          the key id, also handed to checkout in the browser
  *   RAZORPAY_KEY_SECRET      signs API calls and the checkout callback
- *   RAZORPAY_PLAN_ID         the ₹99/month plan, created once in their dashboard
+ *   RAZORPAY_PLAN_ID         the ₹299/month plan, created once in their dashboard
  *   RAZORPAY_WEBHOOK_SECRET  a different secret, set when you add the webhook
  *
  * The webhook secret is deliberately not the key secret. If one leaks the
@@ -167,4 +167,52 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
   if (!secret || !signature) return false;
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   return safeEqualHex(expected, signature);
+}
+
+/* --------------------------------------------------------- one-time orders */
+
+/**
+ * The keys alone, for one-time orders (job unlocks). Orders need no plan, so a
+ * deployment that has not created a subscription plan can still sell them.
+ */
+export function razorpayKeys(): { keyId: string; keySecret: string } | null {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  return keyId && keySecret ? { keyId, keySecret } : null;
+}
+
+/** A one-time order for `amountPaise`. The user id travels in notes, for the webhook. */
+export async function createOrder(
+  keys: { keyId: string; keySecret: string },
+  opts: { amountPaise: number; receipt: string; notes: Record<string, string> },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API}/orders`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${keys.keyId}:${keys.keySecret}`).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ amount: opts.amountPaise, currency: "INR", receipt: opts.receipt.slice(0, 40), notes: opts.notes }),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "Could not reach Razorpay" };
+  }
+  const body = (await res.json().catch(() => null)) as { id?: string; error?: { description?: string } } | null;
+  if (!res.ok || !body?.id) {
+    console.error("[razorpay] create order failed", { status: res.status, body });
+    return { ok: false, error: body?.error?.description ?? `Razorpay returned ${res.status}` };
+  }
+  return { ok: true, id: body.id };
+}
+
+/** The signature checkout hands back for an order: order id, then payment id. */
+export function verifyOrderSignature(
+  keys: { keySecret: string },
+  args: { orderId: string; paymentId: string; signature: string },
+): boolean {
+  const expected = createHmac("sha256", keys.keySecret).update(`${args.orderId}|${args.paymentId}`).digest("hex");
+  return safeEqualHex(expected, args.signature);
 }

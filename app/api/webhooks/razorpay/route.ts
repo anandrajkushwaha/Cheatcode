@@ -1,6 +1,7 @@
 import { createAppAdminClient } from "@/lib/supabase/app";
 import { verifyWebhookSignature } from "@/lib/payments/razorpay";
 import { applySubscriptionEvent } from "@/lib/payments/subscription";
+import { markPaid } from "@/lib/jobs/unlocks";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,17 @@ export async function POST(request: Request) {
   }
 
   const event = body.event ?? "";
+
+  // One-time job unlocks (lib/jobs/unlocks.ts). The checkout callback usually
+  // marks these first; this is the server-to-server backstop, idempotent.
+  if (event === "order.paid") {
+    const p = (body as { payload?: { order?: { entity?: { id?: string } }; payment?: { entity?: { id?: string } } } }).payload;
+    const orderId = p?.order?.entity?.id;
+    const paymentId = p?.payment?.entity?.id;
+    if (orderId && paymentId) await markPaid(orderId, paymentId);
+    return Response.json({ ok: true });
+  }
+
   if (!event.startsWith("subscription.")) {
     return Response.json({ ok: true, note: "not a subscription event" });
   }

@@ -62,7 +62,7 @@ export function ProHero({
 
           <div className="mt-6 lg:mt-[46px]">
             {live ? (
-              <PayButton label="Unlock Pro ₹99" name={name} email={email} contact={contact} />
+              <PayButton label="Unlock Pro ₹299" name={name} email={email} contact={contact} />
             ) : (
               <p className="max-w-[40ch] text-[0.85rem] leading-relaxed text-white/70">
                 Payments are not switched on yet.

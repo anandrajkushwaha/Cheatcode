@@ -31,6 +31,7 @@ export type Perk = { title: string; built: boolean; free?: boolean };
  * PRO_PERKS, the list of what paying unlocks.
  */
 export const ALL_PERKS: Perk[] = [
+  { title: "Every job that matches your resume", built: true },
   { title: "AI Career Agent", built: true },
   { title: "AI Resume Builder", built: true, free: true },
   { title: "Premium CV", built: true, free: true },
@@ -41,11 +42,11 @@ export const ALL_PERKS: Perk[] = [
 /** Free on every account. */
 export const FREE_PERKS: Perk[] = ALL_PERKS.filter((p) => p.free);
 
-/** Only what ₹99 adds — for places that list what paying unlocks. */
+/** Only what ₹299 adds — for places that list what paying unlocks. */
 export const PRO_PERKS: Perk[] = ALL_PERKS.filter((p) => !p.free);
 
 /** As drawn. Kept here so the card and the upgrade screen cannot disagree. */
-export const PRO_PRICE_LABEL = "Unlock Pro ₹99";
+export const PRO_PRICE_LABEL = "Unlock Pro ₹299";
 
 /**
  * Whether anybody can actually buy this is not decided here.
@@ -58,4 +59,4 @@ export const PRO_PRICE_LABEL = "Unlock Pro ₹99";
  * This module stays free of anything secret so it can be imported from either
  * side of the wire.
  */
-export const PRO_PRICE_PER_MONTH = 99;
+export const PRO_PRICE_PER_MONTH = 299;

@@ -9,7 +9,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "What is free and what costs money?",
-    a: "The resume builder, all 60 templates, PDF downloads with no watermark, the ATS checker, the salary calculator, the job search, the guides and the daily insights are free on every account, with no time limit and no card. Cheatcode Pro is ₹99 a month and adds the AI career agent, AI mock interviews and an expert review of your resume. That is the whole price list.",
+    a: "The resume builder, all 60 templates, PDF downloads with no watermark, the ATS checker, the salary calculator, the job search, the guides and the daily insights are free on every account, with no time limit and no card. Cheatcode Pro is ₹299 a month and adds every job that matches your resume, the AI career agent, AI mock interviews and an expert review of your resume. Matched jobs can also be unlocked one at a time for ₹49, or all of them for 7 days for ₹99.",
   },
   {
     q: "Who is Cheatcode actually for?",
@@ -32,7 +32,7 @@ export const FAQ_ITEMS = [
     a: "General advice is written for a million people and none of them are you. Here the ATS check runs on your actual file, the job filters run on your actual profile, and the agent answers with your resume in front of it. Same subject, different kind of answer.",
   },
   {
-    q: "How does the ₹99 billing work?",
+    q: "How does Pro billing work?",
     a: "UPI Autopay, charged when you subscribe and then once a month until you cancel. No lock-in, no cancellation fee, and the month you have already paid for stays yours. You are never charged unless you choose to subscribe, and nothing asks for a card when you sign up.",
   },
 ];

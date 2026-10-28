@@ -8,6 +8,9 @@ import { getApplicant } from "@/lib/jobs/candidate";
 import { listApplications } from "@/lib/jobs/applications";
 import { matchJob } from "@/lib/jobs/match";
 import { matchingJobs } from "@/lib/jobs/matching";
+import { accessFor, canSee, PASS_DAYS, PRICES } from "@/lib/jobs/unlocks";
+import { getSessionUser } from "@/lib/supabase/app";
+import { LockedJobCard, PassBanner } from "@/components/studio/LockedJob";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +94,17 @@ export default async function StudioJobsPage({
    * Filters don't apply here; the resume is the filter.
    */
   const forMe = one("for") === "me";
-  const forYou = scored ? await matchingJobs(applicant.candidate) : [];
+  const [forYou, user] = await Promise.all([
+    scored ? matchingJobs(applicant.candidate) : Promise.resolve([]),
+    getSessionUser(),
+  ]);
+  // Matched jobs are the paid part of the board (lib/jobs/unlocks.ts); every
+  // other job stays free. Locked ones are rendered without company or link.
+  const access = user ? await accessFor(user.id, user.email ?? null, applicant.profile) : null;
+  const matchById = new Map(forYou.map((x) => [x.job.id, x.match]));
+  const locked = (id: string) => matchById.has(id) && !(access && canSee(access, id));
+  const lockedCount = forYou.filter((x) => locked(x.job.id)).length;
+  const best = forYou[0]?.match.score ?? 0;
   const list = forMe ? forYou.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((x) => x.job) : jobs;
   const listTotal = forMe ? forYou.length : total;
 
@@ -214,6 +227,11 @@ export default async function StudioJobsPage({
             </div>
           ) : (
             <>
+              {lockedCount > 0 && !access?.all && (
+                <div className="pb-4">
+                  <PassBanner count={forYou.length} best={best} price={PRICES.pass / 100} days={PASS_DAYS} />
+                </div>
+              )}
               <p className="pb-3 text-[0.8rem] text-ink-30">
                 {listTotal.toLocaleString("en-IN")} {listTotal === 1 ? "role" : "roles"}
                 {forMe ? " fit your resume, best first" : filtered ? " match" : ""}
@@ -221,14 +239,25 @@ export default async function StudioJobsPage({
               </p>
 
               <div className="space-y-3">
-                {list.map((job) => (
-                  <JobListCard
-                    key={job.id}
-                    job={job}
-                    match={scored ? matchJob(applicant.candidate, job) : null}
-                    prepared={preparedJobs.has(job.id)}
-                  />
-                ))}
+                {list.map((job) =>
+                  locked(job.id) ? (
+                    <LockedJobCard
+                      key={job.id}
+                      jobId={job.id}
+                      title={job.title}
+                      score={matchById.get(job.id)!.score}
+                      matched={matchById.get(job.id)!.matched}
+                      price={PRICES.job / 100}
+                    />
+                  ) : (
+                    <JobListCard
+                      key={job.id}
+                      job={job}
+                      match={scored ? matchJob(applicant.candidate, job) : null}
+                      prepared={preparedJobs.has(job.id)}
+                    />
+                  ),
+                )}
               </div>
 
               {lastPage > 1 && (
