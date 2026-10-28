@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EVENTS, track, visitorId } from "@/lib/analytics/events";
 import { buyUnlock } from "@/components/studio/buyUnlock";
+import { RazorpayStrip } from "@/components/studio/RazorpayStrip";
 
 /**
  * After the resume downloads: the jobs it genuinely fits, behind a small price.
@@ -165,12 +166,9 @@ export function MatchesPopup({
         <ul className="mt-5 space-y-3">
           {data.top.map((j) => (
             <li key={j.id} className="rounded-2xl border-2 border-ink-08 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full bg-[#e7f6ec] px-2.5 py-1 text-[0.76rem] font-bold tabular-nums text-[#1a7f37]">
-                  {j.score}% match
-                </span>
-                {j.where && <span className="truncate text-[0.78rem] text-ink-50">📍 {j.where}</span>}
-              </div>
+              <span className="inline-block rounded-full bg-[#e7f6ec] px-2.5 py-1 text-[0.76rem] font-bold tabular-nums text-[#1a7f37]">
+                {j.score}% match
+              </span>
               <p className="mt-2.5 text-[1rem] font-semibold leading-snug">{j.title}</p>
               {j.locked ? (
                 <p className="mt-1 flex items-center gap-1.5 text-[0.82rem] text-ink-50">
@@ -247,6 +245,7 @@ export function MatchesPopup({
             <p className="mt-0.5 text-center text-[0.72rem] text-ink-30">
               {ats && signedIn === false ? "Free account needed · " : ""}One-time payment. No auto-renew.
             </p>
+            <RazorpayStrip className="mt-3" />
           </div>
         )}
 
