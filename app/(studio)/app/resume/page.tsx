@@ -3,6 +3,8 @@ import { getPrimaryDraft, getPrimaryResume, getProfile, isPaid } from "@/lib/app
 import { getMyReview } from "@/lib/app/resume-review";
 import { ResumeActions } from "@/components/studio/ResumeActions";
 import { ProTeaser } from "@/components/studio/ProTeaser";
+import { getApplicant } from "@/lib/jobs/candidate";
+import { matchingJobs } from "@/lib/jobs/matching";
 import { getSessionUser } from "@/lib/supabase/app";
 import { listSharedWithMe } from "@/lib/app/resume-store";
 import { TemplateGallery } from "@/components/app/TemplateGallery";
@@ -36,6 +38,9 @@ export default async function StudioResumePage() {
   // Only fetched for somebody who can actually have one — a free account has
   // no review to report on, and asking is a query for nothing.
   const review = paid && user ? await getMyReview(user.id) : null;
+  // The resume's payoff, on the page about the resume: how many open jobs it fits.
+  const applicant = await getApplicant();
+  const fits = applicant.resume ? (await matchingJobs(applicant.candidate)).length : 0;
 
   return (
     <div className="space-y-8">
@@ -64,6 +69,25 @@ export default async function StudioResumePage() {
           </Link>
         )}
       </div>
+
+      {fits > 0 && (
+        <Link
+          href="/app/jobs?for=me"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#cfe9d7] bg-[#f1faf4] px-5 py-4 transition-colors hover:border-[#1a7f37]"
+        >
+          <span>
+            <span className="block text-[0.98rem] font-semibold text-[#14532d]">
+              Your resume fits {fits} open {fits === 1 ? "job" : "jobs"}
+            </span>
+            <span className="block text-[0.82rem] text-[#3f6b4f]">
+              Matched on your skills and experience — best fits first.
+            </span>
+          </span>
+          <span className="rounded-full bg-[#1a7f37] px-4 py-2 text-[0.82rem] font-medium text-white">
+            See my matches →
+          </span>
+        </Link>
+      )}
 
       {/* Free accounts get the offer instead of the button. Paid accounts get
           the button, which lives in the header above. */}

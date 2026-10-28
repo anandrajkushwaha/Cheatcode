@@ -119,3 +119,18 @@ export function matchJob(c: Candidate, job: JobFacts): Match {
   const score = max ? Math.round((got / max) * 100) : 0;
   return { score, matched, missing };
 }
+
+/** Score at or above which a job is shown as a match for someone. */
+export const MATCH_MIN = 60;
+
+/**
+ * A match worth telling somebody about.
+ *
+ * Not just the number: a posting with no skills listed is scored on
+ * experience and city alone, which can reach 60 without one skill in common —
+ * and "this job fits your resume" has to mean the resume. So the posting must
+ * name skills, and at least two of them must be theirs.
+ */
+export function isGenuine(m: Match, job: Pick<JobFacts, "skills">): boolean {
+  return job.skills.length > 0 && m.matched.length >= 2 && m.score >= MATCH_MIN;
+}

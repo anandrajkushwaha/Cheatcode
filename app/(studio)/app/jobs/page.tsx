@@ -7,6 +7,7 @@ import { JobListCard } from "@/components/studio/JobListCard";
 import { getApplicant } from "@/lib/jobs/candidate";
 import { listApplications } from "@/lib/jobs/applications";
 import { matchJob } from "@/lib/jobs/match";
+import { matchingJobs } from "@/lib/jobs/matching";
 
 export const dynamic = "force-dynamic";
 
@@ -84,13 +85,24 @@ export default async function StudioJobsPage({
   const scored = Boolean(applicant.resume);
   const preparedJobs = new Set(applications.map((a) => a.job_id));
 
-  const lastPage = Math.max(1, Math.ceil(total / PER_PAGE));
+  /**
+   * "For you": only the jobs that genuinely fit their resume, best first —
+   * the list the post-download popup promises (lib/jobs/matching.ts).
+   * Filters don't apply here; the resume is the filter.
+   */
+  const forMe = one("for") === "me";
+  const forYou = scored ? await matchingJobs(applicant.candidate) : [];
+  const list = forMe ? forYou.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((x) => x.job) : jobs;
+  const listTotal = forMe ? forYou.length : total;
+
+  const lastPage = Math.max(1, Math.ceil(listTotal / PER_PAGE));
   const filtered = Boolean(q || cities.length || remote || maxYears !== null || maxAgeDays);
 
   const filters: Filters = { q, cities, remote, maxYears, maxAgeDays };
 
   // Preserves every other filter while only the page number moves.
   const pageHref = (n: number) => {
+    if (forMe) return n > 1 ? `/app/jobs?for=me&page=${n}` : "/app/jobs?for=me";
     const next = new URLSearchParams();
     if (q) next.set("q", q);
     if (cities.length) next.set("cities", cities.join(","));
@@ -119,27 +131,67 @@ export default async function StudioJobsPage({
         </div>
       </div>
 
-      <JobSearchBar q={q} sort={sort} base={pageHref(1).split("?")[1] ?? ""} />
+      <div className="flex gap-2" role="tablist">
+        <Link
+          href="/app/jobs"
+          role="tab"
+          aria-selected={!forMe}
+          className={`rounded-full px-4 py-2 text-[0.85rem] font-medium transition-colors ${
+            forMe ? "border border-ink-15 bg-paper text-ink-50 hover:text-ink" : "bg-ink text-paper"
+          }`}
+        >
+          All jobs
+        </Link>
+        <Link
+          href="/app/jobs?for=me"
+          role="tab"
+          aria-selected={forMe}
+          className={`rounded-full px-4 py-2 text-[0.85rem] font-medium transition-colors ${
+            forMe ? "bg-ink text-paper" : "border border-ink-15 bg-paper text-ink-50 hover:text-ink"
+          }`}
+        >
+          For you{scored ? ` · ${forYou.length}` : ""}
+        </Link>
+      </div>
 
-      {!touched && filtered && (
+      {!forMe && <JobSearchBar q={q} sort={sort} base={pageHref(1).split("?")[1] ?? ""} />}
+
+      {!forMe && !touched && filtered && (
         <p className="rounded-xl border border-ink-08 bg-paper px-4 py-3 text-[0.82rem] leading-relaxed text-ink-50">
           Opened at what your profile says — {describe(cities, maxYears, remote)}. Change
           anything and it stays changed.
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)]">
-        <JobFilterRail filters={filters} base={pageHref(1).split("?")[1] ?? ""} />
+      <div className={forMe ? "max-w-[900px]" : "grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)]"}>
+        {!forMe && <JobFilterRail filters={filters} base={pageHref(1).split("?")[1] ?? ""} />}
 
         <div className="min-w-0">
-          {error ? (
+          {forMe && list.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-ink-15 bg-paper p-8 text-center">
+              <p className="text-[0.95rem] font-medium">
+                {scored ? "No strong matches right now" : "Add your resume to see jobs that fit you"}
+              </p>
+              <p className="mx-auto mt-2.5 max-w-[52ch] text-[0.85rem] leading-relaxed text-ink-50">
+                {scored
+                  ? "A match needs at least two of your skills and a 60% fit. Add more skills to your resume, or check back — new roles arrive every morning."
+                  : "We match every open job against your skills and experience."}
+              </p>
+              <Link
+                href="/app/resume"
+                className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-[0.85rem] font-medium text-paper"
+              >
+                {scored ? "Improve my resume" : "Add my resume"}
+              </Link>
+            </div>
+          ) : error && !forMe ? (
             <div className="rounded-2xl border border-ink-30 bg-paper p-6">
               <p className="text-[0.9rem] font-medium">Jobs could not be loaded</p>
               <p className="mt-2 max-w-[64ch] text-[0.85rem] leading-relaxed text-ink-50">
                 {error}
               </p>
             </div>
-          ) : jobs.length === 0 ? (
+          ) : list.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-ink-15 bg-paper p-8 text-center">
               <p className="text-[0.95rem] font-medium">
                 {totalInDb === 0
@@ -163,13 +215,13 @@ export default async function StudioJobsPage({
           ) : (
             <>
               <p className="pb-3 text-[0.8rem] text-ink-30">
-                {total.toLocaleString("en-IN")} {total === 1 ? "role" : "roles"}
-                {filtered ? " match" : ""}
+                {listTotal.toLocaleString("en-IN")} {listTotal === 1 ? "role" : "roles"}
+                {forMe ? " fit your resume, best first" : filtered ? " match" : ""}
                 {lastPage > 1 ? ` · page ${page} of ${lastPage}` : ""}
               </p>
 
               <div className="space-y-3">
-                {jobs.map((job) => (
+                {list.map((job) => (
                   <JobListCard
                     key={job.id}
                     job={job}

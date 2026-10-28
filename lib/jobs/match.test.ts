@@ -52,3 +52,12 @@ test("a poor fit scores low; no data scores zero", () => {
   });
   assert.equal(none.score, 0);
 });
+
+test("a genuine match names skills and shares at least two", async () => {
+  const { isGenuine } = await import("@/lib/jobs/match");
+  const job = { skills: ["React", "JavaScript"] };
+  assert.equal(isGenuine({ score: 90, matched: ["React", "JavaScript"], missing: [] }, job), true);
+  assert.equal(isGenuine({ score: 90, matched: ["React"], missing: ["JavaScript"] }, job), false);
+  assert.equal(isGenuine({ score: 55, matched: ["React", "JavaScript"], missing: [] }, job), false);
+  assert.equal(isGenuine({ score: 80, matched: [], missing: [] }, { skills: [] }), false);
+});

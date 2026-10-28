@@ -3,6 +3,12 @@ import { getPrimaryDraft, getPrimaryResume, getProfile, type Profile, type Resum
 import { seedFromResume } from "@/lib/app/resume-draft";
 import { cleanResume, resumeIsEmpty, type Resume } from "@/lib/app/resume-schema";
 import type { Candidate } from "@/lib/jobs/match";
+import { ownContent } from "@/lib/jobs/own-content";
+import { sampleFor } from "@/lib/app/design-sample";
+import { TEMPLATES } from "@/lib/app/resume-templates";
+
+let samples: Resume[] | null = null;
+const allSamples = () => (samples ??= TEMPLATES.map((t) => sampleFor(t.id)));
 
 /**
  * Who is applying: the resume they are working on (or the one they
@@ -21,14 +27,16 @@ export async function getApplicant(): Promise<Applicant> {
   const fromDraft = draft?.content && !resumeIsEmpty(cleanResume(draft.content)) ? cleanResume(draft.content) : null;
   const resume = fromDraft ?? (uploaded || profile ? seedFromResume(uploaded, profile) : null);
   const usable = resume && !resumeIsEmpty(resume) ? resume : null;
+  // Scored on what they wrote, never on the template's sample they didn't replace.
+  const own = usable ? ownContent(usable, allSamples()) : null;
 
   return {
     resume: usable,
     draft,
     profile,
     candidate: {
-      skills: usable?.skills ?? [],
-      text: usable ? resumeText(usable).toLowerCase() : "",
+      skills: own?.skills ?? [],
+      text: own ? resumeText(own).toLowerCase() : "",
       years: usable?.years_experience ?? profile?.years_experience ?? null,
       cities: profile?.preferred_cities?.length ? profile.preferred_cities : profile?.city ? [profile.city] : [],
       remote: Boolean(profile?.open_to_remote),
