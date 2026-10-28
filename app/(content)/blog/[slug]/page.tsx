@@ -118,7 +118,7 @@ export default async function ArticlePage({ params }: Props) {
           </h1>
         </header>
 
-        <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-ink-70">
+        <p data-answer className="mt-5 max-w-[62ch] text-lg leading-relaxed text-ink-70">
           {post.excerpt}
         </p>
 
@@ -342,6 +342,10 @@ export default async function ArticlePage({ params }: Props) {
           "@type": "Article",
           headline: post.title,
           description: post.seo_description,
+          // The answer in two lines, for assistants quoting the guide: the
+          // lead under the H1 is written as the direct answer.
+          abstract: post.excerpt ?? undefined,
+          speakable: { "@type": "SpeakableSpecification", cssSelector: ["h1", "[data-answer]"] },
           datePublished: post.published_at,
           dateModified: post.updated_at,
           // Google asks for an image on Article; the site card when there is no cover.
@@ -358,7 +362,7 @@ export default async function ArticlePage({ params }: Props) {
                 sameAs: post.author.linkedin_url ? [post.author.linkedin_url] : undefined,
               }
             : { "@type": "Organization", name: SITE.name },
-          publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },
+          publisher: { "@id": `${SITE.url}/#organization` },
         }}
       />
 

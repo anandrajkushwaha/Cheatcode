@@ -238,3 +238,23 @@ export const getLinkTargets = cache(async (): Promise<{ slug: string; focus_keyw
   const { data } = await supabase.from("posts").select("slug,focus_keyword").limit(2000);
   return (data as { slug: string; focus_keyword: string | null }[] | null) ?? [];
 });
+
+/** Titles and one-line summaries of the latest guides — for /llms.txt. */
+export async function getGuidesForLlms(limit = 60): Promise<{ slug: string; title: string; excerpt: string | null }[]> {
+  const supabase = db();
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from("posts")
+    .select("slug,title,excerpt")
+    .order("published_at", { ascending: false })
+    .limit(limit);
+  return (data as { slug: string; title: string; excerpt: string | null }[]) ?? [];
+}
+
+/** Guides published or edited since a moment — what the daily IndexNow ping announces. */
+export async function getPostSlugsUpdatedSince(sinceIso: string): Promise<string[]> {
+  const supabase = db();
+  if (!supabase) return [];
+  const { data } = await supabase.from("posts").select("slug").gte("updated_at", sinceIso).limit(1000);
+  return ((data as { slug: string }[]) ?? []).map((p) => p.slug);
+}

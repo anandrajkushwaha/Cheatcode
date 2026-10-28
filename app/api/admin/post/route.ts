@@ -1,9 +1,11 @@
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitiseHtml, slugify, textOf, wordCount } from "@/lib/content/sanitise";
 import { mergedTarget } from "@/lib/seo/merged-guides";
 import { withHeadingIds } from "@/lib/content/render";
+import { pingIndexNow } from "@/lib/seo/indexnow";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +162,11 @@ export async function POST(request: Request) {
   revalidatePath(`/blog/${slug}`);
   revalidatePath("/sitemap.xml");
   revalidatePath("/rss.xml");
+  // Live now: tell Bing (and ChatGPT search, which reads its index) at once.
+  // A scheduled post is announced by the daily ping once its date passes.
+  if (status === "published" && publishedAt <= new Date()) {
+    after(() => pingIndexNow([`/blog/${slug}`, "/blog"]));
+  }
 
   const saved = (result.data ?? [])[0] as { id: string; slug: string } | undefined;
   return Response.json({

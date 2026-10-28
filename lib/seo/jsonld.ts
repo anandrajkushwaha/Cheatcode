@@ -1,16 +1,40 @@
 import { SITE } from "./constants";
 
+/**
+ * Who Cheatcode is, on every page — the entity behind a brand search.
+ *
+ * "cheatcode" alone is mostly video-game cheat codes, so the markup spells
+ * out the other names people type (alternateName), what the company is
+ * about (knowsAbout) and who runs it, and links the profiles that confirm
+ * it (sameAs). Google's knowledge panel and AI answers both lean on this.
+ */
 export function organizationJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     "@id": `${SITE.url}/#organization`,
     name: SITE.name,
+    alternateName: ["Cheatcode App", "cheatcodeapp", "cheatcodeapp.com"],
+    legalName: SITE.name,
     url: SITE.url,
-    logo: `${SITE.url}/icon-512.png`,
+    logo: { "@type": "ImageObject", url: `${SITE.url}/icon-512.png`, width: 512, height: 512 },
+    image: `${SITE.url}/icon-512.png`,
+    slogan: SITE.tagline,
     description: SITE.description,
-    areaServed: "IN",
+    foundingDate: "2026-08",
+    founder: { "@type": "Person", name: "Anand Raj Kushwaha" },
+    areaServed: { "@type": "Country", name: "India" },
+    knowsAbout: [
+      "Resume writing",
+      "ATS resume check",
+      "Resume templates",
+      "Job search in India",
+      "Interview preparation",
+      "Government jobs in India",
+      "Career guidance for freshers",
+    ],
     email: SITE.email,
+    contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: SITE.email, areaServed: "IN", availableLanguage: ["English", "Hindi"] },
     sameAs: [...SITE.sameAs],
   };
 }
@@ -21,7 +45,9 @@ export function websiteJsonLd() {
     "@type": "WebSite",
     "@id": `${SITE.url}/#website`,
     name: SITE.name,
+    alternateName: ["Cheatcode App", "cheatcodeapp"],
     url: SITE.url,
+    description: SITE.description,
     inLanguage: "en-IN",
     publisher: { "@id": `${SITE.url}/#organization` },
   };
