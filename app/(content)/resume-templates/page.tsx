@@ -41,8 +41,8 @@ const FAQ = [
 ];
 
 export const metadata: Metadata = buildMetadata({
-  title: `Free Resume Templates — ${COUNT} ATS-Friendly Designs, PDF | Cheatcode`,
-  description: `${COUNT} free resume templates for freshers and experienced professionals in India. Pick one, fill it in online with no sign-up to start, and download an ATS-friendly PDF.`,
+  title: `Free Resume Builder — ${COUNT} ATS-Friendly Templates, PDF | Cheatcode`,
+  description: `Free resume builder with ${COUNT} ATS-friendly templates for freshers and experienced professionals in India, with or without a photo. Start typing with no sign-up and download a PDF.`,
   path: "/resume-templates",
 });
 

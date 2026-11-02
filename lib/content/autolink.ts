@@ -20,6 +20,13 @@ export type LinkTarget = { phrase: string; href: string; caseSensitive?: boolean
  * stale line here never produces a dead link.
  */
 export const KEYWORD_LINKS: LinkTarget[] = [
+  // The free builder is the page that should own "resume builder" searches,
+  // so every guide that names it sends its link there, not to a blog post.
+  { phrase: "free resume builder", href: "/resume-templates" },
+  { phrase: "resume builder", href: "/resume-templates" },
+  { phrase: "resume templates", href: "/resume-templates" },
+  { phrase: "resume template", href: "/resume-templates" },
+  { phrase: "CV maker", href: "/resume-templates" },
   { phrase: "applicant tracking system", href: "/tools/resume-ats-checker" },
   { phrase: "ATS checker", href: "/tools/resume-ats-checker" },
   { phrase: "ATS score", href: "/tools/resume-ats-checker" },
@@ -36,6 +43,8 @@ export const KEYWORD_LINKS: LinkTarget[] = [
   { phrase: "old tax regime", href: "/blog/new-tax-regime-vs-old-regime" },
   { phrase: "EPF balance", href: "/blog/how-to-check-epf-balance" },
   { phrase: "PF transfer", href: "/blog/pf-transfer-job-change" },
+  { phrase: "wage ceiling", href: "/blog/epf-wage-ceiling-25000" },
+  { phrase: "Canva", href: "/blog/canva-resume-ats-friendly", caseSensitive: true },
   { phrase: "UAN", href: "/blog/uan-activation-kyc-guide", caseSensitive: true },
   { phrase: "salary negotiation", href: "/blog/how-to-negotiate-salary" },
   { phrase: "cover letter", href: "/blog/how-to-write-a-cover-letter" },
