@@ -1,24 +1,19 @@
-import { Panel, Stat, Empty } from "@/components/admin/ui";
-import { getSegments } from "@/lib/email/segments";
+import { Panel, Empty } from "@/components/admin/ui";
 import { getEmailCampaigns } from "@/lib/admin/email-campaigns";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Emails you send yourself, from Gmail. Two things here: who to send to
- * (segments from the same matcher as the jobs page), and what each campaign
- * did — opens and clicks from the tracked HTML, then visits, ATS checks and
- * the match popup for the people it brought in.
+ * Emails you send yourself, from Gmail: what each campaign did — opens and
+ * clicks from the tracked HTML, then visits, ATS checks and the match popup
+ * for the people it brought in.
  */
 
 const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
 export default async function AdminEmails() {
-  const [seg, camp] = await Promise.all([getSegments(), getEmailCampaigns()]);
-  const people = seg.ok ? seg.people : [];
-  const list = (s: string) => people.filter((p) => p.segment === s);
-  const matched = list("matches").sort((a, b) => (b.best ?? 0) - (a.best ?? 0));
+  const camp = await getEmailCampaigns();
 
   return (
     <div className="space-y-8">
@@ -70,43 +65,6 @@ export default async function AdminEmails() {
           </div>
         )}
       </Panel>
-
-      {seg.ok && (
-        <>
-          <div className="grid gap-4 sm:grid-cols-4">
-            <Stat label="Resume with matches" value={matched.length} hint="send the match email to these" />
-            <Stat label="Resume, no match yet" value={list("resume_no_match").length} />
-            <Stat label="No resume" value={list("no_resume").length} />
-            <Stat label="Not emailable" value={seg.skipped} hint="phone sign-ups, you" />
-          </div>
-          <Panel title="Resume with matches" note="Their saved resume genuinely fits open jobs today — the people the 'your resume matches a job' email is true for.">
-            {matched.length === 0 ? (
-              <Empty>Nobody right now.</Empty>
-            ) : (
-              <table className="w-full text-left text-[0.84rem] tabular-nums">
-                <thead>
-                  <tr className="text-[0.68rem] uppercase tracking-[0.12em] text-ink-30">
-                    <th className="pb-2 font-medium">Name</th>
-                    <th className="pb-2 font-medium">Email</th>
-                    <th className="pb-2 text-right font-medium">Matching jobs</th>
-                    <th className="pb-2 text-right font-medium">Best</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matched.map((p) => (
-                    <tr key={p.userId} className="border-t border-ink-08">
-                      <td className="py-2 pr-3">{p.name ?? "—"}</td>
-                      <td className="py-2 pr-3">{p.email}</td>
-                      <td className="py-2 text-right">{p.matches}</td>
-                      <td className="py-2 text-right">{p.best}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Panel>
-        </>
-      )}
     </div>
   );
 }
