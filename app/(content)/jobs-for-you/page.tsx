@@ -40,10 +40,10 @@ export default async function JobsForYou() {
           Only for you · based on your resume
         </span>
         <h1 className="mt-5 max-w-[18ch] text-[clamp(2rem,4.8vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
-          Jobs that match your resume. <span className="text-[#c2410c]">Apply first.</span>
+          Upload your resume. <span className="text-[#c2410c]">See your best-match jobs instantly.</span>
         </h1>
         <p className="mt-5 max-w-[50ch] text-lg leading-relaxed text-ink-70">
-          Add your resume — see your ATS score and the jobs it fits in 30 seconds.
+          We read your resume and show the open jobs it fits best, with your match score. Free, in 30 seconds.
         </p>
         <p className="mt-4 text-[0.8rem] text-ink-30">
           {jobs ? `${jobs.toLocaleString("en-IN")} live jobs · ` : ""}Free · No sign-up for the score · File never uploaded
