@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 /**
  * Journeys: who came from an ad, how far each one got, and where they left.
  *
- * Three things, top to bottom, and nothing else: the visits themselves as a
- * sheet with a filter on every column (components/admin/JourneyTable.tsx) —
- * each row opens to show every page and step in order — then the funnel and
- * what the visits were on (browser, phone, city). Two rows of pills choose the
+ * Three things, top to bottom, and nothing else: the funnel, the visits
+ * themselves as a sheet with a filter on every column
+ * (components/admin/JourneyTable.tsx) — each row opens to show every page
+ * and step in order — and what the visits were on (browser, phone, city). Two rows of pills choose the
  * period and the source; it opens on today and everyone.
  */
 
@@ -129,22 +129,6 @@ export default async function AdminJourneys({
         </p>
       ) : (
         <>
-          {/* --------------------------------------------------- visits */}
-          <Panel
-            title="Visits"
-            note={`${result.data.total} visit${result.data.total === 1 ? "" : "s"}${
-              result.data.total > result.data.journeys.length ? `, latest ${result.data.journeys.length} shown` : ""
-            }${result.data.crawlers ? `. ${result.data.crawlers} more from Meta / cloud data centres (ad review bots) are hidden` : ""}${
-              result.data.truncated ? " (busiest period trimmed — pick a shorter one)" : ""
-            }. Filter any column from its header; tap a row to see every step.`}
-          >
-            {result.data.journeys.length === 0 ? (
-              <Empty>No visits from this source in this period.</Empty>
-            ) : (
-              <JourneyTable journeys={result.data.journeys} steps={[...STEPS]} outcomes={OUTCOME} />
-            )}
-          </Panel>
-
           {/* ---------------------------------------------------- funnel */}
           <Panel
             title="Funnel"
@@ -173,6 +157,22 @@ export default async function AdminJourneys({
                 );
               })}
             </div>
+          </Panel>
+
+          {/* --------------------------------------------------- visits */}
+          <Panel
+            title="Visits"
+            note={`${result.data.total} visit${result.data.total === 1 ? "" : "s"}${
+              result.data.total > result.data.journeys.length ? `, latest ${result.data.journeys.length} shown` : ""
+            }${result.data.crawlers ? `. ${result.data.crawlers} more from Meta / cloud data centres (ad review bots) are hidden` : ""}${
+              result.data.truncated ? " (busiest period trimmed — pick a shorter one)" : ""
+            }. Filter any column from its header; tap a row to see every step.`}
+          >
+            {result.data.journeys.length === 0 ? (
+              <Empty>No visits from this source in this period.</Empty>
+            ) : (
+              <JourneyTable journeys={result.data.journeys} steps={[...STEPS]} outcomes={OUTCOME} />
+            )}
           </Panel>
 
           {/* ------------------------------------------------- breakdowns */}
