@@ -31,11 +31,21 @@ Choose topics that:
   same thing. A different angle is fine: "Java developer resume format" can
   sit next to "software engineer resume format". Another "how to make a
   resume" is not fine.
-- Sit next to the pages AI assistants already send us visitors from. Those
-  are: resume builders and CV makers, ATS resumes, resume formats by role,
-  job portals in India, resignation, relieving and other letters, interview
-  questions by company and role, and PF, salary and CTC. More of these, in
-  new variations, compounds what already works.
+- Sit next to what Bing's AI answers (which feed ChatGPT and Copilot)
+  already cite us for. Bing Webmaster, AI Performance, Nov 2026, most cited first:
+  - EPF and PF: balance check (missed call, SMS, UMANG, passbook), interest
+    rate, PF transfer, wage ceiling, withdrawal, grievance
+  - letters: resignation, relieving (including how to get one from a
+    specific employer), offer vs appointment, experience, internship
+    certificate
+  - in-hand salary: improve the existing guides and the calculator. Never
+    add new one-package pages, which were merged for being near-duplicates
+  - interview answers (strengths, weakness, technical questions for freshers)
+  - fresher resume formats by role
+  - Canva resumes and ATS. Bing search shows dozens of "is canva ats
+    friendly" variations.
+  New angles on these compound what already works. Google sends almost
+  nothing yet; Bing and ChatGPT are where these guides get read.
 - Use two different categories on the same day.
 
 Category slugs: `ats-resume`, `resume-builder`, `resume-format`,

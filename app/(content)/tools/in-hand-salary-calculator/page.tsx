@@ -53,7 +53,7 @@ const PACKAGES = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 25, 3
 /**
  * In-hand salary for every package, from the calculator's own defaults.
  *
- * This table replaced eighteen one-package guides (lib/seo/merged-guides.ts):
+ * This table replaced sixteen one-package guides (lib/seo/merged-guides.ts):
  * Google left them all "discovered, not crawled" as near-duplicates, and one
  * page that answers every package is the stronger answer. A package that
  * still has its own guide links to it.

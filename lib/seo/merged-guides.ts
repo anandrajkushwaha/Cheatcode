@@ -25,10 +25,10 @@ export const MERGED_GUIDES: Record<string, string> = {
   // what-is-a-good-ats-score for score meaning; Google crawled it and kept
   // neither (Search Console, Oct 2026).
   "free-ats-resume-checker": "/tools/resume-ats-checker",
-  // Eighteen one-package in-hand guides, all "discovered, not crawled" in
-  // Search Console (Nov 2026) as near-duplicates of each other. The
-  // calculator's table answers every package on one page; 6, 10, 12 and
-  // 50 LPA were indexed and keep their own guides.
+  // One-package in-hand guides Search Console listed as "discovered, not
+  // crawled" (Nov 2026), near-duplicates of each other. The calculator's
+  // table answers every package on one page. Kept as guides: 6, 10, 12 and
+  // 50 LPA (indexed by Google) and 30 and 40 LPA (cited by Bing's AI answers).
   "3-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-3",
   "4-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-4",
   "5-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-5",
@@ -42,8 +42,6 @@ export const MERGED_GUIDES: Record<string, string> = {
   "16-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-16",
   "20-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-20",
   "25-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-25",
-  "30-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-30",
-  "40-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-40",
   "60-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-60",
   "75-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-75",
   "1-crore-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-100",
