@@ -121,6 +121,14 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
         </p>
       </Panel>
 
+      <Panel title="People">
+        {report.rows.length === 0 ? (
+          <Empty>Nobody has seen the popup in this period yet.</Empty>
+        ) : (
+          <PopupPeople rows={report.rows} />
+        )}
+      </Panel>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Who saw it, by field">
           <BarList rows={report.byField} empty="Nobody has seen it in this period." unit="people" />
@@ -129,14 +137,6 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
           <BarList rows={report.byScore} empty="Nobody has seen it in this period." unit="people" />
         </Panel>
       </div>
-
-      <Panel title="People">
-        {report.rows.length === 0 ? (
-          <Empty>Nobody has seen the popup in this period yet.</Empty>
-        ) : (
-          <PopupPeople rows={report.rows} />
-        )}
-      </Panel>
     </div>
   );
 }
