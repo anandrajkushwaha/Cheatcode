@@ -108,7 +108,7 @@ export function JourneyTable({ journeys, steps, outcomes }: { journeys: Journey[
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-ink-08">
+      <div className="min-h-[70vh] overflow-x-auto rounded-xl border border-ink-08">
         <table className="w-full min-w-[60rem] text-[0.82rem]">
           <thead className="bg-ink-04">
             <tr>
@@ -236,25 +236,38 @@ function FilterMenu({
   useEffect(() => {
     const away = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && onClose();
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Enter applies, like a spreadsheet filter.
+    const enter = (e: KeyboardEvent) => e.key === "Enter" && applyRef.current();
     // Fixed to where the header was; scrolling would leave it behind.
     const scroll = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
+    document.addEventListener("keydown", enter);
     window.addEventListener("scroll", scroll, true);
     return () => {
       document.removeEventListener("mousedown", away);
       document.removeEventListener("keydown", esc);
+      document.removeEventListener("keydown", enter);
       window.removeEventListener("scroll", scroll, true);
     };
   }, [onClose]);
 
-  const isOn = (v: string) => !picked || picked.has(v);
+  // Ticks are a draft: nothing changes in the table until Apply, so several
+  // values can be picked in one go.
+  const [draft, setDraft] = useState<Set<string> | null>(picked);
+  const isOn = (v: string) => !draft || draft.has(v);
   const toggle = (v: string) => {
-    const next = new Set(picked ?? options.map(([o]) => o));
+    const next = new Set(draft ?? options.map(([o]) => o));
     if (next.has(v)) next.delete(v);
     else next.add(v);
-    onChange(next.size === options.length ? null : next);
+    setDraft(next.size === options.length ? null : next);
   };
+  const apply = () => {
+    onChange(draft);
+    onClose();
+  };
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
 
   return (
     <div
@@ -270,14 +283,14 @@ function FilterMenu({
         className="w-full rounded-lg border border-ink-15 px-2.5 py-1.5 outline-none focus:border-ink-30"
       />
       <div className="mt-2 flex gap-3 text-[0.74rem]">
-        <button type="button" onClick={() => onChange(null)} className="text-[#1f6fe0] hover:underline">
+        <button type="button" onClick={() => setDraft(null)} className="text-[#1f6fe0] hover:underline">
           Select all
         </button>
-        <button type="button" onClick={() => onChange(new Set())} className="text-[#1f6fe0] hover:underline">
+        <button type="button" onClick={() => setDraft(new Set())} className="text-[#1f6fe0] hover:underline">
           Clear
         </button>
         {q && shown.length > 0 && (
-          <button type="button" onClick={() => onChange(new Set(shown.map(([v]) => v)))} className="text-[#1f6fe0] hover:underline">
+          <button type="button" onClick={() => setDraft(new Set(shown.map(([v]) => v)))} className="text-[#1f6fe0] hover:underline">
             Only these
           </button>
         )}
@@ -285,20 +298,35 @@ function FilterMenu({
       <ul className="mt-2 max-h-64 overflow-y-auto">
         {shown.map(([v, n]) => (
           <li key={v}>
-            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-ink-04">
+            <label className="group/opt flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-ink-04">
               <input type="checkbox" checked={isOn(v)} onChange={() => toggle(v)} />
               <span className="min-w-0 flex-1 truncate" title={v}>
                 {v}
               </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setDraft(new Set([v]));
+                }}
+                className="hidden text-[0.7rem] text-[#1f6fe0] hover:underline group-hover/opt:inline"
+              >
+                only
+              </button>
               <span className="text-[0.72rem] text-ink-30 tabular-nums">{n}</span>
             </label>
           </li>
         ))}
         {shown.length === 0 && <li className="py-2 text-ink-30">No matches</li>}
       </ul>
-      <button type="button" onClick={onClose} className="mt-2 w-full rounded-lg bg-ink py-1.5 text-paper">
-        Done
-      </button>
+      <div className="mt-2 flex gap-2">
+        <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-ink-15 py-1.5 text-ink-70 hover:border-ink-30">
+          Cancel
+        </button>
+        <button type="button" onClick={apply} className="flex-1 rounded-lg bg-ink py-1.5 text-paper">
+          Apply
+        </button>
+      </div>
     </div>
   );
 }
