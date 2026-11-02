@@ -39,15 +39,15 @@ export default async function JobsForYou() {
           <span className="inline-block h-2 w-2 rounded-full bg-[#22c55e]" />
           Only for you · based on your resume
         </span>
-        <h1 className="mt-5 max-w-[20ch] text-[clamp(2rem,4.8vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
-          Your best-matching jobs. <span className="text-[#c2410c]">Apply before everyone else.</span>
+        <h1 className="mt-5 max-w-[18ch] text-[clamp(2rem,4.8vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
+          Jobs that match your resume. <span className="text-[#c2410c]">Apply first.</span>
         </h1>
-        <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-70">
-          Add your resume below. In about 30 seconds you see your ATS score and the open jobs your resume
-          actually fits{jobs ? ` — out of ${jobs.toLocaleString("en-IN")} live openings from company career pages` : ""}.
-          Early applicants get seen first.
+        <p className="mt-5 max-w-[50ch] text-lg leading-relaxed text-ink-70">
+          Add your resume — see your ATS score and the jobs it fits in 30 seconds.
         </p>
-        <p className="mt-4 text-[0.8rem] text-ink-30">Free · No sign-up for the score · File read in your browser, never uploaded</p>
+        <p className="mt-4 text-[0.8rem] text-ink-30">
+          {jobs ? `${jobs.toLocaleString("en-IN")} live jobs · ` : ""}Free · No sign-up for the score · File never uploaded
+        </p>
       </div>
 
       <div className="container-page mt-10">
