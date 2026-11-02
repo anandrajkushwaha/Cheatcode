@@ -72,7 +72,7 @@ export default function PrivacyPage() {
         Digital Personal Data Protection Act, 2023, we are the data fiduciary
         for the personal data described here and you are the data principal.
         Every question, request and complaint about this policy goes to{" "}
-        <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a>.
+        <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a>.
       </p>
 
       <h2>What we collect</h2>
@@ -290,7 +290,7 @@ export default function PrivacyPage() {
         erase it, withdraw a consent you previously gave, and nominate someone
         to exercise these rights if you cannot. Most of it you can do yourself
         from your account settings; for anything else, email{" "}
-        <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a> and we
+        <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a> and we
         will answer within thirty days.
       </p>
       <p>
@@ -327,7 +327,7 @@ export default function PrivacyPage() {
 
       <h2>Contact</h2>
       <p>
-        <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a> —
+        <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a> —
         privacy questions, data requests and grievances all arrive here. See
         also our <Link href="/terms">terms of service</Link> and our{" "}
         <Link href="/refunds">refund policy</Link>.

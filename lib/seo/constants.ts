@@ -26,7 +26,7 @@ export const SITE = {
    * the Organization markup, so the entity Google sees and the links a
    * visitor sees can never describe two different companies.
    */
-  email: "cheatcodeapp26@gmail.com",
+  email: "support@cheatcodeapp.com",
   sameAs: [
     "https://www.instagram.com/cheatcodeapp/",
     "https://www.linkedin.com/company/cheatcodeapp/",

@@ -31,7 +31,7 @@ const FAQ: Item[] = [
   },
   {
     q: "How long is Cheatcode Pro valid, and how do I cancel?",
-    a: "Pro is a monthly plan. ₹299 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time by writing to hello@cheatcodeapp.com — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
+    a: "Pro is a monthly plan. ₹299 is charged when you subscribe and then once every month through UPI Autopay, until you cancel. You can cancel any time by writing to support@cheatcodeapp.com — there is no lock-in and no cancellation fee. When you cancel, the month you have already paid for stays yours and nothing is charged after that.",
   },
   {
     q: "What kind of mock interviews are available?",
@@ -51,7 +51,7 @@ const FAQ: Item[] = [
   },
   {
     q: "Who should I contact for help?",
-    a: "Write to hello@cheatcodeapp.com and a person will reply. Billing questions, refunds, a resume that will not generate — all of it goes to the same address, and we would much rather hear about a problem than have you cancel over it.",
+    a: "Write to support@cheatcodeapp.com and a person will reply. Billing questions, refunds, a resume that will not generate — all of it goes to the same address, and we would much rather hear about a problem than have you cancel over it.",
   },
 ];
 

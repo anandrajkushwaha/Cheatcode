@@ -266,7 +266,7 @@ export default function TermsPage() {
 
       <h2>Contact</h2>
       <p>
-        <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a>. See
+        <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a>. See
         also our <Link href="/privacy">privacy policy</Link> and our{" "}
         <Link href="/refunds">refund policy</Link>.
       </p>

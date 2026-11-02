@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       const missing = /bucket/i.test(error.message) && /not found|does not exist/i.test(error.message);
       return bad(
         missing
-          ? "Resume reviews are briefly unavailable. Please try again in a little while, or write to hello@cheatcodeapp.com."
+          ? "Resume reviews are briefly unavailable. Please try again in a little while, or write to support@cheatcodeapp.com."
           : "Could not upload that file. Try again.",
         502,
       );

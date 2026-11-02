@@ -130,7 +130,7 @@ export default function RefundsPage() {
 
       <h2>How to ask for a refund</h2>
       <p>
-        Email <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a>{" "}
+        Email <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a>{" "}
         from the address on your account, with the payment reference or the date
         and amount, and a line about what happened. We reply within 2 working
         days and tell you either that it is approved or exactly why it is not.
@@ -153,7 +153,7 @@ export default function RefundsPage() {
 
       <h2>Contact</h2>
       <p>
-        <a href="mailto:hello@cheatcodeapp.com">hello@cheatcodeapp.com</a>. This
+        <a href="mailto:support@cheatcodeapp.com">support@cheatcodeapp.com</a>. This
         policy sits alongside our <Link href="/terms">terms of service</Link>{" "}
         and our <Link href="/privacy">privacy policy</Link>.
       </p>

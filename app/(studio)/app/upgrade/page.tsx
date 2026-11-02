@@ -124,7 +124,7 @@ export default async function StudioProPage({
                   : "Your plan is active."}
             </p>
             <p className="mt-3 text-[0.85rem] leading-relaxed text-ink-50">
-              To cancel, write to hello@cheatcodeapp.com. The month you have
+              To cancel, write to support@cheatcodeapp.com. The month you have
               already paid for stays yours.
             </p>
           </section>
