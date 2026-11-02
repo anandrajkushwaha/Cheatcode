@@ -26,7 +26,7 @@ export function FooterBanner() {
   if (status === "in") return null;
 
   return (
-    <div className="relative z-10 mx-auto w-full max-w-[1242px] px-5">
+    <div data-footer-banner className="relative z-10 mx-auto w-full max-w-[1242px] px-5">
       <div className="@container relative overflow-hidden rounded-[24px] bg-[#151515]">
         <div className="relative aspect-[494/484] sm:aspect-[1202/326]">
           <Image

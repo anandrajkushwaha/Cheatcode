@@ -78,7 +78,7 @@ const heading = "text-[1.1rem] font-bold leading-[1.5] text-white";
  */
 export function Footer({ banner = true }: { banner?: boolean } = {}) {
   return (
-    <footer className="relative">
+    <footer className="group/footer relative">
       {banner && <FooterBanner />}
 
       {/* The photograph starts at the very top of this block and the card
@@ -88,7 +88,7 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
           shrinks. */}
       <div
         className={`relative overflow-hidden bg-[#040404] ${
-          banner ? "-mt-[6.8vw] lg:-mt-[97px]" : ""
+          banner ? "group-has-[[data-footer-banner]]/footer:-mt-[6.8vw] lg:group-has-[[data-footer-banner]]/footer:-mt-[97px]" : ""
         }`}
       >
         <Image
@@ -107,7 +107,9 @@ export function Footer({ banner = true }: { banner?: boolean } = {}) {
           <div>
             <div
               className={`relative mx-auto w-full max-w-[1200px] px-5 pb-8 ${
-                banner ? "pt-[11.5vw] lg:pt-[153px]" : "pt-14 lg:pt-[58px]"
+                banner
+                  ? "pt-14 lg:pt-[58px] group-has-[[data-footer-banner]]/footer:pt-[11.5vw] lg:group-has-[[data-footer-banner]]/footer:pt-[153px]"
+                  : "pt-14 lg:pt-[58px]"
               }`}
             >
               <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1.2fr)] lg:gap-8">
