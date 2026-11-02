@@ -32,6 +32,7 @@ export type Journey = {
   session: string;
   startedAt: string;
   seconds: number;
+  country: string | null;
   city: string | null;
   os: string | null;
   browser: string | null;
@@ -117,6 +118,7 @@ export type View = {
   source: string | null;
   medium: string | null;
   campaign: string | null;
+  country?: string | null;
   city: string | null;
   os: string | null;
   browser: string | null;
@@ -321,6 +323,7 @@ export function buildJourneys(
           (Date.parse(lastAt) - Date.parse(s.first.created_at)) / 1000,
         ),
       ),
+      country: s.first.country ?? null,
       city: s.first.city,
       os: s.first.os,
       browser: s.first.browser,
@@ -345,7 +348,7 @@ export function buildJourneys(
     byBrowser: breakdown(journeys, (j) => j.browser),
     byOs: breakdown(journeys, (j) => j.os),
     byCity: breakdown(journeys, (j) => j.city),
-    journeys: journeys.slice(0, 150),
+    journeys: journeys.slice(0, 500),
     total: journeys.length,
     crawlers,
     truncated,

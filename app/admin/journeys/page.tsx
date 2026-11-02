@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Panel, Empty } from "@/components/admin/ui";
+import { JourneyTable } from "@/components/admin/JourneyTable";
 import { getJourneys, STEPS, type Breakdown, type SourceFilter } from "@/lib/admin/journeys";
 import { rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
 
@@ -9,9 +10,10 @@ export const dynamic = "force-dynamic";
  * Journeys: who came from an ad, how far each one got, and where they left.
  *
  * Three things, top to bottom, and nothing else: the funnel, what the visits
- * were on (browser, phone, city), and the visits themselves — each one opens
- * to show every page and step in order. Two rows of pills choose the period
- * and the source; there are no other controls on purpose.
+ * were on (browser, phone, city), and the visits themselves as a sheet with
+ * a filter on every column (components/admin/JourneyTable.tsx) — each row
+ * opens to show every page and step in order. Two rows of pills choose the
+ * period and the source; it opens on today and everyone.
  */
 
 const PERIODS = [
@@ -33,24 +35,6 @@ const OUTCOME = [
   "Signed in",
   "Used ATS / resume",
 ];
-
-const TIME = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "Asia/Kolkata",
-});
-
-function duration(s: number) {
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return m < 60 ? `${m}m ${s % 60}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-function offset(from: string, at: string) {
-  return `+${duration(Math.max(0, Math.round((Date.parse(at) - Date.parse(from)) / 1000)))}`;
-}
 
 function Pills<T extends string>({
   items,
@@ -118,8 +102,8 @@ export default async function AdminJourneys({
   searchParams: Promise<{ range?: string; from?: string; to?: string; src?: string }>;
 }) {
   const sp = await searchParams;
-  const range: Range = resolveRange({ ...sp, range: sp.range ?? "7d" });
-  const src: SourceFilter = sp.src === "paid" || sp.src === "all" ? sp.src : "meta";
+  const range: Range = resolveRange({ ...sp, range: sp.range ?? "today" });
+  const src: SourceFilter = sp.src === "paid" || sp.src === "meta" ? sp.src : "all";
   const result = await getJourneys(range, src);
 
   const link = (r: Range | string, s: SourceFilter) =>
@@ -189,58 +173,12 @@ export default async function AdminJourneys({
               result.data.total > result.data.journeys.length ? `, latest ${result.data.journeys.length} shown` : ""
             }${result.data.crawlers ? `. ${result.data.crawlers} more from Meta / cloud data centres (ad review bots) are hidden` : ""}${
               result.data.truncated ? " (busiest period trimmed — pick a shorter one)" : ""
-            }. Tap one to see every step.`}
+            }. Filter any column from its header; tap a row to see every step.`}
           >
             {result.data.journeys.length === 0 ? (
               <Empty>No visits from this source in this period.</Empty>
             ) : (
-              <ul className="divide-y divide-ink-08">
-                {result.data.journeys.map((j) => (
-                  <li key={j.session}>
-                    <details className="group">
-                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-3 text-[0.84rem]">
-                        <span className="w-[7.5rem] shrink-0 text-ink-50 tabular-nums">{TIME.format(new Date(j.startedAt))}</span>
-                        <span className="min-w-[7rem]">{j.city ?? "Unknown city"}</span>
-                        <span className="text-ink-50">
-                          {j.os ?? "?"} · {j.browser ?? "?"}
-                        </span>
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[0.72rem] ${
-                            j.furthest >= 3 ? "bg-ink text-paper" : "border border-ink-15 text-ink-50"
-                          }`}
-                        >
-                          {OUTCOME[j.furthest]}
-                        </span>
-                        <span className="ml-auto text-[0.75rem] text-ink-30 tabular-nums">
-                          {j.pages} page{j.pages === 1 ? "" : "s"}
-                          {/* One page and nothing after it says nothing about how long they
-                              stayed — the webview gives no signal on close — so no "0s". */}
-                          {j.seconds > 0 ? ` · ${duration(j.seconds)}` : ""}
-                        </span>
-                      </summary>
-                      <div className="mb-4 rounded-xl bg-ink-04 p-4 text-[0.8rem]">
-                        <p className="text-ink-50">
-                          {j.source ?? "unknown source"}
-                          {j.campaign ? ` · ${j.campaign}` : ""} · {j.device ?? "?"} · landed on {j.landing}
-                        </p>
-                        <ol className="mt-3 space-y-1.5">
-                          {j.timeline.map((t, i) => (
-                            <li key={i} className="flex gap-3">
-                              <span className="w-14 shrink-0 text-right text-ink-30 tabular-nums">{offset(j.startedAt, t.at)}</span>
-                              <span className={t.kind === "page" ? "text-ink-50" : "font-medium"}>
-                                {t.kind === "page" ? `Opened ${t.text}` : t.text}
-                              </span>
-                            </li>
-                          ))}
-                        </ol>
-                        <p className="mt-3 text-[0.72rem] text-ink-30">
-                          Steps reached: {j.reached.map((i) => STEPS[i]).join(" → ")}
-                        </p>
-                      </div>
-                    </details>
-                  </li>
-                ))}
-              </ul>
+              <JourneyTable journeys={result.data.journeys} steps={[...STEPS]} outcomes={OUTCOME} />
             )}
           </Panel>
         </>

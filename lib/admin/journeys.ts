@@ -33,7 +33,7 @@ export async function getJourneys(
   let vq = db
     .from("page_views")
     .select(
-      "path,session_id,source,medium,campaign,city,os,browser,device,created_at",
+      "path,session_id,source,medium,campaign,country,city,os,browser,device,created_at",
     )
     .eq("is_bot", false)
     .gte("created_at", since)
