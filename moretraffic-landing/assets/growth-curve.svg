@@ -1,0 +1,15 @@
+<svg width="1200" height="220" viewBox="0 0 1200 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 205C200 204 320 196 400 186C480 176 620 150 800 112C980 74 1060 40 1200 18V220H0V205Z" fill="url(#g)"/>
+<path d="M0 205C200 204 320 196 400 186C480 176 620 150 800 112C980 74 1060 40 1200 18" stroke="#7FB2FF" stroke-width="2.5"/>
+<path d="M400 0V220" stroke="white" stroke-opacity="0.08"/>
+<path d="M800 0V220" stroke="white" stroke-opacity="0.08"/>
+<path d="M200 207C203.314 207 206 204.314 206 201C206 197.686 203.314 195 200 195C196.686 195 194 197.686 194 201C194 204.314 196.686 207 200 207Z" fill="#0A1633" stroke="#7FB2FF" stroke-width="2.5"/>
+<path d="M600 159C603.314 159 606 156.314 606 153C606 149.686 603.314 147 600 147C596.686 147 594 149.686 594 153C594 156.314 596.686 159 600 159Z" fill="#0A1633" stroke="#7FB2FF" stroke-width="2.5"/>
+<path d="M1000 69C1003.31 69 1006 66.3137 1006 63C1006 59.6863 1003.31 57 1000 57C996.686 57 994 59.6863 994 63C994 66.3137 996.686 69 1000 69Z" fill="#0A1633" stroke="#7FB2FF" stroke-width="2.5"/>
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="220" gradientUnits="userSpaceOnUse">
+<stop stop-color="#4F7DFF" stop-opacity="0.35"/>
+<stop offset="1" stop-color="#4F7DFF" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>
