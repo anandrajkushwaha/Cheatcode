@@ -45,6 +45,7 @@ export async function getJourneys(
     .from("page_events")
     .select("event,path,label,value,params,session_id,created_at")
     .eq("is_bot", false)
+    .neq("event", "heartbeat")
     .gte("created_at", since)
     .order("created_at", { ascending: true })
     .limit(ROW_LIMIT);

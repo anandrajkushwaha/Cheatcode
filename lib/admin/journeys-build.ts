@@ -110,6 +110,7 @@ const QUIET = new Set([
   "banner_view",
   "article_read",
   "page_view",
+  "heartbeat",
 ]);
 
 export type View = {

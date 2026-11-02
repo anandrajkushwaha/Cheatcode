@@ -9,7 +9,13 @@ export const EVENTS = {
   // --- page lifecycle ---
   PAGE_VIEW: "page_view",
   SCROLL_DEPTH: "scroll_depth", // params: percent
-  TIME_ON_PAGE: "time_on_page", // params: seconds (fired on leave)
+  TIME_ON_PAGE: "time_on_page", // params: seconds (fired on leave); hidden: true when the tab was hidden
+  /**
+   * Still here: once a minute while the page is visible, and once when it is
+   * hidden again (hidden: true). Only the admin's live count reads it; it is
+   * never sent to GA4.
+   */
+  HEARTBEAT: "heartbeat",
 
   // --- navigation ---
   NAV_CLICK: "nav_click", // params: label, location
@@ -194,7 +200,7 @@ export function track(event: EventName, params: EventParams = {}) {
   if (isAdminSurface() || isOwner()) return;
 
   try {
-    ga("event", event, params);
+    if (event !== EVENTS.HEARTBEAT) ga("event", event, params);
   } catch {
     /* GA blocked by an extension — our own tracking still runs */
   }

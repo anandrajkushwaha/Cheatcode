@@ -192,8 +192,20 @@ export function Analytics() {
   }, []);
 
   // ---------------------------------------------------------------- leave
+  // Hiding the tab (closing it, switching away, locking the phone) always
+  // sends one event marked hidden, so the admin's live count drops the visit
+  // at once instead of waiting for it to time out. Coming back sends a
+  // heartbeat, and so does every minute the page stays visible, so a long
+  // read stays live.
   useEffect(() => {
+    const beat = () => {
+      if (document.visibilityState === "visible" && lastPath.current) {
+        track(EVENTS.HEARTBEAT, { path: lastPath.current });
+      }
+    };
+    const timer = setInterval(beat, 60_000);
     function onHide() {
+      if (document.visibilityState === "visible") return beat();
       if (document.visibilityState !== "hidden") return;
 
       // Only the stretch since the last report. Summed across a session these
@@ -207,11 +219,17 @@ export function Analytics() {
           value: unreported,
           label: lastPath.current ?? "",
           path: lastPath.current ?? undefined,
+          hidden: true,
         });
+      } else if (lastPath.current) {
+        track(EVENTS.HEARTBEAT, { path: lastPath.current, hidden: true });
       }
     }
     document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onHide);
+    };
   }, []);
 
   return null;
