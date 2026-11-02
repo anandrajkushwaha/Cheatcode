@@ -40,7 +40,7 @@ export default async function JobsForYou() {
           Only for you · based on your resume
         </span>
         <h1 className="mt-5 max-w-[18ch] text-[clamp(2rem,4.8vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
-          Upload your resume. <span className="text-[#c2410c]">See your best-match jobs instantly.</span>
+          Upload your resume. <span className="text-[#c2410c]">See your <span className="whitespace-nowrap">best-match</span> jobs instantly.</span>
         </h1>
         <p className="mt-5 max-w-[50ch] text-lg leading-relaxed text-ink-70">
           We read your resume and show the open jobs it fits best, with your match score. Free, in 30 seconds.
