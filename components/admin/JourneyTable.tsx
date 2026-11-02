@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Journey } from "@/lib/admin/journeys-build";
+import { useLive } from "@/components/admin/useLive";
 
 /**
  * The visits as a sheet: one row each, a filter on every column header.
@@ -60,7 +61,20 @@ type Col = {
   className?: string;
 };
 
-export function JourneyTable({ journeys, steps, outcomes }: { journeys: Journey[]; steps: string[]; outcomes: string[] }) {
+export function JourneyTable({
+  journeys,
+  steps,
+  outcomes,
+  initialLive,
+}: {
+  journeys: Journey[];
+  steps: string[];
+  outcomes: string[];
+  initialLive?: { count: number; sessions: string[] } | null;
+}) {
+  const live = useLive(initialLive);
+  const isLive = (j: Journey) => Boolean(live?.sessions.has(j.session));
+  const [liveOnly, setLiveOnly] = useState(false);
   const cols: Col[] = useMemo(
     () => [
       { id: "time", label: "Time", value: (j) => DAY.format(new Date(j.startedAt)), cell: (j) => TIME.format(new Date(j.startedAt)), className: "whitespace-nowrap text-ink-50 tabular-nums" },
@@ -83,8 +97,12 @@ export function JourneyTable({ journeys, steps, outcomes }: { journeys: Journey[
 
   // A row passes when every filtered column holds one of its picked values.
   const rows = useMemo(
-    () => journeys.filter((j) => cols.every((c) => !filters[c.id] || filters[c.id].has(c.value(j)))),
-    [journeys, cols, filters],
+    () =>
+      journeys.filter(
+        (j) => (!liveOnly || isLive(j)) && cols.every((c) => !filters[c.id] || filters[c.id].has(c.value(j))),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [journeys, cols, filters, liveOnly, live],
   );
   const active = Object.keys(filters).length;
 
@@ -94,6 +112,11 @@ export function JourneyTable({ journeys, steps, outcomes }: { journeys: Journey[
         <span className="tabular-nums">
           Showing {rows.length} of {journeys.length}
         </span>
+        <label className="inline-flex cursor-pointer items-center gap-1.5">
+          <input type="checkbox" checked={liveOnly} onChange={(e) => setLiveOnly(e.target.checked)} />
+          <span className="inline-block h-2 w-2 rounded-full bg-[#22c55e]" />
+          Live only
+        </label>
         {active > 0 && (
           <>
             {Object.entries(filters).map(([id, set]) => (
@@ -165,7 +188,15 @@ export function JourneyTable({ journeys, steps, outcomes }: { journeys: Journey[
                 >
                   {cols.map((c) => (
                     <td key={c.id} className={`px-3 py-2 ${c.className ?? ""}`}>
-                      {c.id === "outcome" ? (
+                      {c.id === "time" ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            title={isLive(j) ? "Active in the last few minutes" : undefined}
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${isLive(j) ? "bg-[#22c55e]" : "bg-transparent"}`}
+                          />
+                          {(c.cell ?? c.value)(j)}
+                        </span>
+                      ) : c.id === "outcome" ? (
                         <span
                           className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.72rem] ${
                             j.furthest >= 3 ? "bg-ink text-paper" : "border border-ink-15 text-ink-50"

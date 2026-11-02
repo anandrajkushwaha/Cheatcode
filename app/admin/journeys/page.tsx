@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Panel, Empty } from "@/components/admin/ui";
 import { JourneyTable } from "@/components/admin/JourneyTable";
+import { LiveCount } from "@/components/admin/LiveCount";
+import { LIVE_MINUTES, getLive } from "@/lib/admin/live";
 import { getJourneys, STEPS, type Breakdown, type SourceFilter } from "@/lib/admin/journeys";
 import { rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
 
@@ -104,7 +106,8 @@ export default async function AdminJourneys({
   const sp = await searchParams;
   const range: Range = resolveRange({ ...sp, range: sp.range ?? "today" });
   const src: SourceFilter = sp.src === "paid" || sp.src === "meta" ? sp.src : "all";
-  const result = await getJourneys(range, src);
+  const [result, liveRes] = await Promise.all([getJourneys(range, src), getLive()]);
+  const live = liveRes.ok ? { count: liveRes.count, sessions: liveRes.sessions } : null;
 
   const link = (r: Range | string, s: SourceFilter) =>
     `/admin/journeys?${typeof r === "string" ? rangeQuery({ ...range, id: r as Range["id"] }, { src: s }) : rangeQuery(r, { src: s })}`;
@@ -112,7 +115,10 @@ export default async function AdminJourneys({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Journeys</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Journeys</h1>
+          <LiveCount initial={live} minutes={LIVE_MINUTES} />
+        </div>
         <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
           Every visit, step by step — how many reached each screen, and where the rest left.
           Signed in or not. Your own devices and bots are not counted.
@@ -171,7 +177,7 @@ export default async function AdminJourneys({
             {result.data.journeys.length === 0 ? (
               <Empty>No visits from this source in this period.</Empty>
             ) : (
-              <JourneyTable journeys={result.data.journeys} steps={[...STEPS]} outcomes={OUTCOME} />
+              <JourneyTable journeys={result.data.journeys} steps={[...STEPS]} outcomes={OUTCOME} initialLive={live} />
             )}
           </Panel>
 

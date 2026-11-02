@@ -68,7 +68,7 @@ export const SECTIONS: readonly Section[] = [
     label: "Dashboard",
     detail: "Traffic, page-by-page reading, usage and what the AI is costing. Read only.",
     pages: ["/admin", "/admin/traffic", "/admin/journeys", "/admin/pages"],
-    apis: [],
+    apis: ["/api/admin/live"],
   },
   {
     key: "people",
