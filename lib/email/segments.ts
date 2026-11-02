@@ -5,7 +5,6 @@ import type { Profile } from "@/lib/app/account";
 import { candidateFrom } from "@/lib/jobs/candidate";
 import { genuineMatches, matchPool } from "@/lib/jobs/matching";
 import { isOwnerEmail } from "@/lib/analytics/owner";
-import type { Teaser } from "@/lib/email/ats-upload";
 
 /**
  * Every signed-up person, sorted into who should get which email, by the
@@ -32,7 +31,7 @@ export type Person = {
 };
 
 export async function getSegments(): Promise<
-  { ok: true; people: Person[]; openJobs: number; teasers: Teaser[]; skipped: number } | { ok: false; error: string }
+  { ok: true; people: Person[]; openJobs: number; skipped: number } | { ok: false; error: string }
 > {
   const db = createAppAdminClient();
   if (!db) return { ok: false, error: "Supabase service key is not configured." };
@@ -74,11 +73,5 @@ export async function getSegments(): Promise<
     });
   }
 
-  // Three real openings for the email's "hiring now" strip: recent, with a city.
-  const teasers = pool
-    .filter((j) => j.title && (j.cities?.length || j.location_raw))
-    .slice(0, 3)
-    .map((j) => ({ title: j.title, where: j.cities?.[0] ?? j.location_raw ?? null }));
-
-  return { ok: true, people, openJobs: active.count ?? pool.length, teasers, skipped };
+  return { ok: true, people, openJobs: active.count ?? pool.length, skipped };
 }

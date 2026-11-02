@@ -1,97 +1,68 @@
 import { Panel, Stat, Empty } from "@/components/admin/ui";
-import { EmailActions } from "@/components/admin/EmailActions";
 import { getSegments } from "@/lib/email/segments";
-import { CAMPAIGN, renderAtsUpload } from "@/lib/email/ats-upload";
-import { emailConfigured } from "@/lib/email/send";
-import { getCampaignReport } from "@/lib/admin/emails";
+import { getEmailCampaigns } from "@/lib/admin/email-campaigns";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Emails to signed-up people. One campaign for now: people whose saved
- * resume matches no open job get "upload your resume and see the jobs it
- * matches", which opens the free ATS checker — and its match popup.
- * Segments come from the same matcher as the jobs page (lib/email/segments).
+ * Emails you send yourself, from Gmail. Two things here: who to send to
+ * (segments from the same matcher as the jobs page), and what each campaign
+ * did — opens and clicks from the tracked HTML, then visits, ATS checks and
+ * the match popup for the people it brought in.
  */
 
-const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
 export default async function AdminEmails() {
-  const [seg, report] = await Promise.all([getSegments(), getCampaignReport(CAMPAIGN)]);
-  if (!seg.ok) return <p className="text-[0.85rem] text-ink-50">Couldn&apos;t build segments: {seg.error}</p>;
-
-  const count = (s: string) => seg.people.filter((p) => p.segment === s).length;
-  const rows = report.ok ? report.rows : [];
-  const sentTo = new Set(rows.map((r) => r.email));
-  const eligible = seg.people.filter((p) => p.segment === "resume_no_match" && !sentTo.has(p.email)).length;
-  const sent = rows.filter((r) => r.status === "sent");
-  const preview = renderAtsUpload({ firstName: "Priya", openJobs: seg.openJobs, teasers: seg.teasers, token: "preview0000000000" });
+  const [seg, camp] = await Promise.all([getSegments(), getEmailCampaigns()]);
+  const people = seg.ok ? seg.people : [];
+  const list = (s: string) => people.filter((p) => p.segment === s);
+  const matched = list("matches").sort((a, b) => (b.best ?? 0) - (a.best ?? 0));
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Emails</h1>
         <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Campaign <code>{CAMPAIGN}</code>: people whose saved resume matches no open job yet. The email sends them to the free ATS
-          checker; after their upload, genuine matches open the ₹49 / ₹99 popup. Each person gets it once; unsubscribes are never
-          emailed.
+          Emails you send from Gmail with the tracked HTML. Each campaign is counted by its name in the links (for example{" "}
+          <code>resume_match_nov26</code>): opens, clicks, then what those visitors did on the site.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Stat label="Resume, no match" value={count("resume_no_match")} hint="this campaign" />
-        <Stat label="Resume with matches" value={count("matches")} />
-        <Stat label="No resume" value={count("no_resume")} />
-        <Stat label="Not emailable" value={seg.skipped} hint="phone sign-ups, you, unsubscribed" />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-5">
-        <Stat label="Sent" value={sent.length} />
-        <Stat label="Opened" value={sent.filter((r) => r.opened).length} hint={`${pct(sent.filter((r) => r.opened).length, sent.length)} · approximate`} />
-        <Stat label="Clicked" value={sent.filter((r) => r.clicked).length} hint={pct(sent.filter((r) => r.clicked).length, sent.length)} />
-        <Stat label="Checked resume" value={sent.filter((r) => r.checkedResume).length} hint={pct(sent.filter((r) => r.checkedResume).length, sent.length)} />
-        <Stat label="Paid" value={`₹${sent.reduce((n, r) => n + r.paidRupees, 0)}`} hint={`${sent.filter((r) => r.paidRupees > 0).length} people`} />
-      </div>
-
-      <Panel title="Send" note={`Subject: “${preview.subject.replace("Priya", "<first name>")}”`}>
-        <EmailActions eligible={eligible} configured={emailConfigured()} />
-      </Panel>
-
-      <Panel title="Preview" note="Exactly what a recipient sees (name and links are per person).">
-        <iframe title="Email preview" srcDoc={preview.html} className="h-[820px] w-full rounded-xl border border-ink-08 bg-white" />
-      </Panel>
-
-      <Panel title="Recipients" note={report.ok ? `${rows.length} sent so far` : report.error}>
-        {rows.length === 0 ? (
-          <Empty>Nobody emailed yet.</Empty>
+      <Panel title="Campaigns" note="Opens are approximate (Gmail and Apple load images on their own). Clicks and everything after are exact.">
+        {!camp.ok ? (
+          <p className="text-[0.84rem] text-ink-50">{camp.error}</p>
+        ) : camp.rows.length === 0 ? (
+          <Empty>No opens or clicks yet. They appear here as soon as someone opens a tracked email.</Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-left text-[0.84rem]">
+            <table className="w-full min-w-[46rem] text-left text-[0.84rem] tabular-nums">
               <thead>
                 <tr className="text-[0.68rem] uppercase tracking-[0.12em] text-ink-30">
-                  <th className="pb-2 font-medium">Email</th>
-                  <th className="pb-2 font-medium">Sent</th>
-                  <th className="pb-2 font-medium">Opened</th>
-                  <th className="pb-2 font-medium">Clicked</th>
-                  <th className="pb-2 font-medium">Checked resume</th>
-                  <th className="pb-2 font-medium">Paid</th>
+                  <th className="pb-2 font-medium">Campaign</th>
+                  <th className="pb-2 font-medium">First seen</th>
+                  <th className="pb-2 text-right font-medium">Opens</th>
+                  <th className="pb-2 text-right font-medium">Clicks</th>
+                  <th className="pb-2 text-right font-medium">Visitors</th>
+                  <th className="pb-2 text-right font-medium">ATS checks</th>
+                  <th className="pb-2 text-right font-medium">Saw popup</th>
+                  <th className="pb-2 text-right font-medium">Tapped ₹49 / ₹99</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.email} className="border-t border-ink-08">
-                    <td className="py-2 pr-3">
-                      {r.email}
-                      {r.unsubscribed && <span className="ml-2 text-[0.72rem] text-ink-30">unsubscribed</span>}
+                {camp.rows.map((r) => (
+                  <tr key={r.campaign} className="border-t border-ink-08">
+                    <td className="py-2 pr-3 font-medium">{r.campaign}</td>
+                    <td className="py-2 pr-3 text-ink-50">{r.firstAt ? WHEN.format(new Date(r.firstAt)) : "—"}</td>
+                    <td className="py-2 text-right">{r.opens}</td>
+                    <td className="py-2 text-right">{r.clicks}</td>
+                    <td className="py-2 text-right">{r.visitors}</td>
+                    <td className="py-2 text-right">
+                      {r.atsChecks} <span className="text-[0.72rem] text-ink-30">{pct(r.atsChecks, r.visitors)}</span>
                     </td>
-                    <td className="py-2 pr-3 text-ink-50">
-                      {r.status === "sent" && r.sentAt ? WHEN.format(new Date(r.sentAt)) : <span title={r.error ?? ""}>{r.status}</span>}
-                    </td>
-                    <td className="py-2 pr-3">{r.opened ? "✓" : "—"}</td>
-                    <td className="py-2 pr-3">{r.clicked ? `✓ ${r.clicks > 1 ? `×${r.clicks}` : ""}` : "—"}</td>
-                    <td className="py-2 pr-3">{r.checkedResume ? `✓ ${r.atsScore ?? ""}` : "—"}</td>
-                    <td className="py-2">{r.paidRupees ? `₹${r.paidRupees}` : "—"}</td>
+                    <td className="py-2 text-right">{r.sawPopup}</td>
+                    <td className="py-2 text-right">{r.tappedUnlock}</td>
                   </tr>
                 ))}
               </tbody>
@@ -99,6 +70,43 @@ export default async function AdminEmails() {
           </div>
         )}
       </Panel>
+
+      {seg.ok && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-4">
+            <Stat label="Resume with matches" value={matched.length} hint="send the match email to these" />
+            <Stat label="Resume, no match yet" value={list("resume_no_match").length} />
+            <Stat label="No resume" value={list("no_resume").length} />
+            <Stat label="Not emailable" value={seg.skipped} hint="phone sign-ups, you" />
+          </div>
+          <Panel title="Resume with matches" note="Their saved resume genuinely fits open jobs today — the people the 'your resume matches a job' email is true for.">
+            {matched.length === 0 ? (
+              <Empty>Nobody right now.</Empty>
+            ) : (
+              <table className="w-full text-left text-[0.84rem] tabular-nums">
+                <thead>
+                  <tr className="text-[0.68rem] uppercase tracking-[0.12em] text-ink-30">
+                    <th className="pb-2 font-medium">Name</th>
+                    <th className="pb-2 font-medium">Email</th>
+                    <th className="pb-2 text-right font-medium">Matching jobs</th>
+                    <th className="pb-2 text-right font-medium">Best</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matched.map((p) => (
+                    <tr key={p.userId} className="border-t border-ink-08">
+                      <td className="py-2 pr-3">{p.name ?? "—"}</td>
+                      <td className="py-2 pr-3">{p.email}</td>
+                      <td className="py-2 text-right">{p.matches}</td>
+                      <td className="py-2 text-right">{p.best}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+        </>
+      )}
     </div>
   );
 }
