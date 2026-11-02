@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/seo/constants";
-import { getAllPostSlugs, getCategories, POSTS_PER_PAGE } from "@/lib/queries/posts";
+import { getAllPostSlugs, getCategories } from "@/lib/queries/posts";
 import { getPublishedBanks } from "@/lib/interview/bank";
 import { getExamSlugs } from "@/lib/govt/query";
 import { KIND_SLUG, NOTICE_KINDS } from "@/lib/govt/types";
@@ -40,19 +40,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
   const examLatest = exams.length ? new Date(Math.max(...exams.map((e) => time(e.updatedAt)))) : now;
-  const blogPages = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
 
   return [
     { url: SITE.url, lastModified: latest, changeFrequency: "daily", priority: 1 },
     { url: `${SITE.url}/blog`, lastModified: latest, changeFrequency: "daily", priority: 0.9 },
-    // The paginated archive: indexable, self-canonical, and the path to every
-    // older guide (see app/(content)/blog/page/[page]).
-    ...Array.from({ length: blogPages - 1 }, (_, i) => ({
-      url: `${SITE.url}/blog/page/${i + 2}`,
-      lastModified: latest,
-      changeFrequency: "daily" as const,
-      priority: 0.5,
-    })),
+    // The paginated archive (/blog/page/N) is left out: every guide is listed
+    // here directly, and Search Console showed Google queueing all 22 archive
+    // pages ahead of guides it had not crawled yet. The pages still exist and
+    // are linked from the blog, so crawlers can walk them.
     {
       url: `${SITE.url}/become-a-mentor`,
       changeFrequency: "monthly",
@@ -69,38 +64,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
     },
 
-    /* Government jobs. The hub and the six kind pages are always submitted —
-       they are the queries people type — while an exam page is listed only
-       once it exists, so a sitemap never promises Google a page that 404s. */
     {
       url: `${SITE.url}/jobs`,
       lastModified: now,
       changeFrequency: "daily" as const,
       priority: 0.9,
     },
-    {
-      url: `${SITE.url}/government-jobs`,
-      lastModified: examLatest,
-      changeFrequency: "daily" as const,
-      priority: 0.9,
-    },
-    ...NOTICE_KINDS.map((k) => ({
-      url: `${SITE.url}/government-jobs/${KIND_SLUG[k]}`,
-      lastModified: examLatest,
-      changeFrequency: "daily" as const,
-      priority: 0.8,
-    })),
-    /* The three lifecycle views. They are derived from the same deadline the
-       badges read, so they always have something to say once anything is
-       published, and they are the shapes people search for ("last date
-       today", "form closed"). Withdrawn listings are excluded upstream by
-       getExamSlugs, which only returns published and closed rows. */
-    ...(["closing-soon", "closed", "dates-not-stated"] as const).map((seg) => ({
-      url: `${SITE.url}/government-jobs/${seg}`,
-      lastModified: examLatest,
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    })),
+    /* Government jobs: only while something is published. With every
+       listing retired the hub and kind pages are empty and noindex (see
+       government-jobs/layout.tsx), so submitting them only spends crawl. */
+    ...(exams.length ? [
+      {
+        url: `${SITE.url}/government-jobs`,
+        lastModified: examLatest,
+        changeFrequency: "daily" as const,
+        priority: 0.9,
+      },
+      ...NOTICE_KINDS.map((k) => ({
+        url: `${SITE.url}/government-jobs/${KIND_SLUG[k]}`,
+        lastModified: examLatest,
+        changeFrequency: "daily" as const,
+        priority: 0.8,
+      })),
+      /* The three lifecycle views. They are derived from the same deadline the
+         badges read, so they always have something to say once anything is
+         published, and they are the shapes people search for ("last date
+         today", "form closed"). Withdrawn listings are excluded upstream by
+         getExamSlugs, which only returns published and closed rows. */
+      ...(["closing-soon", "closed", "dates-not-stated"] as const).map((seg) => ({
+        url: `${SITE.url}/government-jobs/${seg}`,
+        lastModified: examLatest,
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+      })),
+    ] : []),
+    // An exam page is listed only once it exists, so a sitemap never promises
+    // Google a page that 404s.
     ...exams.map((e) => ({
       url: `${SITE.url}/government-jobs/${e.slug}`,
       lastModified: new Date(e.updatedAt),
