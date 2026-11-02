@@ -6,10 +6,14 @@
 <title>Your resume matches a job opportunity</title>
 <!--
   Cheatcode email: "Your resume matches a job opportunity"
-  Campaign name: resume_match_nov26 (in the button link and the pixel URL below).
-  Before sending: replace [Name] with the person's first name.
-  For a new send, change resume_match_nov26 in BOTH places to a new name
-  (letters, numbers, - and _ only) so /admin/emails counts it separately.
+
+  TO EDIT BEFORE SENDING (search for "EDIT:"; change only the words in brackets):
+    1. [Name]       the person's first name
+    2. [Job Title]  the job shown in the match card under the picture
+
+  Campaign name: resume_match_nov26, in the button link and the pixel at the
+  bottom. For a different send, change it in BOTH places (letters, numbers,
+  - and _ only) so /admin/emails counts it separately.
 -->
 </head>
 <body style="margin:0;padding:0;background:#eef2fb;">
@@ -21,11 +25,22 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fbf7ef;border-radius:18px;">
         <tr><td align="center" style="padding:30px 24px 6px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <div style="font-size:16px;font-weight:700;color:#0b0b0f;letter-spacing:-0.2px;">Cheatcode</div>
+          <!-- EDIT: name -->
           <div style="margin-top:18px;font-size:15px;color:#6e6e76;">Hi [Name],</div>
           <h1 style="margin:8px 0 0 0;font-size:30px;line-height:1.2;font-weight:800;color:#0b0b0f;letter-spacing:-0.5px;">Your resume matches a job&nbsp;<span style="color:#2f5bff;">opportunity.</span></h1>
         </td></tr>
         <tr><td align="center" style="padding:18px 0 0 0;">
-          <img src="https://www.cheatcodeapp.com/email/resume-match-hero.png" width="536" alt="A student checking the jobs his resume matches" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:0 0 18px 18px;">
+          <img src="https://www.cheatcodeapp.com/email/resume-match-hero.png" width="536" alt="A student checking the jobs his resume matches" style="display:block;width:100%;max-width:536px;height:auto;border:0;">
+        </td></tr>
+        <tr><td align="center" style="padding:0 24px 26px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#ffffff;border:3px solid #1d1d1f;border-radius:16px;">
+            <tr><td align="left" style="padding:14px 20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#16a34a;">&#9679; Top match for you</div>
+              <!-- EDIT: job title -->
+              <div style="margin-top:4px;font-size:21px;font-weight:800;color:#0b0b0f;">[Job Title]</div>
+              <div style="margin-top:4px;font-size:13px;color:#6e6e76;">&#128274; Company name hidden</div>
+            </td></tr>
+          </table>
         </td></tr>
       </table>
     </td></tr>
