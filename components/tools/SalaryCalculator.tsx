@@ -188,7 +188,7 @@ export function SalaryCalculator({ context = "public" }: { context?: ToolContext
               className="mt-0.5 size-4 accent-black"
             />
             <span>
-              Cap PF at the ₹15,000 wage ceiling
+              Cap PF at the ₹25,000 wage ceiling
               <span className="block text-[0.78rem] text-ink-30">
                 Most employers do. Uncheck if yours deducts 12% of full basic.
               </span>

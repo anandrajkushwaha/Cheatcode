@@ -5,7 +5,7 @@
  * (August 2026). Tax rules change with every Budget — the UI shows a
  * "verify before acting" note, and RATES_AS_OF is rendered on the page.
  */
-export const RATES_AS_OF = "FY 2026-27 (August 2026)";
+export const RATES_AS_OF = "FY 2026-27 (EPF wage ceiling ₹25,000 from 17 Sep 2026)";
 
 export type Regime = "new" | "old";
 
@@ -33,6 +33,31 @@ export const STANDARD_DEDUCTION = { new: 75_000, old: 50_000 } as const;
 const REBATE_LIMIT = { new: 1_200_000, old: 500_000 } as const;
 const CESS = 0.04;
 
+/**
+ * Surcharge on income tax above ₹50 lakh: [taxable income above, rate].
+ * The new regime stops at 25%; the old one goes to 37% above ₹5 crore.
+ */
+const SURCHARGE: Record<Regime, [number, number][]> = {
+  new: [[5_000_000, 0.1], [10_000_000, 0.15], [20_000_000, 0.25]],
+  old: [[5_000_000, 0.1], [10_000_000, 0.15], [20_000_000, 0.25], [50_000_000, 0.37]],
+};
+
+/**
+ * Tax plus surcharge, with marginal relief: crossing a surcharge threshold
+ * can never cost more in extra tax than the income above that threshold.
+ */
+function withSurcharge(income: number, slabs: [number, number][], regime: Regime) {
+  const base = slabTax(income, slabs);
+  const bands = SURCHARGE[regime];
+  let i = -1;
+  for (let k = 0; k < bands.length; k++) if (income > bands[k][0]) i = k;
+  if (i < 0) return base;
+  const [threshold, rate] = bands[i];
+  const below = i > 0 ? bands[i - 1][1] : 0;
+  const atThreshold = slabTax(threshold, slabs) * (1 + below);
+  return Math.min(base * (1 + rate), atThreshold + (income - threshold));
+}
+
 /** Monthly professional tax, by state. Approximate top-slab values. */
 export const PROFESSIONAL_TAX: Record<string, number> = {
   "Maharashtra": 200,
@@ -55,8 +80,9 @@ export const PROFESSIONAL_TAX: Record<string, number> = {
   "Other / not sure": 0,
 };
 
-/** EPF is 12% of basic, and most employers cap the basis at ₹15,000/month. */
-const PF_WAGE_CEILING_MONTHLY = 15_000;
+/** EPF is 12% of basic, and most employers cap the basis at the wage ceiling:
+ * ₹25,000 a month from 17 September 2026 (S.O. 5109(E)), up from ₹15,000. */
+const PF_WAGE_CEILING_MONTHLY = 25_000;
 const PF_RATE = 0.12;
 const GRATUITY_RATE = 0.0481; // 15/26 ÷ 12, the standard CTC provisioning figure
 
@@ -129,8 +155,11 @@ export function calculateSalary(input: SalaryInput): SalaryResult {
     grossAnnual - standardDeduction - (input.regime === "old" ? employeePfAnnual : 0),
   );
 
-  let tax = slabTax(taxableIncome, input.regime === "new" ? NEW_SLABS : OLD_SLABS);
+  let tax = withSurcharge(taxableIncome, input.regime === "new" ? NEW_SLABS : OLD_SLABS, input.regime);
   if (taxableIncome <= REBATE_LIMIT[input.regime]) tax = 0;
+  // New regime: just past the rebate limit, the tax can't exceed the income
+  // above it (marginal relief under s.87A).
+  else if (input.regime === "new") tax = Math.min(tax, taxableIncome - REBATE_LIMIT.new);
   const incomeTaxAnnual = tax * (1 + CESS);
 
   const otherAnnual = Math.max(0, input.otherDeductionsMonthly) * 12;

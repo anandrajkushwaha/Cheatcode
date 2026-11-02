@@ -25,6 +25,28 @@ export const MERGED_GUIDES: Record<string, string> = {
   // what-is-a-good-ats-score for score meaning; Google crawled it and kept
   // neither (Search Console, Oct 2026).
   "free-ats-resume-checker": "/tools/resume-ats-checker",
+  // Eighteen one-package in-hand guides, all "discovered, not crawled" in
+  // Search Console (Nov 2026) as near-duplicates of each other. The
+  // calculator's table answers every package on one page; 6, 10, 12 and
+  // 50 LPA were indexed and keep their own guides.
+  "3-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-3",
+  "4-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-4",
+  "5-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-5",
+  "7-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-7",
+  "8-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-8",
+  "9-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-9",
+  "11-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-11",
+  "13-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-13",
+  "14-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-14",
+  "15-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-15",
+  "16-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-16",
+  "20-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-20",
+  "25-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-25",
+  "30-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-30",
+  "40-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-40",
+  "60-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-60",
+  "75-lpa-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-75",
+  "1-crore-in-hand-salary": "/tools/in-hand-salary-calculator#ctc-100",
 };
 
 /** Where a merged guide now lives, as a path. */
