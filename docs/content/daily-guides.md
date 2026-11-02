@@ -48,6 +48,24 @@ Choose topics that:
   nothing yet; Bing and ChatGPT are where these guides get read.
 - Use two different categories on the same day.
 
+Rising in Google Trends (India, 90 days to 2 Nov 2026), confirmed on
+trends.google.com in a keyword audit. Take these before the evergreen list,
+and refresh the existing guide where one already covers the topic:
+- EPFO: the digital service upgrade, tracking a higher-pension
+  application, early-retirement withdrawal rules. Refresh
+  eps-higher-pension-option and epf-withdrawal-rules first. Use EPFO
+  circulars only.
+- SSC CGL admit card, city intimation slip and shift timings. Write only
+  from the notices on ssc.gov.in, give their dates exactly, and never imply
+  a window is open unless the notice says so.
+- Alternatives posts, in the same shape as jobscan-alternative-india: Teal,
+  Novoresume, Kickresume. These are resume tools; compare honestly, and link
+  /resume-templates as the free option.
+- Bank clerk exams: IBPS Clerk and SBI Clerk (eligibility, pattern,
+  salary). Use the official notifications only.
+- Seasonal: winter internships 2026; PM Internship Scheme (evergreen; use
+  the scheme's official portal).
+
 Category slugs: `ats-resume`, `resume-builder`, `resume-format`,
 `cover-letter`, `ai-job-search`, `mentorship`, `interview-prep`, `salary`,
 `linkedin`, `job-search`, `government-jobs-exams`, `pf-tax`,

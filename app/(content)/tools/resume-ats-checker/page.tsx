@@ -38,9 +38,9 @@ const FAQ = [
 ];
 
 export const metadata: Metadata = buildMetadata({
-  title: "Free Resume ATS Checker — Real Score & Weak Points | Cheatcode",
+  title: "Free ATS Score Checker — Check Your Resume's ATS Score | Cheatcode",
   description:
-    "Upload your resume and see what an ATS actually reads. Real parse-based score, plus the exact weak points costing you interviews. No signup, and the file is never uploaded.",
+    "Free ATS score checker for your resume: upload it and see what an ATS actually reads, a real parse-based score, and the exact weak points costing you interviews. No signup, and the file is never uploaded.",
   path: "/tools/resume-ats-checker",
 });
 
@@ -59,7 +59,7 @@ export default function AtsCheckerPage() {
         />
 
         <h1 className="mt-7 max-w-[20ch] text-[clamp(2rem,4.5vw,3.25rem)] font-semibold leading-[1.05]">
-          Resume ATS checker
+          Resume ATS score checker
         </h1>
         <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-ink-70">
           Before a recruiter reads your resume, software does. Upload the file you
