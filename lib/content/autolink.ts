@@ -51,6 +51,8 @@ export const KEYWORD_LINKS: LinkTarget[] = [
   { phrase: "STAR method", href: "/blog/star-method-interview" },
   { phrase: "tell me about yourself", href: "/blog/tell-me-about-yourself" },
   { phrase: "resume summary", href: "/blog/resume-summary-examples" },
+  { phrase: "resume objective", href: "/blog/resume-objective-for-freshers" },
+  { phrase: "career objective", href: "/blog/resume-objective-for-freshers" },
   { phrase: "relieving letter", href: "/blog/relieving-letter-format-india" },
   { phrase: "resignation letter", href: "/blog/resignation-letter-format" },
   { phrase: "offer letter", href: "/blog/offer-letter-format-india" },
