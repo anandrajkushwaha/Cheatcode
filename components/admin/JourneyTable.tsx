@@ -241,7 +241,7 @@ export function JourneyTable({
 }
 
 /** The spreadsheet-style value picker under a column header. */
-function FilterMenu({
+export function FilterMenu({
   at,
   values,
   picked,
