@@ -40,13 +40,14 @@ export default async function JobsForYou() {
           Only for you · based on your resume
         </span>
         <h1 className="mt-5 max-w-[18ch] text-[clamp(2rem,4.8vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
-          Upload your resume. <span className="text-[#c2410c]">See your <span className="whitespace-nowrap">best-match</span> jobs instantly.</span>
+          Find the jobs your resume is <span className="text-[#c2410c]">perfect for.</span>
         </h1>
         <p className="mt-5 max-w-[50ch] text-lg leading-relaxed text-ink-70">
-          We read your resume and show the open jobs it fits best, with your match score. Free, in 30 seconds.
+          Upload your resume. We match it against {jobs ? `${jobs.toLocaleString("en-IN")} live jobs` : "every live job"} and show your
+          top matches in 30 seconds.
         </p>
         <p className="mt-4 text-[0.8rem] text-ink-30">
-          {jobs ? `${jobs.toLocaleString("en-IN")} live jobs · ` : ""}Free · No sign-up for the score · File never uploaded
+          Free · No sign-up · File never uploaded
         </p>
       </div>
 
