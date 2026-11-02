@@ -104,6 +104,11 @@ declare global {
  * across sessions and tabs — that is what separates "unique users" from
  * "sessions". No cookie is set and nothing leaves your own domain.
  */
+/** When storage is blocked (some in-app browsers, strict privacy modes), an
+ * id for this page load only, so the visit and its events still hang together. */
+const memoryIds: { vid?: string; sid?: string } = {};
+const newId = (prefix = "") => prefix + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
 export function visitorId() {
   try {
     const KEY = "cc_vid";
@@ -114,7 +119,7 @@ export function visitorId() {
     }
     return id;
   } catch {
-    return null;
+    return (memoryIds.vid ??= newId("v"));
   }
 }
 
@@ -149,7 +154,7 @@ function sessionId() {
     localStorage.setItem(SEEN, String(now));
     return id;
   } catch {
-    return null;
+    return (memoryIds.sid ??= newId());
   }
 }
 
