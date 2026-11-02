@@ -27,21 +27,24 @@ export async function getApplicant(): Promise<Applicant> {
   const fromDraft = draft?.content && !resumeIsEmpty(cleanResume(draft.content)) ? cleanResume(draft.content) : null;
   const resume = fromDraft ?? (uploaded || profile ? seedFromResume(uploaded, profile) : null);
   const usable = resume && !resumeIsEmpty(resume) ? resume : null;
-  // Scored on what they wrote, never on the template's sample they didn't replace.
-  const own = usable ? ownContent(usable, allSamples()) : null;
+  return { resume: usable, draft, profile, candidate: candidateFrom(usable, profile) };
+}
 
+/**
+ * The person as the matcher sees them. Shared by getApplicant (the signed-in
+ * user) and the admin's email segments (every user at once), so a match in
+ * an email is the same match the jobs page shows.
+ */
+export function candidateFrom(resume: Resume | null, profile: Profile | null): Candidate {
+  // Scored on what they wrote, never on the template's sample they didn't replace.
+  const own = resume ? ownContent(resume, allSamples()) : null;
   return {
-    resume: usable,
-    draft,
-    profile,
-    candidate: {
-      skills: own?.skills ?? [],
-      text: own ? resumeText(own).toLowerCase() : "",
-      years: usable?.years_experience ?? profile?.years_experience ?? null,
-      cities: profile?.preferred_cities?.length ? profile.preferred_cities : profile?.city ? [profile.city] : [],
-      remote: Boolean(profile?.open_to_remote),
-      targetRole: usable?.target_role ?? profile?.target_roles?.[0] ?? profile?.current_title ?? null,
-    },
+    skills: own?.skills ?? [],
+    text: own ? resumeText(own).toLowerCase() : "",
+    years: resume?.years_experience ?? profile?.years_experience ?? null,
+    cities: profile?.preferred_cities?.length ? profile.preferred_cities : profile?.city ? [profile.city] : [],
+    remote: Boolean(profile?.open_to_remote),
+    targetRole: resume?.target_role ?? profile?.target_roles?.[0] ?? profile?.current_title ?? null,
   };
 }
 

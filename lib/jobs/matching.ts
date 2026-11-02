@@ -22,13 +22,24 @@ export async function matchingJobs(candidate: Candidate): Promise<Matched[]> {
   if (!candidate.text && !candidate.skills.length) return [];
   const supabase = await createAppServerClient();
   if (!supabase) return [];
-  const { data } = await supabase
+  return genuineMatches(candidate, await matchPool(supabase));
+}
+
+/** Active jobs to match against, read once — for scoring many people in one go. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function matchPool(client: { from: (table: string) => any }): Promise<JobRow[]> {
+  const { data } = await client
     .from("jobs")
     .select(COLUMNS)
     .eq("is_active", true)
     .order("posted_at", { ascending: false, nullsFirst: false })
     .limit(POOL);
-  const rows = ((data ?? []) as Omit<JobRow, "total_count">[]).map((r) => ({ ...r, skills: r.skills ?? [], cities: r.cities ?? [], total_count: 0 }));
+  return ((data ?? []) as Omit<JobRow, "total_count">[]).map((r) => ({ ...r, skills: r.skills ?? [], cities: r.cities ?? [], total_count: 0 }));
+}
+
+/** The jobs a candidate genuinely fits, best first, one per company and title. */
+export function genuineMatches(candidate: Candidate, rows: JobRow[]): Matched[] {
+  if (!candidate.text && !candidate.skills.length) return [];
   const scored = rows
     .map((job) => ({ job, match: matchJob(candidate, job) }))
     .filter(({ job, match }) => isGenuine(match, job))

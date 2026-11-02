@@ -63,6 +63,9 @@ const NAV = [
   { href: "/admin/leads", label: "ATS leads" },
   // The post-download match popup: who saw it, what they clicked, what they paid.
   { href: "/admin/match-popup", label: "Match popup" },
+  // Beside the popup it feeds: emails to signed-up people, and who opened,
+  // clicked and paid. Owner-only (not a grantable section): it sends mail.
+  { href: "/admin/emails", label: "Emails" },
   // After People because it answers the next question: People says how many
   // signed up, this says who they are — read out of their own résumés.
   { href: "/admin/user-analytics", label: "User analytics" },
