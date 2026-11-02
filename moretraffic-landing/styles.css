@@ -679,10 +679,11 @@ img { display: block; }
 }
 .tab, .tab-row { line-height: 1.4; }
 .tab-row { display: flex; gap: 10px; align-items: center; }
-.tab > .tab-num, .tab > .tab-name { display: inline; }
-.tab:not(.is-active) { flex-direction: row; align-items: center; gap: 10px; }
 .tab-num { font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; color: var(--faint); }
 .tab-name { font-weight: 500; font-size: 16px; color: var(--muted); white-space: nowrap; }
+.tab:not(.is-active) .tab-desc,
+.tab:not(.is-active) .tab-progress { display: none; }
+.tab:not(.is-active):hover .tab-name { color: var(--ink); }
 .tab.is-active {
   padding: 18px;
   background: #fff;
@@ -691,7 +692,7 @@ img { display: block; }
 }
 .tab.is-active .tab-num { color: var(--blue); }
 .tab.is-active .tab-name { color: var(--ink); }
-.tab-desc { font-size: 14px; line-height: 20px; color: var(--muted); }
+.tab-desc { display: block; font-size: 14px; line-height: 20px; color: var(--muted); }
 .tab-progress { display: block; width: 100%; height: 3px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; }
 .tab-progress span { display: block; width: 120px; height: 3px; background: var(--blue); }
 
