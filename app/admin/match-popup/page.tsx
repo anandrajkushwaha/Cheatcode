@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Panel, Stat, Empty, BarList } from "@/components/admin/ui";
 import { getPopupReport } from "@/lib/admin/match-popup";
+import { PopupPeople } from "@/components/admin/PopupPeople";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,6 @@ export const dynamic = "force-dynamic";
  * See lib/admin/match-popup.ts for where each number comes from.
  */
 
-const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
-const when = (iso: string | null) => (iso ? WHEN.format(new Date(iso)) : "—");
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
 const RANGES = [
@@ -19,17 +18,6 @@ const RANGES = [
   { id: "30", label: "30 days" },
   { id: "all", label: "All time" },
 ];
-
-const TONE: Record<string, string> = {
-  "Paid ₹99": "bg-[#e7f6ec] text-[#14532d]",
-  "Paid ₹49": "bg-[#e7f6ec] text-[#14532d]",
-  Applied: "bg-[#e7f6ec] text-[#14532d]",
-  "Started payment": "bg-[#fff4e0] text-[#7a4b00]",
-  "Looked at Pro": "bg-[#fff4e0] text-[#7a4b00]",
-  "Opened matches": "bg-[#eef2ff] text-[#3730a3]",
-  Closed: "bg-ink-04 text-ink-50",
-  "No action": "bg-ink-04 text-ink-50",
-};
 
 const SOURCES = [
   { id: "all", label: "Both" },
@@ -146,84 +134,7 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
         {report.rows.length === 0 ? (
           <Empty>Nobody has seen the popup in this period yet.</Empty>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-[0.8rem]">
-              <thead className="text-[0.72rem] uppercase tracking-[0.08em] text-ink-30">
-                <tr className="border-b border-ink-08">
-                  <th className="py-2 pr-3 font-medium">Person</th>
-                  <th className="py-2 pr-3 font-medium">Field</th>
-                  <th className="py-2 pr-3 font-medium">City · source</th>
-                  <th className="py-2 pr-3 font-medium">Popup</th>
-                  <th className="py-2 pr-3 font-medium">Clicks</th>
-                  <th className="py-2 pr-3 font-medium">Outcome</th>
-                  <th className="py-2 font-medium">Jobs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.rows.map((r) => (
-                  <tr key={r.userId} className="border-b border-ink-08 align-top">
-                    <td className="py-3 pr-3">
-                      <p className="font-medium">
-                        {r.name ?? "—"}
-                        {r.anonymous && <span className="ml-1.5 rounded bg-ink-04 px-1.5 py-0.5 text-[0.68rem] font-normal text-ink-50">not signed in</span>}
-                      </p>
-                      <p className="text-ink-50">{r.phone ?? r.email ?? ""}</p>
-                      {r.phone && r.email && <p className="text-ink-30">{r.email}</p>}
-                    </td>
-                    <td className="py-3 pr-3">
-                      <p>{r.field ?? "—"}</p>
-                      <p className="text-ink-30">
-                        {r.years !== null ? `${r.years} yrs` : ""}
-                        {r.skills.length ? `${r.years !== null ? " · " : ""}${r.skills.slice(0, 4).join(", ")}` : ""}
-                      </p>
-                    </td>
-                    <td className="py-3 pr-3">
-                      <p>{r.city ?? "—"}</p>
-                      <p className="text-ink-30">{r.source ?? "—"}</p>
-                    </td>
-                    <td className="py-3 pr-3">
-                      <p className="font-medium">{r.where}</p>
-                      <p>
-                        {r.shown}× · {r.matches ?? "?"} matches · best {r.best ?? "?"}%
-                      </p>
-                      <p className="text-ink-30">
-                        {r.anonymous ? "" : `${r.downloads} downloads · `}
-                        {r.avgSeconds !== null ? `${r.avgSeconds}s on popup` : "—"}
-                      </p>
-                      <p className="text-ink-30">{when(r.lastAt)}</p>
-                    </td>
-                    <td className="py-3 pr-3 text-ink-50">
-                      {[
-                        r.unlockClicks && `₹49 ×${r.unlockClicks}`,
-                        r.passClicks && `₹99 ×${r.passClicks}`,
-                        r.applyClicks && `apply ×${r.applyClicks}`,
-                        r.seeAll && `see all ×${r.seeAll}`,
-                        r.proClicks && `Pro ×${r.proClicks}`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </td>
-                    <td className="py-3 pr-3">
-                      <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-[0.74rem] font-medium ${TONE[r.outcome] ?? ""}`}>
-                        {r.outcome}
-                      </span>
-                      {r.paidRupees > 0 && <p className="mt-1 text-ink-50">₹{r.paidRupees} · {r.paidKinds.join(", ")}</p>}
-                    </td>
-                    <td className="py-3 text-ink-50">
-                      {r.jobs.length
-                        ? r.jobs.slice(0, 3).map((j, i) => (
-                            <p key={i} className="max-w-[16rem] truncate">
-                              {j.title}
-                              {j.company ? ` · ${j.company}` : ""} <span className="text-ink-30">({j.action})</span>
-                            </p>
-                          ))
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PopupPeople rows={report.rows} />
         )}
       </Panel>
     </div>
