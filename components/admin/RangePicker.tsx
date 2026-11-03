@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { RANGES, type Range } from "@/lib/admin/range";
+import { RANGES, istDay, istLastDay, type Range } from "@/lib/admin/range";
 
 /**
  * The range control shared by every dashboard screen.
@@ -13,11 +13,9 @@ import { RANGES, type Range } from "@/lib/admin/range";
  */
 export function RangePicker({ basePath, range }: { basePath: string; range: Range }) {
   const [open, setOpen] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(range.from?.slice(0, 10) ?? today);
-  const [to, setTo] = useState(
-    range.to ? new Date(new Date(range.to).getTime() - 864e5).toISOString().slice(0, 10) : today,
-  );
+  const today = istDay(new Date());
+  const [from, setFrom] = useState(range.from ? istDay(range.from) : today);
+  const [to, setTo] = useState(range.to ? istLastDay(range) : today);
 
   return (
     <div className="relative flex flex-wrap items-center gap-2">

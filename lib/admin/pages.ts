@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchAllResult } from "@/lib/admin/fetch-all";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canonicalPath, getInventory, type InventoryPage, type PageGroup } from "@/lib/admin/inventory";
 import type { Range } from "@/lib/admin/range";
@@ -55,23 +56,27 @@ export async function getPages(
   const since = range.from ?? new Date(Date.now() - range.days * 86_400_000).toISOString();
   const until = range.to ?? null;
 
-  let views = db
-    .from("page_views")
-    .select("path,session_id,visitor_id,source,created_at")
-    .eq("is_bot", false)
-    .gte("created_at", since)
-    .order("created_at", { ascending: true })
-    .limit(ROW_LIMIT);
-  if (until) views = views.lte("created_at", until);
+  // Read in pages: one request stops at 1,000 rows (lib/admin/fetch-all.ts).
+  const views = fetchAllResult((from, to) => {
+    let q = db
+      .from("page_views")
+      .select("path,session_id,visitor_id,source,created_at")
+      .eq("is_bot", false)
+      .gte("created_at", since);
+    if (until) q = q.lte("created_at", until);
+    return q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(from, to);
+  }, ROW_LIMIT);
 
-  let events = db
-    .from("page_events")
-    .select("event,path,label,value,session_id,visitor_id,location")
-    .eq("is_bot", false)
-    .in("event", ["scroll_depth", "time_on_page", "content_share", "article_view"])
-    .gte("created_at", since)
-    .limit(ROW_LIMIT);
-  if (until) events = events.lte("created_at", until);
+  const events = fetchAllResult((from, to) => {
+    let q = db
+      .from("page_events")
+      .select("event,path,label,value,session_id,visitor_id,location")
+      .eq("is_bot", false)
+      .in("event", ["scroll_depth", "time_on_page", "content_share", "article_view"])
+      .gte("created_at", since);
+    if (until) q = q.lte("created_at", until);
+    return q.order("id", { ascending: true }).range(from, to);
+  }, ROW_LIMIT);
 
   const [inventory, v, e] = await Promise.all([getInventory(), views, events]);
   if (v.error) return { ok: false, error: v.error.message };

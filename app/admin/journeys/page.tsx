@@ -4,7 +4,8 @@ import { JourneyTable } from "@/components/admin/JourneyTable";
 import { LiveCount } from "@/components/admin/LiveCount";
 import { LIVE_MINUTES, getLive } from "@/lib/admin/live";
 import { getJourneys, STEPS, type Breakdown, type SourceFilter } from "@/lib/admin/journeys";
-import { rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
+import { istDay, istLastDay, rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
+import { CustomDates } from "@/components/admin/CustomDates";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,17 @@ export default async function AdminJourneys({
           Signed in or not. Your own devices and bots are not counted.
         </p>
         <div className="mt-5 space-y-2.5">
-          <Pills items={PERIODS} active={range.id as (typeof PERIODS)[number]["id"]} href={(id) => link(id, src)} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Pills items={PERIODS} active={range.id as (typeof PERIODS)[number]["id"]} href={(id) => link(id, src)} />
+            <CustomDates
+              basePath="/admin/journeys"
+              active={range.id === "custom"}
+              from={range.id === "custom" && range.from ? istDay(range.from) : istDay(new Date(Date.now() - 6 * 864e5))}
+              to={range.id === "custom" ? istLastDay(range) : istDay(new Date())}
+              today={istDay(new Date())}
+              keep={{ src }}
+            />
+          </div>
           <Pills items={SOURCES} active={src} href={(id) => link(range, id)} />
         </div>
       </div>

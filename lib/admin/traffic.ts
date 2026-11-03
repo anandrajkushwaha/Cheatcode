@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchAllResult } from "@/lib/admin/fetch-all";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Range } from "@/lib/admin/range";
 
@@ -72,22 +73,28 @@ export async function getTraffic(range: Range): Promise<{ ok: true; data: Traffi
   const [a, e, c, tf] = await Promise.all([
     db.rpc("analytics_summary", args),
     db.rpc("events_summary", args),
-    db
-      .from("page_views")
-      .select("source,campaign,session_id")
-      .eq("is_bot", false)
-      .not("campaign", "is", null)
-      .gte("created_at", since)
-      .limit(20000),
+    fetchAllResult((from, to) =>
+      db
+        .from("page_views")
+        .select("source,campaign,session_id")
+        .eq("is_bot", false)
+        .not("campaign", "is", null)
+        .gte("created_at", since)
+        .order("id", { ascending: true })
+        .range(from, to),
+    20000),
     // Every tool_compute in the window, successes included — the failure
     // count only means something next to the number of attempts.
-    db
-      .from("page_events")
-      .select("params,device")
-      .eq("event", "tool_compute")
-      .eq("is_bot", false)
-      .gte("created_at", since)
-      .limit(20000),
+    fetchAllResult((from, to) =>
+      db
+        .from("page_events")
+        .select("params,device")
+        .eq("event", "tool_compute")
+        .eq("is_bot", false)
+        .gte("created_at", since)
+        .order("id", { ascending: true })
+        .range(from, to),
+    20000),
   ]);
 
   if (a.error) return { ok: false, error: a.error.message };

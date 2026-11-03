@@ -82,13 +82,30 @@ export function resolveRange(sp: { range?: string; from?: string; to?: string })
   return { id: "7d", label: "7 days", days: 7 };
 }
 
+/**
+ * The calendar day in India of an instant, as YYYY-MM-DD. Not
+ * `toISOString().slice(0, 10)`: Indian midnight is 18:30 the day before in
+ * UTC, so slicing named the previous day and every round trip of a custom
+ * range through a link moved it back by one.
+ */
+export function istDay(iso: string | Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: IST, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(iso),
+  );
+}
+
+/** The last day a range covers, inclusive (its `to` is the start of the day after). */
+export function istLastDay(r: Range): string {
+  return r.to ? istDay(new Date(new Date(r.to).getTime() - 1)) : istDay(new Date());
+}
+
 /** Preserve the active range when linking between admin screens. */
 export function rangeQuery(r: Range, extra: Record<string, string | number> = {}) {
   const q = new URLSearchParams();
   q.set("range", r.id);
   if (r.id === "custom" && r.from && r.to) {
-    q.set("from", r.from.slice(0, 10));
-    q.set("to", new Date(new Date(r.to).getTime() - 864e5).toISOString().slice(0, 10));
+    q.set("from", istDay(r.from));
+    q.set("to", istLastDay(r));
   }
   for (const [k, v] of Object.entries(extra)) q.set(k, String(v));
   return q.toString();
