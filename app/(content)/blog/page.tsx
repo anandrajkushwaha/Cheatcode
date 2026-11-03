@@ -1,118 +1,74 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getPosts, getCategories, getCategoryCounts, POSTS_PER_PAGE } from "@/lib/queries/posts";
 import { buildMetadata } from "@/lib/seo/metadata";
-import { ArticleCard, Pagination, Breadcrumbs } from "@/components/content/bits";
-import { pickBanner } from "@/lib/queries/banners";
-import { PromoBanner } from "@/components/content/PromoBanner";
-import { JsonLd } from "@/components/JsonLd";
-import { SITE } from "@/lib/seo/constants";
+import { getAllPosts, getManifest, templateCss, type MtPost } from "@/lib/moretraffic";
+import { LEGACY_INDEX_META, LegacyBlogIndex } from "../_legacy-blog/index-page";
 
-export const revalidate = 300;
+/**
+ * /blog — every published post: the MoreTraffic posts first, then the
+ * original guides (topics, pagination at /blog/page/N) underneath.
+ *
+ * Server-rendered and revalidated every 60 seconds. The head carries
+ * <meta name="moretraffic-verify"> from the manifest, or, when the manifest
+ * can't be read, one <meta name="moretraffic-status"> naming why (no-key,
+ * http-NNN, unreachable). The page itself never fails on MoreTraffic's
+ * account: it renders with the original guides alone.
+ */
 
-export const metadata: Metadata = buildMetadata({
-  title: "Career Guides for Indian Job Seekers | Cheatcode",
-  description:
-    "Practical guides on resumes, ATS, interviews, salary and job search — written for Indian students and early-career professionals. No fluff, no paywalls.",
-  path: "/blog",
-});
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const manifest = await getManifest();
+  const token = manifest.ok ? manifest.data.verifyToken?.trim() : null;
+  const other: Record<string, string> = token
+    ? { "moretraffic-verify": token }
+    : { "moretraffic-status": manifest.ok ? "no-token" : manifest.status };
+  return {
+    ...buildMetadata({ ...LEGACY_INDEX_META, path: "/blog" }),
+    other,
+  };
+}
+
+const DATE = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const date = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : DATE.format(d);
+};
+const published = (p: MtPost) => p.publishedAt ?? (p as { published_at?: string }).published_at ?? null;
 
 export default async function BlogIndex() {
-  const [{ posts, total }, categories, counts, banner] = await Promise.all([
-    getPosts({ page: 1 }),
-    getCategories(),
-    getCategoryCounts(),
-    pickBanner("blog_list", "/blog"),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / POSTS_PER_PAGE));
+  const [manifest, posts] = await Promise.all([getManifest(), getAllPosts()]);
+  const css = templateCss(manifest);
+  const list = posts.ok ? posts.data : [];
 
   return (
     <>
-      <div className="container-page pt-12 sm:pt-16">
-        <Breadcrumbs items={[{ href: "/", label: "Home" }, { label: "Guides" }]} />
-
-        <h1 className="mt-6 max-w-[16ch] text-[length:var(--text-display)] font-semibold leading-[1.02]">
-          Everything nobody
-          <span className="text-ink-30"> told you.</span>
-        </h1>
-        <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-ink-70">
-          Resumes, ATS, interviews, salary, LinkedIn and the job hunt — explained
-          for Indian students and people in their first two years of work. Free,
-          no signup, no paywall.
-        </p>
-      </div>
-
-      <div className="container-page mt-14 grid gap-14 lg:grid-cols-[1fr_260px] lg:gap-20">
-        <div>
-          {posts.length === 0 ? (
-            <p className="text-ink-50">No guides published yet.</p>
-          ) : (
-            <>
-              {posts.map((post, i) => (
-                <div key={post.id}>
-                  <ArticleCard post={post} />
-                  {banner && i === 3 && (
-                    <div className="py-7">
-                      <PromoBanner banner={banner} />
-                    </div>
-                  )}
-                </div>
+      {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
+      <LegacyBlogIndex>
+        {list.length > 0 && (
+          <section className="container-page mt-14" aria-labelledby="latest-posts">
+            <h2 id="latest-posts" className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+              Latest
+            </h2>
+            <ul className="mt-5 divide-y divide-ink-08 border-y border-ink-08">
+              {list.map((p) => (
+                <li key={p.slug}>
+                  <Link href={`/blog/${p.slug}`} className="group block py-6">
+                    <h3 className="text-[1.2rem] font-semibold leading-snug tracking-[-0.02em] group-hover:underline group-hover:underline-offset-4">
+                      {p.title}
+                    </h3>
+                    {p.description && (
+                      <p className="mt-2 max-w-[70ch] text-[0.95rem] leading-relaxed text-ink-50">{p.description}</p>
+                    )}
+                    {date(published(p)) && <p className="mt-2 text-[0.8rem] text-ink-30">{date(published(p))}</p>}
+                  </Link>
+                </li>
               ))}
-              <Pagination page={1} totalPages={totalPages} basePath="/blog" />
-            </>
-          )}
-        </div>
-
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <p className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Topics
-          </p>
-          <ul className="mt-5 space-y-3">
-            {categories.map((c) => (
-              <li key={c.slug}>
-                <Link
-                  href={`/blog/category/${c.slug}`}
-                  className="flex items-baseline justify-between gap-3 text-[0.9rem] text-ink-50 transition-colors hover:text-ink"
-                >
-                  <span>{c.name}</span>
-                  <span className="text-[0.75rem] text-ink-30">{counts[c.slug] ?? 0}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          {/* The hubs that are not categories. (/interview-questions is left out
-              while it is noindex with no published banks.) */}
-          <p className="mt-10 text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
-            Hubs
-          </p>
-          <ul className="mt-5 space-y-3 text-[0.9rem]">
-            <li>
-              <Link href="/tools/in-hand-salary-calculator" className="text-ink-50 transition-colors hover:text-ink">
-                In-hand salary by package
-              </Link>
-            </li>
-            <li>
-              <Link href="/government-jobs" className="text-ink-50 transition-colors hover:text-ink">
-                Government jobs
-              </Link>
-            </li>
-          </ul>
-        </aside>
-      </div>
-
-      <div className="h-24" />
-
-      <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "Blog",
-          name: "Cheatcode Guides",
-          url: `${SITE.url}/blog`,
-          inLanguage: "en-IN",
-        }}
-      />
+            </ul>
+          </section>
+        )}
+      </LegacyBlogIndex>
     </>
   );
 }

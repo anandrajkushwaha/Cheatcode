@@ -56,11 +56,32 @@ export function metaPageView() {
  * purchase is ever reported twice (say, the button's handler and a future
  * server-side event).
  */
+/**
+ * The same conversions, sent to MoreTraffic analytics (the t.js script in the
+ * root layout) by name only — never a property, so nothing personal leaves.
+ */
+const MORETRAFFIC_EVENT = {
+  Lead: "ats_check_completed",
+  InitiateCheckout: "checkout_started",
+  Purchase: "purchase_completed",
+  CompleteRegistration: "signup_completed",
+} as const;
+
+function moretrafficTrack(name: string) {
+  try {
+    const mt = (window as unknown as { moretraffic?: { track?: (n: string) => void } }).moretraffic;
+    if (mt && typeof mt.track === "function") mt.track(name);
+  } catch {
+    /* analytics never gets in the way */
+  }
+}
+
 export function metaTrack(
   event: "Lead" | "InitiateCheckout" | "Purchase" | "CompleteRegistration",
   params?: Record<string, unknown>,
   eventId?: string,
 ) {
+  moretrafficTrack(MORETRAFFIC_EVENT[event]);
   if (eventId) send("track", event, params ?? {}, { eventID: eventId });
   else if (params) send("track", event, params);
   else send("track", event);

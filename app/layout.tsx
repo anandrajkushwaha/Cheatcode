@@ -112,6 +112,8 @@ export default function RootLayout({
         <script id="iab-escape" dangerouslySetInnerHTML={{ __html: IAB_ESCAPE_SNIPPET }} />
         {/* Meta Pixel base code — in the page source, first thing in <head>. */}
         <script id="meta-pixel" dangerouslySetInnerHTML={{ __html: META_PIXEL_SNIPPET }} />
+        {/* MoreTraffic analytics: cookieless, deferred, on every page. */}
+        <script defer src="https://www.moretraffic.app/t.js" data-site="KIGJhY9corMw" />
       </head>
       <body className="antialiased">
         <a
