@@ -9,6 +9,7 @@ import { showsPhoto, templateById } from "@/lib/app/resume-templates";
 import { shapeOf } from "@/lib/app/flow/theme";
 import { FlowDoc } from "@/components/app/flow/FlowDoc";
 import { DesignPanel } from "@/components/app/builder/DesignPanel";
+import { EVENTS, track } from "@/lib/analytics/events";
 import { MatchesPopup, type MatchesData } from "@/components/app/builder/MatchesPopup";
 import * as S from "@/components/app/builder/sections";
 
@@ -58,6 +59,8 @@ const PAGE_PX = 210 * (96 / 25.4);
  * were filling in, not back at Personal.
  */
 export const SECTION_KEY = "cc_builder_section";
+/** Set by the guest builder after a sign-in that began with Download: download on arrival. */
+export const AUTO_DOWNLOAD_KEY = "cc_builder_autodownload";
 
 export type GuestState = {
   resume: Resume;
@@ -292,6 +295,24 @@ export function Builder({
       setGetting(false);
     }
   }, [flush, draftId, resume.full_name, title, guest]);
+
+  // Signed in from the guest builder's Download: the PDF they asked for, and
+  // then the matches popup, without a second tap.
+  const autoDownloaded = useRef(false);
+  useEffect(() => {
+    if (guest || autoDownloaded.current) return;
+    let want = false;
+    try {
+      want = sessionStorage.getItem(AUTO_DOWNLOAD_KEY) === "1";
+      sessionStorage.removeItem(AUTO_DOWNLOAD_KEY);
+    } catch {
+      /* storage blocked: they tap Download themselves */
+    }
+    if (!want) return;
+    autoDownloaded.current = true;
+    track(EVENTS.BUILDER_STEP, { label: "auto_download" });
+    void download();
+  }, [guest, download]);
 
   // The guest builder keeps everything in the browser instead.
   useEffect(() => {

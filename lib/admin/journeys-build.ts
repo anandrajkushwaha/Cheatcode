@@ -142,6 +142,7 @@ function eventText(e: Event): string | null {
     const p = e.params ?? {};
     switch (e.label) {
       case "template_click":
+        if (p.where === "build-resume") return `Picked template "${String(p.template ?? "?")}" — builder opened, no sign-up`;
         return p.where === "resume-templates" || p.where === "home"
           ? `Picked template "${String(p.template ?? "?")}" on ${p.where === "home" ? "the home page" : "/resume-templates"}`
           : `Picked template "${String(p.template ?? "?")}" — details form opened`;
@@ -161,6 +162,8 @@ function eventText(e: Event): string | null {
         return `Save popup shown (${String(p.reason ?? "auto")}, ${String(p.fields ?? "?")} fields filled)`;
       case "gate_dismissed":
         return "Closed the save popup";
+      case "auto_download":
+        return "Signed in from Download — PDF downloading";
       case "error":
         return `Form error: ${String(p.reason ?? "unknown").slice(0, 80)}`;
       default:
@@ -278,7 +281,7 @@ export function buildJourneys(
         const browsing =
           ev.label === "guest_open" ||
           (ev.label === "template_click" &&
-            (ev.params?.where === "resume-templates" || ev.params?.where === "home"));
+            (ev.params?.where === "resume-templates" || ev.params?.where === "home" || ev.params?.where === "build-resume"));
         if (!browsing) reach(1);
         if (ev.label === "details_submit" || ev.label === "existing_account")
           reach(2);

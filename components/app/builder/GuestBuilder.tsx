@@ -1,31 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Builder, SECTION_KEY, type GuestHooks, type GuestState } from "@/components/app/builder/Builder";
+import { AUTO_DOWNLOAD_KEY, Builder, SECTION_KEY, type GuestHooks, type GuestState } from "@/components/app/builder/Builder";
 import { SignInForm } from "@/app/(app)/signin/SignInForm";
 import { cleanResume, type Resume } from "@/lib/app/resume-schema";
 import { DEFAULT_TEMPLATE, isTemplateId } from "@/lib/app/resume-templates";
 import { sampleFor } from "@/lib/app/design-sample";
-import { filledCount, GATE_AT, guestStart } from "@/lib/app/guest-resume";
+import { filledCount, guestStart } from "@/lib/app/guest-resume";
 import { EVENTS, track } from "@/lib/analytics/events";
 
 /**
  * The builder before an account — what a template on the home page opens.
  *
  * Everything is kept in this browser (localStorage) until they sign up, so a
- * closed tab or a trip to Google loses nothing. After a few fields the
- * ordinary sign-in card opens over the builder (Google, or number / email,
- * with the number, name and city from the resume already filled in). Then a
- * draft is created from exactly what is on screen and the real builder opens
- * on the section they were in.
+ * closed tab or a trip to Google loses nothing. Nothing asks for an account
+ * while they write: the whole resume can be built first. Only Download opens
+ * the ordinary sign-in card (Google, or number / email, with the number, name
+ * and city from the resume already filled in). Then a draft is created from
+ * exactly what is on screen, the real builder opens on it, and the PDF
+ * downloads on its own — followed by the jobs it matches (MatchesPopup).
  *
  * Google sign-in leaves the page and comes back here signed in; the same
- * hand-over runs on arrival.
+ * hand-over, download included, runs on arrival.
  */
 
 const STORE = "cc_guest_resume";
 
-type Saved = { state: GuestState; start: Resume };
+/** `download`: they tapped Download — it happens right after sign-in. */
+type Saved = { state: GuestState; start: Resume; download?: boolean };
 
 function readSaved(): Saved | null {
   try {
@@ -33,7 +35,7 @@ function readSaved(): Saved | null {
     if (!raw) return null;
     const v = JSON.parse(raw) as Saved;
     if (!v?.state?.resume || !isTemplateId(v.state.template)) return null;
-    return { state: { ...v.state, resume: cleanResume(v.state.resume) }, start: cleanResume(v.start) };
+    return { state: { ...v.state, resume: cleanResume(v.state.resume) }, start: cleanResume(v.start), download: v.download === true };
   } catch {
     return null;
   }
@@ -45,7 +47,7 @@ function freshStart(template: string): Saved {
 }
 
 /** Make the draft from what is on screen, and open the real builder there. */
-async function handOver(state: GuestState) {
+async function handOver(state: GuestState, download = false) {
   const res = await fetch("/api/app/resume/draft", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -68,6 +70,7 @@ async function handOver(state: GuestState) {
   track(EVENTS.BUILDER_STEP, { label: "draft_created", template: state.template, where: "guest" });
   try {
     sessionStorage.setItem(SECTION_KEY, state.section);
+    if (download) sessionStorage.setItem(AUTO_DOWNLOAD_KEY, "1");
     localStorage.removeItem(STORE);
   } catch {
     /* fine */
@@ -107,7 +110,7 @@ export function GuestBuilder({ template: asked, signedIn }: { template: string |
         }).finally(() => window.location.assign("/app/resume/builder"));
         return;
       }
-      handOver(next.state).catch((e) => {
+      handOver(next.state, next.download === true).catch((e) => {
         setTrouble(e instanceof Error ? e.message : String(e));
         setHanding(false);
       });
@@ -129,53 +132,38 @@ export function GuestBuilder({ template: asked, signedIn }: { template: string |
 
 function GuestSession({ saved }: { saved: Saved }) {
   const [state, setState] = useState<GuestState>(saved.state);
-  const [sheet, setSheet] = useState<null | "auto" | "download" | "next">(null);
-  const dismissedAt = useRef<number | null>(null);
-  const shownOnce = useRef(false);
+  const [sheet, setSheet] = useState<null | "download">(null);
 
   const filled = useMemo(() => filledCount(saved.start, state.resume), [saved.start, state.resume]);
   const filledRef = useRef(filled);
   filledRef.current = filled;
 
-  // Kept on every change, so nothing is lost before they sign up.
+  // Kept on every change, so nothing is lost before they sign up. `download`
+  // is remembered while the sign-in card is open, so a Google round trip
+  // still ends in the PDF.
   useEffect(() => {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ state, start: saved.start }));
+      localStorage.setItem(STORE, JSON.stringify({ state, start: saved.start, download: sheet === "download" }));
     } catch {
       /* storage full or blocked — the session still works */
     }
-  }, [state, saved.start]);
+  }, [state, saved.start, sheet]);
 
-  const open = useCallback((why: "auto" | "download" | "next") => {
+  const open = useCallback(() => {
     setSheet((cur) => {
       if (cur) return cur;
-      track(EVENTS.BUILDER_STEP, { label: "gate_shown", reason: why, fields: filledRef.current });
-      return why;
+      track(EVENTS.BUILDER_STEP, { label: "gate_shown", reason: "download", fields: filledRef.current });
+      return "download";
     });
   }, []);
-
-  // On its own once, a moment after the third field — never mid-word.
-  useEffect(() => {
-    if (shownOnce.current || filled < GATE_AT) return;
-    const t = setTimeout(() => {
-      shownOnce.current = true;
-      open("auto");
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [filled, open]);
 
   const hooks: GuestHooks = useMemo(
     () => ({
       onState: setState,
       backHref: "/resume-templates",
+      // Only the download needs an account; moving between sections never asks.
       needAccount: (reason) => {
-        if (reason === "download") return open("download");
-        // Moving on after closing the sheet: ask again, but only once they
-        // have written a few more fields since.
-        if (filledRef.current >= GATE_AT && filledRef.current >= (dismissedAt.current ?? 0) + GATE_AT) {
-          shownOnce.current = true;
-          open("next");
-        }
+        if (reason === "download") open();
       },
     }),
     [open],
@@ -197,7 +185,6 @@ function GuestSession({ saved }: { saved: Saved }) {
         <SaveSheet
           state={state}
           onClose={() => {
-            dismissedAt.current = filledRef.current;
             track(EVENTS.BUILDER_STEP, { label: "gate_dismissed", reason: sheet });
             setSheet(null);
           }}
@@ -229,12 +216,16 @@ function SaveSheet({ state, onClose }: { state: GuestState; onClose: () => void 
             <path d="M4 4l8 8M12 4l-8 8" />
           </svg>
         </button>
+        <p className="mb-5 pr-8 text-[0.9rem] leading-relaxed text-ink-70">
+          <span className="font-semibold text-ink">Your resume is ready.</span> Sign in to download it — it&apos;s
+          saved to your account, so you can edit it any time.
+        </p>
         <SignInForm
           next="/resume-builder"
           initialIdentifier={r.phone || r.email || ""}
           initialName={r.full_name ?? ""}
           initialCity={r.location ?? ""}
-          onSignedIn={() => handOver(state)}
+          onSignedIn={() => handOver(state, true)}
         />
       </div>
     </div>
