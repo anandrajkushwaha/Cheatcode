@@ -17,7 +17,11 @@ const FAQ = [
   },
   {
     q: "Does this upload my resume anywhere?",
-    a: "The file itself, no. It is read inside your browser using JavaScript and is never sent to our servers. What we do save is the contact block from it — your name, email and phone number — along with your score, so Cheatcode can contact you about your resume and jobs. The rest of your resume is not sent or stored.",
+    a: "The file itself, no. It is read inside your browser, and only the text it contains is sent to our server to be scored. The text is not stored. What we do save is the contact block from it — your name, email and phone number — along with your score, so Cheatcode can contact you about your resume and jobs.",
+  },
+  {
+    q: "Is the ATS check free?",
+    a: "Your first check each day is free. After that, a one-time ₹49 payment unlocks unlimited checks, with no subscription. The free check renews at midnight India time.",
   },
   {
     q: "Why does my beautifully designed resume score badly?",

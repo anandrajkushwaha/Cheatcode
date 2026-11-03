@@ -13,13 +13,15 @@ import { isOwnerEmail } from "@/lib/analytics/owner";
  *   Pro (₹299/month)       every match, always
  *   Match pass (₹99)       every match, for 7 days from payment
  *   Job unlock (₹49)       that one job, for good
+ *   ATS unlimited (₹49)    every ATS check after the daily free one, for good
+ *                          (see hasAtsUnlimited; lib/tools/ats-gate.ts)
  *
  * Jobs that are not a match stay free, as the board always was. Rows are
  * written only here, by the server: an order when checkout opens, and "paid"
  * once Razorpay's signature (or its order.paid webhook) proves the payment.
  */
 
-export const PRICES = { job: 4900, pass: 9900 } as const;
+export const PRICES = { job: 4900, pass: 9900, ats: 4900 } as const;
 export const PASS_DAYS = 7;
 export type UnlockKind = keyof typeof PRICES;
 
@@ -52,6 +54,20 @@ export async function accessFor(userId: string, email: string | null, profile: P
     }
   }
   return { all: pro || Boolean(passUntil), pro, passUntil, jobs };
+}
+
+/** Unlimited ATS checks: Pro, the owner, or a paid ₹49 ATS unlock (no expiry). */
+export async function hasAtsUnlimited(userId: string, email: string | null, profile: Profile | null): Promise<boolean> {
+  if (isPaid(profile) || isOwnerEmail(email)) return true;
+  const db = createAppAdminClient();
+  if (!db) return false;
+  const { count } = await db
+    .from("job_unlocks")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("kind", "ats")
+    .eq("status", "paid");
+  return (count ?? 0) > 0;
 }
 
 export function canSee(access: Access, jobId: string): boolean {

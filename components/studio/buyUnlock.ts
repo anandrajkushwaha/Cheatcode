@@ -5,7 +5,8 @@ import { EVENTS, track } from "@/lib/analytics/events";
 import { metaTrack } from "@/lib/analytics/meta";
 
 /**
- * Buy a job unlock (₹49) or the 7-day match pass (₹99) with Razorpay checkout.
+ * Buy a job unlock (₹49), the 7-day match pass (₹99) or unlimited ATS checks
+ * (₹49) with Razorpay checkout.
  *
  * The server creates the order and sets the amount; the browser only opens
  * the sheet and hands the signed result back to /api/app/unlock/verify, which
@@ -13,7 +14,7 @@ import { metaTrack } from "@/lib/analytics/meta";
  */
 export type BuyResult = { ok: true } | { ok: false; cancelled?: boolean; error?: string };
 
-export async function buyUnlock(kind: "job" | "pass", jobId?: string): Promise<BuyResult> {
+export async function buyUnlock(kind: "job" | "pass" | "ats", jobId?: string): Promise<BuyResult> {
   track(EVENTS.BUILDER_STEP, { label: "unlock_start", kind });
   const res = await fetch("/api/app/unlock/order", {
     method: "POST",
@@ -34,7 +35,7 @@ export async function buyUnlock(kind: "job" | "pass", jobId?: string): Promise<B
       amount: order.amount,
       currency: "INR",
       name: "Cheatcode",
-      description: kind === "pass" ? "All matching jobs · 7 days" : "Unlock this job",
+      description: kind === "pass" ? "All matching jobs · 7 days" : kind === "ats" ? "Unlimited ATS checks" : "Unlock this job",
       prefill: order.prefill,
       theme: { color: "#15161A" },
       handler: async (r: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {

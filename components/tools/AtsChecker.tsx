@@ -3,17 +3,22 @@
 import Link from "next/link";
 import { ToolAppCta, type ToolContext } from "@/components/tools/ToolAppCta";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EVENTS, currentTouch, track } from "@/lib/analytics/events";
+import { EVENTS, currentTouch, track, visitorId } from "@/lib/analytics/events";
 import { metaTrack } from "@/lib/analytics/meta";
-import { analyseResume, type AtsResult, type Check } from "@/lib/tools/ats";
+import type { AtsResult, Check, ResumeFacts } from "@/lib/tools/ats";
 import { ExtractError, extractResume } from "@/lib/tools/extract";
 import { AtsMatches } from "@/components/tools/AtsMatches";
 import { findContact } from "@/lib/tools/contact";
+import { AtsPaywall } from "@/components/tools/AtsPaywall";
+import { buyUnlock } from "@/components/studio/buyUnlock";
 
 type State =
   | { phase: "idle" }
   | { phase: "reading"; name: string }
   | { phase: "done"; name: string; result: AtsResult; text: string }
+  /** Read and scored on the server, but today's free check is spent: the
+   *  result has not been sent, only these facts are kept to ask again. */
+  | { phase: "locked"; name: string; facts: ResumeFacts; signedIn: boolean }
   | { phase: "error"; message: string; detail?: string };
 
 // Both the MIME types and the extensions. Android's WebView maps `accept`
@@ -30,7 +35,7 @@ const ACCEPT =
  * or its text. The uploader says this happens. Fire and forget: the score
  * is already on screen and nothing here may get in its way.
  */
-function saveLead(text: string, score: number, fileType: string) {
+function saveLead(text: string, score: number | null, fileType: string) {
   try {
     const c = findContact(text);
     if (!c.email && !c.phone) return;
@@ -51,6 +56,28 @@ function saveLead(text: string, score: number, fileType: string) {
     /* never in the way of the score */
   }
 }
+
+/**
+ * Score on the server (/api/tools/ats-score). It answers with the result, or
+ * with `locked` and nothing else once today's free check is spent.
+ */
+type Scored =
+  | { ok: true; locked: false; result: AtsResult }
+  | { ok: true; locked: true; signedIn: boolean }
+  | { ok: false; error: string };
+
+async function score(facts: ResumeFacts): Promise<Scored> {
+  const res = await fetch("/api/tools/ats-score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...facts, visitor: visitorId() }),
+  }).catch(() => null);
+  const j = (await res?.json().catch(() => null)) as Scored | null;
+  return j ?? { ok: false, error: "Couldn't reach the checker. Check your connection and try again." };
+}
+
+/** A locked check waiting on sign-in: kept in this tab so it can resume after. */
+const PENDING = "cc_ats_pending";
 
 /**
  * @param context  Which door this is being rendered behind. The public page
@@ -86,10 +113,28 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
         return;
       }
 
-      const result = analyseResume(facts);
-      setState({ phase: "done", name: file.name, result, text: facts.text });
-      // A finished free check is the lead the ads are optimised for.
+      const plain: ResumeFacts = {
+        text: facts.text,
+        fileType: facts.fileType,
+        pages: facts.pages,
+        charsPerPage: facts.charsPerPage,
+        multiColumnPages: facts.multiColumnPages,
+      };
+      const scored = await score(plain);
+      if (!scored.ok) {
+        setState({ phase: "error", message: scored.error });
+        return;
+      }
+      // A finished check is the lead the ads are optimised for, paid or not.
       metaTrack("Lead", { content_name: "resume-ats-checker" });
+      if (scored.locked) {
+        setState({ phase: "locked", name: file.name, facts: plain, signedIn: scored.signedIn });
+        saveLead(facts.text, null, facts.fileType);
+        track(EVENTS.TOOL_COMPUTE, { label: "resume-ats-checker", outcome: "locked", file_type: facts.fileType });
+        return;
+      }
+      const result = scored.result;
+      setState({ phase: "done", name: file.name, result, text: facts.text });
       saveLead(facts.text, result.score, facts.fileType);
 
       track(EVENTS.TOOL_COMPUTE, {
@@ -126,12 +171,82 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
     }
   }, []);
 
+  // ------------------------------------------------------------- ₹49 unlock
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const showResult = useCallback(async (name: string, facts: ResumeFacts) => {
+    const scored = await score(facts);
+    if (scored.ok && !scored.locked) {
+      setState({ phase: "done", name, result: scored.result, text: facts.text });
+      return true;
+    }
+    if (scored.ok && scored.locked) setState({ phase: "locked", name, facts, signedIn: scored.signedIn });
+    return false;
+  }, []);
+
+  // Back from sign-in with a locked check: ask again (Pro or an earlier
+  // unlock opens it straight away), and keep the ₹49 card if not.
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(PENDING);
+      sessionStorage.removeItem(PENDING);
+    } catch {
+      /* storage blocked: they upload again */
+    }
+    if (!raw) return;
+    try {
+      const p = JSON.parse(raw) as { name: string; facts: ResumeFacts };
+      setState({ phase: "reading", name: p.name });
+      void showResult(p.name, p.facts);
+    } catch {
+      /* stale entry */
+    }
+  }, [showResult]);
+
+  const unlock = useCallback(async () => {
+    if (state.phase !== "locked") return;
+    track(EVENTS.CTA_CLICK, { location: "ats-paywall", label: "unlock", signed_in: state.signedIn });
+    if (!state.signedIn) {
+      // A payment needs an account. Keep the check in this tab so it picks
+      // up where it was after sign-in, without choosing the file again.
+      try {
+        sessionStorage.setItem(PENDING, JSON.stringify({ name: state.name, facts: state.facts }));
+      } catch {
+        /* they will upload again */
+      }
+      window.location.assign(`/signin?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    setBusy(true);
+    setNote(null);
+    const r = await buyUnlock("ats");
+    if (r.ok) {
+      const opened = await showResult(state.name, state.facts);
+      if (!opened) setNote("Payment received — it opens in a minute. Tap again if it doesn't.");
+    } else if (!r.cancelled) setNote(r.error ?? "That didn't go through.");
+    setBusy(false);
+  }, [state, showResult]);
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) void run(file);
   };
+
+  // ------------------------------------------------------------- paywall
+  if (state.phase === "locked") {
+    return (
+      <AtsPaywall
+        busy={busy}
+        note={note}
+        onUnlock={() => void unlock()}
+        onAnother={() => setState({ phase: "idle" })}
+      />
+    );
+  }
 
   // ------------------------------------------------------------- uploader
   if (state.phase !== "done") {
@@ -169,7 +284,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
           <p className="mx-auto mt-3 max-w-[46ch] text-[0.95rem] leading-relaxed text-ink-50">
             {state.phase === "reading"
               ? state.name
-              : "PDF, DOCX or TXT. The file is read inside your browser and never uploaded."}
+              : "PDF, DOCX or TXT. The file is read in your browser; only its text is sent to score it, and never stored."}
           </p>
           {state.phase !== "reading" && (
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.8rem] leading-relaxed text-ink-30">
@@ -328,7 +443,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
       {/* footer actions */}
       <div className="mt-14 flex flex-col gap-4 border-t border-ink-08 pt-8 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[0.85rem] text-ink-30">
-          Checked <span className="text-ink-50">{name}</span> · nothing was uploaded or stored
+          Checked <span className="text-ink-50">{name}</span> · the file was never uploaded or stored
         </p>
         <div className="flex flex-wrap items-center gap-5">
           <button

@@ -56,8 +56,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           The free resume tools read your file inside your browser. The file
-          never reaches us; the ATS checker saves only the name, email and phone
-          number written on it.
+          never reaches us. The ATS checker sends the text it read to our server
+          to score it, does not store that text, and saves only the name, email
+          and phone number written on it.
         </p>
         <p>
           Anything in your account — resume, chat history, profile — is deleted

@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Open a one-time order: ₹49 for one matched job, ₹99 for every match for 7
- * days. The amount comes from here, never from the browser.
+ * days, ₹49 for unlimited ATS checks. The amount comes from here, never from
+ * the browser.
  */
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (!keys) return Response.json({ ok: false, error: "Payments aren't switched on yet." }, { status: 503 });
 
   const body = (await request.json().catch(() => ({}))) as { kind?: unknown; jobId?: unknown };
-  const kind = body.kind === "job" || body.kind === "pass" ? (body.kind as UnlockKind) : null;
+  const kind = body.kind === "job" || body.kind === "pass" || body.kind === "ats" ? (body.kind as UnlockKind) : null;
   if (!kind) return Response.json({ ok: false, error: "Unknown purchase." }, { status: 400 });
 
   let jobId: string | null = null;
