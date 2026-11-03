@@ -1,6 +1,25 @@
 // The worker has its own global scope, so the polyfills the page installs do
 // not reach it. Same four APIs as lib/tools/modern-polyfills.ts — pdf.js 6
 // assumes browsers newer than most phones in India are running.
+if (typeof ReadableStream !== "undefined" && typeof ReadableStream.prototype[Symbol.asyncIterator] !== "function") {
+  const values = function (opts) {
+    const reader = this.getReader();
+    return {
+      next: () => reader.read(),
+      return: async (value) => {
+        if (!opts || !opts.preventCancel) await reader.cancel(value).catch(() => {});
+        reader.releaseLock();
+        return { done: true, value };
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  };
+  ReadableStream.prototype.values = values;
+  ReadableStream.prototype[Symbol.asyncIterator] = values;
+}
+
 if (typeof Promise.withResolvers !== "function") {
   Promise.withResolvers = function () {
     let resolve, reject;

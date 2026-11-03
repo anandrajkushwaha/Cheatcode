@@ -9,6 +9,7 @@
  *   Promise.try             Safari 18.2, Chrome 128
  *   URL.parse               Safari 18.4, Chrome 126
  *   AbortSignal.any         Safari 17.4, Chrome 116
+ *   ReadableStream async iteration   Safari 26, Chrome 124
  *
  * So the library threw before reading a byte, and every upload from an iPhone
  * a year or two old ended in "something went wrong" while the same file
@@ -90,5 +91,27 @@ export function installModernPolyfills() {
       }
       return controller.signal;
     };
+  }
+  // pdf.js reads page text with `for await (… of readableStream)`. Safari
+  // only learned to iterate a ReadableStream recently; before that this threw
+  // "undefined is not a function (near '...t of e...')" on every PDF.
+  const RS = g.ReadableStream as unknown as { prototype?: Record<PropertyKey, unknown> } | undefined;
+  if (RS?.prototype && typeof RS.prototype[Symbol.asyncIterator] !== "function") {
+    const values = function (this: ReadableStream, opts?: { preventCancel?: boolean }) {
+      const reader = this.getReader();
+      return {
+        next: () => reader.read(),
+        return: async (value?: unknown) => {
+          if (!opts?.preventCancel) await reader.cancel(value).catch(() => {});
+          reader.releaseLock();
+          return { done: true, value };
+        },
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+    };
+    RS.prototype.values = values;
+    RS.prototype[Symbol.asyncIterator] = values;
   }
 }

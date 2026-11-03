@@ -14,7 +14,7 @@ import { buyUnlock } from "@/components/studio/buyUnlock";
 
 type State =
   | { phase: "idle" }
-  | { phase: "reading"; name: string }
+  | { phase: "reading"; name: string; step?: "read" | "score" }
   | { phase: "done"; name: string; result: AtsResult; text: string }
   /** Read and scored on the server, but today's free check is spent: the
    *  result has not been sent, only these facts are kept to ask again. */
@@ -120,6 +120,7 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
         charsPerPage: facts.charsPerPage,
         multiColumnPages: facts.multiColumnPages,
       };
+      setState({ phase: "reading", name: file.name, step: "score" });
       const scored = await score(plain);
       if (!scored.ok) {
         setState({ phase: "error", message: scored.error });
@@ -272,7 +273,15 @@ export function AtsChecker({ context = "public" }: { context?: ToolContext } = {
         >
           <p className="text-[1.35rem] font-medium tracking-[-0.02em]">
             {state.phase === "reading" ? (
-              "Reading it now…"
+              <span className="flex flex-col items-center gap-5">
+                <span
+                  aria-hidden="true"
+                  className="size-10 animate-spin rounded-full border-[3px] border-ink-08 border-t-ink"
+                />
+                <span role="status">
+                  {state.step === "score" ? "Checking it like an ATS would…" : "Reading your resume…"}
+                </span>
+              </span>
             ) : (
               <>
                 {/* There is nothing to drop on a phone. */}
