@@ -46,6 +46,9 @@ async function get<T>(path: string): Promise<MtResult<T>> {
     res = await fetch(`${BASE}${path}`, {
       headers: { "x-moretraffic-key": key, accept: "application/json" },
       next: { revalidate: REVALIDATE, tags: ["moretraffic"] },
+      // A slow MoreTraffic must never hold up a page of ours: give up after
+      // 4 seconds and render without it.
+      signal: AbortSignal.timeout(4000),
     });
   } catch {
     return { ok: false, status: "unreachable" };

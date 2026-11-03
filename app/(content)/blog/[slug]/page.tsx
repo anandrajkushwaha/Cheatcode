@@ -5,11 +5,13 @@ import { SITE } from "@/lib/seo/constants";
 import { getManifest, getPost, templateCss, type MtPost } from "@/lib/moretraffic";
 import { Breadcrumbs } from "@/components/content/bits";
 import { LegacyArticle, legacyArticleMetadata, legacySlugs } from "../../_legacy-blog/post-page";
+import { getPostBySlug } from "@/lib/queries/posts";
 
 /**
- * /blog/[slug]: MoreTraffic first; when it answers 404 (or can't be reached),
- * the original guide with that slug (app/(content)/_legacy-blog); a real 404
- * only when neither has it. Server-rendered, revalidated every 60 seconds.
+ * /blog/[slug]: the original guide with that slug (app/(content)/_legacy-blog)
+ * when there is one — the 300+ guides already indexed never depend on, wait
+ * for, or get replaced by MoreTraffic — otherwise the MoreTraffic post; a
+ * real 404 only when neither has it. Server-rendered, revalidated every 60s.
  */
 
 export const revalidate = 60;
@@ -37,6 +39,8 @@ async function mtPost(slug: string): Promise<MtPost | null> {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const legacy = await legacyArticleMetadata(slug);
+  if (legacy) return legacy;
   const post = await mtPost(slug);
   if (post) {
     const title = post.metaTitle?.trim() || post.title;
@@ -58,19 +62,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   }
-  return (
-    (await legacyArticleMetadata(slug)) ??
-    buildMetadata({ title: "Not found", description: "", path: `/blog/${slug}`, noindex: true })
-  );
+  return buildMetadata({ title: "Not found", description: "", path: `/blog/${slug}`, noindex: true });
 }
 
 export default async function BlogPost({ params }: Props) {
   const { slug } = await params;
+  // Our own guide first, exactly as before.
+  if (await getPostBySlug(slug)) return <LegacyArticle slug={slug} />;
+
   const post = await mtPost(slug);
-  if (!post) {
-    // Not a MoreTraffic post: the original guide, or a real 404 inside it.
-    return <LegacyArticle slug={slug} />;
-  }
+  if (!post) notFound();
 
   const css = templateCss(await getManifest());
   const html = bodyOf(post);
