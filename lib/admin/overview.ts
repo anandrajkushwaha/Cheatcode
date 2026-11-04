@@ -31,6 +31,8 @@ export type Activity = {
   kind: "signup" | "payment" | "ats" | "download";
   who: string;
   what: string;
+  /** Where the row leads: the person, the payments, the leads, the résumés. */
+  href: string;
 };
 
 export type Overview = {
@@ -291,11 +293,18 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
       kind: "signup" as const,
       who: p.full_name || p.email || "Someone",
       what: `signed up${p.signup_source ? ` · ${p.signup_source}` : ""}`,
+      href: `/admin/users/${p.id}`,
     })),
     ...money
       .filter((m) => isNow(m.at))
       .slice(-8)
-      .map((m) => ({ at: m.at, kind: "payment" as const, who: "Payment", what: `₹${m.amount} · ${KIND[m.kind] ?? m.kind}` })),
+      .map((m) => ({
+        at: m.at,
+        kind: "payment" as const,
+        who: "Payment",
+        what: `₹${m.amount} · ${KIND[m.kind] ?? m.kind}`,
+        href: m.kind === "pro" ? "/admin/pro" : "/admin/match-popup",
+      })),
     ...(((recentLeads.data ?? []) as { name: string | null; score: number | null; created_at: string }[])
       .filter((l) => isNow(l.created_at))
       .map((l) => ({
@@ -303,11 +312,12 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
         kind: "ats" as const,
         who: l.name || "Someone",
         what: `ran the ATS check${typeof l.score === "number" ? ` · score ${l.score}` : ""}`,
+        href: "/admin/leads",
       }))),
     ...downloads.rows
       .filter((d) => isNow(d.created_at))
       .slice(-8)
-      .map((d) => ({ at: d.created_at, kind: "download" as const, who: "Resume", what: "downloaded as PDF" })),
+      .map((d) => ({ at: d.created_at, kind: "download" as const, who: "Resume", what: "downloaded as PDF", href: "/admin/resume" })),
   ]
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 10);

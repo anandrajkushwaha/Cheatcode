@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 /**
  * The Dashboard's charts, drawn as plain SVG — no chart library to load.
@@ -31,48 +31,23 @@ function change(
   return { text: `${pct > 0 ? "+" : ""}${pct}%`, up: pct > 0 };
 }
 
-export function Sparkline({
-  series,
-  className = "",
-  dark = false,
-}: {
-  series: number[];
-  className?: string;
-  dark?: boolean;
-}) {
+export function Sparkline({ series, className = "", dark = false }: { series: number[]; className?: string; dark?: boolean }) {
   const id = useId();
   const max = Math.max(1, ...series);
   const w = 100;
   const h = 32;
-  const pts = series.map((v, i) => [
-    series.length === 1 ? w : (i / (series.length - 1)) * w,
-    h - (v / max) * (h - 4) - 2,
-  ]);
-  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const pts = series.map((v, i) => [series.length === 1 ? w : (i / (series.length - 1)) * w, h - (v / max) * (h - 4) - 2] as [number, number]);
+  const line = smoothPath(pts);
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={`h-8 w-full ${className}`}
-      aria-hidden="true"
-    >
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={`h-8 w-full ${className}`} aria-hidden="true">
       <defs>
         <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor={ACCENT} stopOpacity="0.45" />
           <stop offset="1" stopColor={ACCENT} stopOpacity="0" />
         </linearGradient>
       </defs>
-      {pts.length > 1 && (
-        <polygon points={`0,${h} ${line} ${w},${h}`} fill={`url(#${id})`} />
-      )}
-      <polyline
-        points={line}
-        fill="none"
-        stroke={dark ? ACCENT : "#15161a"}
-        strokeWidth="1.5"
-        vectorEffect="non-scaling-stroke"
-        strokeLinejoin="round"
-      />
+      {pts.length > 1 && <path d={`${line} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} />}
+      <path d={line} fill="none" stroke={dark ? ACCENT : "#15161a"} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
     </svg>
   );
 }
@@ -147,35 +122,97 @@ export type Metric = {
   total?: number;
 };
 
-export function MetricChart({
-  labels,
-  metrics,
-}: {
-  labels: string[];
-  metrics: Metric[];
-}) {
+/**
+ * A smooth line through the points that never overshoots them (monotone
+ * cubic, Fritsch–Carlson): curves like a hand-drawn chart, but a day with
+ * zero never dips below the axis and a peak is never drawn higher than it was.
+ */
+export function smoothPath(pts: [number, number][]): string {
+  const n = pts.length;
+  if (n === 0) return "";
+  if (n === 1) return `M${pts[0][0]},${pts[0][1]}`;
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1][0] - pts[i][0]);
+    slope.push((pts[i + 1][1] - pts[i][1]) / (dx[i] || 1));
+  }
+  const t: number[] = [slope[0]];
+  for (let i = 1; i < n - 1; i++) {
+    t.push(slope[i - 1] * slope[i] <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / slope[i - 1] + (dx[i] + 2 * dx[i - 1]) / slope[i]));
+  }
+  t.push(slope[n - 2]);
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += ` C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + t[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - t[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
+}
+
+/** Animates between two arrays of the same length (0–1 values) over `ms`. */
+function useTween(target: number[], ms = 420): number[] {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  const raf = useRef<number | null>(null);
+  const key = target.join(",");
+  useEffect(() => {
+    const start = performance.now();
+    const a = from.current.length === target.length ? from.current : target.map(() => 0);
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / ms);
+      const e = 1 - Math.pow(1 - p, 3);
+      const next = target.map((v, i) => a[i] + (v - a[i]) * e);
+      from.current = next;
+      setShown(next);
+      if (p < 1) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+    return () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, ms]);
+  return shown;
+}
+
+export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Metric[] }) {
   const [active, setActive] = useState(metrics[0]?.id);
   const [hover, setHover] = useState<number | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
   const m = metrics.find((x) => x.id === active) ?? metrics[0];
-  const series = m?.series ?? [];
+  const series = useMemo(() => m?.series ?? [], [m]);
   const max = useMemo(() => {
     const top = Math.max(1, ...series);
     // A round ceiling for the axis.
     const step = 10 ** Math.floor(Math.log10(top));
     return Math.ceil(top / step) * step;
   }, [series]);
+  // The line glides from one metric to the next instead of jumping.
+  const norm = useTween(useMemo(() => series.map((v) => v / max), [series, max]));
 
   const W = 1000;
   const H = 260;
-  const x = (i: number) =>
-    series.length <= 1 ? W / 2 : (i / (series.length - 1)) * W;
-  const y = (v: number) => H - (v / max) * (H - 16) - 4;
-  const line = series
-    .map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-    .join(" ");
+  const x = (i: number) => (series.length <= 1 ? W / 2 : (i / (series.length - 1)) * W);
+  const yN = (f: number) => H - f * (H - 16) - 4;
+  const y = (v: number) => yN(v / max);
+  const pts = norm.map((f, i) => [x(i), yN(f)] as [number, number]);
+  const line = smoothPath(pts);
   const total = m?.total ?? series.reduce((a, b) => a + b, 0);
+
+  // The metric switch's thumb slides to the chosen metric.
+  const track = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = track.current?.querySelector<HTMLElement>(`[data-metric="${active}"]`);
+      if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [active]);
 
   function onMove(e: React.PointerEvent) {
     const r = box.current?.getBoundingClientRect();
@@ -195,24 +232,29 @@ export function MetricChart({
         <div>
           <p className="text-[0.8rem] text-ink-50">{m?.label}</p>
           <p className="mt-1 text-[1.7rem] font-semibold leading-none tracking-[-0.04em] tabular-nums">
-            {hover !== null
-              ? fmt(series[hover] ?? 0, m?.money)
-              : fmt(total, m?.money)}
+            {hover !== null ? fmt(series[hover] ?? 0, m?.money) : fmt(total, m?.money)}
             <span className="ml-2 text-[0.8rem] font-normal tracking-normal text-ink-30">
               {hover !== null ? labels[hover] : "in this period"}
             </span>
           </p>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-full bg-ink-04 p-1">
+        <div ref={track} className="relative flex max-w-full overflow-x-auto rounded-full bg-ink-04 p-1 [scrollbar-width:none]">
+          {thumb && (
+            <span
+              aria-hidden="true"
+              className="absolute top-1 bottom-1 rounded-full bg-paper shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              style={{ left: thumb.x, width: thumb.w }}
+            />
+          )}
           {metrics.map((x) => (
             <button
               key={x.id}
               type="button"
+              data-metric={x.id}
+              aria-pressed={x.id === active}
               onClick={() => setActive(x.id)}
-              className={`rounded-full px-3 py-1.5 text-[0.76rem] font-medium transition-all duration-200 ${
-                x.id === active
-                  ? "bg-paper text-ink shadow-sm"
-                  : "text-ink-50 hover:text-ink"
+              className={`relative z-10 shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[0.76rem] font-medium transition-colors duration-200 ${
+                x.id === active ? "text-ink" : "text-ink-50 hover:text-ink"
               }`}
             >
               {x.label}
@@ -222,13 +264,9 @@ export function MetricChart({
       </div>
 
       <div className="relative mt-6 flex gap-3">
-        <div className="flex h-[260px] flex-col justify-between py-[2px] text-right text-[0.66rem] tabular-nums text-ink-30">
-          {[...ticks].reverse().map((t) => (
-            <span key={t}>
-              {m?.money
-                ? `₹${t.toLocaleString("en-IN")}`
-                : t.toLocaleString("en-IN")}
-            </span>
+        <div className="flex h-[260px] w-10 shrink-0 flex-col justify-between py-[2px] text-right text-[0.66rem] tabular-nums text-ink-30">
+          {[...ticks].reverse().map((t, i) => (
+            <span key={i}>{m?.money ? `₹${t.toLocaleString("en-IN")}` : t.toLocaleString("en-IN")}</span>
           ))}
         </div>
         <div
@@ -237,74 +275,31 @@ export function MetricChart({
           onPointerMove={onMove}
           onPointerLeave={() => setHover(null)}
         >
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            preserveAspectRatio="none"
-            className="absolute inset-0 h-full w-full"
-            aria-hidden="true"
-          >
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
             <defs>
               <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0" stopColor={ACCENT} stopOpacity="0.5" />
                 <stop offset="1" stopColor={ACCENT} stopOpacity="0.02" />
               </linearGradient>
             </defs>
-            {ticks.map((t) => (
-              <line
-                key={t}
-                x1="0"
-                x2={W}
-                y1={y(t)}
-                y2={y(t)}
-                stroke="#15161a"
-                strokeOpacity="0.06"
-                vectorEffect="non-scaling-stroke"
-              />
+            {ticks.map((t, i) => (
+              <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="#15161a" strokeOpacity="0.06" vectorEffect="non-scaling-stroke" />
             ))}
-            {series.length > 1 && (
-              <polygon
-                points={`0,${H} ${line} ${W},${H}`}
-                fill={`url(#${id})`}
-                className="transition-all duration-500"
-              />
-            )}
-            <polyline
-              points={line}
-              fill="none"
-              stroke="#15161a"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-              className="transition-all duration-500"
-            />
+            {pts.length > 1 && <path d={`${line} L${W},${H} L0,${H} Z`} fill={`url(#${id})`} />}
+            <path d={line} fill="none" stroke="#15161a" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             {hover !== null && (
-              <line
-                x1={x(hover)}
-                x2={x(hover)}
-                y1="0"
-                y2={H}
-                stroke="#15161a"
-                strokeOpacity="0.25"
-                strokeDasharray="4 4"
-                vectorEffect="non-scaling-stroke"
-              />
+              <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="#15161a" strokeOpacity="0.25" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
             )}
           </svg>
           {hover !== null && (
             <>
               <span
-                className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper bg-ink shadow"
-                style={{
-                  left: `${(x(hover) / W) * 100}%`,
-                  top: `${(y(series[hover] ?? 0) / H) * 100}%`,
-                }}
+                className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper bg-ink shadow transition-[left,top] duration-150"
+                style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(series[hover] ?? 0) / H) * 100}%` }}
               />
               <span
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[0.72rem] font-medium text-paper shadow-lg"
-                style={{
-                  left: `${(x(hover) / W) * 100}%`,
-                  top: `${(y(series[hover] ?? 0) / H) * 100}%`,
-                }}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[0.72rem] font-medium text-paper shadow-lg transition-[left,top] duration-150"
+                style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(series[hover] ?? 0) / H) * 100}%` }}
               >
                 {fmt(series[hover] ?? 0, m?.money)} · {labels[hover]}
               </span>
@@ -318,9 +313,7 @@ export function MetricChart({
             <span
               key={l + i}
               className={`absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full ${
-                i % phoneEvery === 0 || i === labels.length - 1
-                  ? ""
-                  : "hidden sm:block"
+                i % phoneEvery === 0 || i === labels.length - 1 ? "" : "hidden sm:block"
               }`}
               style={{ left: `${(x(i) / W) * 100}%` }}
             >

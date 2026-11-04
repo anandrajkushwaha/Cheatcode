@@ -252,29 +252,37 @@ export function DashboardView({
       </div>
 
       {/* ---------------------------------------------------- activity */}
-      <Card title="Latest activity" href="/admin/users">
+      <Card title="Latest activity" href="/admin/journeys">
         {result.data.activity.length === 0 ? (
           <p className="py-6 text-center text-[0.82rem] text-ink-30">
             Nothing in this period yet.
           </p>
         ) : (
-          <ul className="divide-y divide-ink-08">
+          <ul className="divide-y divide-ink-08 [&>li]:py-0.5">
             {result.data.activity.map((a, i) => (
-              <li
-                key={a.at + i}
-                className="flex items-center gap-3 py-2.5 text-[0.84rem]"
-              >
-                <span
-                  aria-hidden="true"
-                  className={`size-2 shrink-0 rounded-full ${DOT[a.kind]}`}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="font-medium">{a.who}</span>{" "}
-                  <span className="text-ink-50">{a.what}</span>
-                </span>
-                <span className="shrink-0 text-[0.74rem] tabular-nums text-ink-30">
-                  {WHEN.format(new Date(a.at))}
-                </span>
+              <li key={a.at + i}>
+                <Link
+                  href={a.href}
+                  className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5 text-[0.84rem] transition-colors hover:bg-ink-04"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`size-2 shrink-0 rounded-full ${DOT[a.kind]}`}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-medium">{a.who}</span>{" "}
+                    <span className="text-ink-50">{a.what}</span>
+                  </span>
+                  <span className="shrink-0 text-[0.74rem] tabular-nums text-ink-30">
+                    {WHEN.format(new Date(a.at))}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 text-ink-30 opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    →
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

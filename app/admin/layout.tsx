@@ -45,7 +45,7 @@ const NAV: NavItem[] = [
   // The website: visitors, sources, the ad funnel visit by visit, which pages
   // they read, and the emails that send people back.
   { href: "/admin/traffic", label: "Traffic", group: "Growth" },
-  { href: "/admin/journeys", label: "Journeys", group: "Growth" },
+  { href: "/admin/journeys", label: "Activity", group: "Growth" },
   { href: "/admin/pages", label: "Pages", group: "Growth" },
   // Owner-only (not a grantable section): it sends mail.
   { href: "/admin/emails", label: "Emails", group: "Growth" },

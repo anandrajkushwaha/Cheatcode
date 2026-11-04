@@ -4,8 +4,8 @@ import { JourneyTable } from "@/components/admin/JourneyTable";
 import { LiveCount } from "@/components/admin/LiveCount";
 import { LIVE_MINUTES, getLive } from "@/lib/admin/live";
 import { getJourneys, STEPS, type Breakdown, type SourceFilter } from "@/lib/admin/journeys";
-import { istDay, istLastDay, rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
-import { CustomDates } from "@/components/admin/CustomDates";
+import { rangeQuery, resolveRange, type Range } from "@/lib/admin/range";
+import { RangePicker } from "@/components/admin/RangePicker";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +18,6 @@ export const dynamic = "force-dynamic";
  * and step in order — and what the visits were on (browser, phone, city). Two rows of pills choose the
  * period and the source; it opens on today and everyone.
  */
-
-const PERIODS = [
-  { id: "today", label: "Today" },
-  { id: "7d", label: "7 days" },
-  { id: "28d", label: "28 days" },
-] as const;
 
 const SOURCES: { id: SourceFilter; label: string }[] = [
   { id: "meta", label: "Meta (Instagram / Facebook)" },
@@ -117,7 +111,7 @@ export default async function AdminJourneys({
     <div className="space-y-8">
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Journeys</h1>
+          <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Activity</h1>
           <LiveCount initial={live} minutes={LIVE_MINUTES} />
         </div>
         <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
@@ -125,17 +119,7 @@ export default async function AdminJourneys({
           Signed in or not. Your own devices and bots are not counted.
         </p>
         <div className="mt-5 space-y-2.5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Pills items={PERIODS} active={range.id as (typeof PERIODS)[number]["id"]} href={(id) => link(id, src)} />
-            <CustomDates
-              basePath="/admin/journeys"
-              active={range.id === "custom"}
-              from={range.id === "custom" && range.from ? istDay(range.from) : istDay(new Date(Date.now() - 6 * 864e5))}
-              to={range.id === "custom" ? istLastDay(range) : istDay(new Date())}
-              today={istDay(new Date())}
-              keep={{ src }}
-            />
-          </div>
+          <RangePicker basePath="/admin/journeys" range={range} keep={{ src }} />
           <Pills items={SOURCES} active={src} href={(id) => link(range, id)} />
         </div>
       </div>

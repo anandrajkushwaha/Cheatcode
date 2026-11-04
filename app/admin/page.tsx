@@ -40,11 +40,11 @@ function span(fromIso: string, toIso: string) {
 
 function beforeWord(id: string) {
   if (id === "today") return "yesterday by now";
-  if (id === "24h") return "the 24 hours before";
-  if (id === "7d") return "the 7 days before";
-  if (id === "28d") return "the 28 days before";
-  if (id === "90d") return "the 90 days before";
-  return "the period before";
+  if (id === "24h") return "in the 24 hours before";
+  if (id === "7d") return "in the 7 days before";
+  if (id === "28d") return "in the 28 days before";
+  if (id === "90d") return "in the 90 days before";
+  return "in the period before";
 }
 
 export default async function AdminDashboard({
