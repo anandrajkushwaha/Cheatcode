@@ -1,4 +1,7 @@
-import { Panel, Stat, Empty } from "@/components/admin/ui";
+import { Panel, Stat } from "@/components/admin/ui";
+import { DataTable } from "@/components/admin/DataTable";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { resolveRange } from "@/lib/admin/range";
 import { getProIntent } from "@/lib/admin/pro-intent";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +45,13 @@ const SOURCE_LABEL: Record<string, string> = {
   direct: "Direct",
 };
 
-export default async function AdminPro() {
+export default async function AdminPro({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
   const result = await getProIntent();
 
   if (!result.ok) {
@@ -54,6 +63,13 @@ export default async function AdminPro() {
   }
 
   const d = result.data;
+  // People whose latest reach for Pro falls in the period.
+  const lo = range.id === "all" ? 0 : range.from ? new Date(range.from).getTime() : Date.now() - range.days * 86_400_000;
+  const hi = range.to ? new Date(range.to).getTime() : Infinity;
+  const rows = d.rows.filter((p) => {
+    const t = new Date(p.lastAt).getTime();
+    return t >= lo && t < hi;
+  });
 
   return (
     <div className="space-y-8">
@@ -64,6 +80,9 @@ export default async function AdminPro() {
           visits inside thirty minutes count once, so this is people reaching
           for the plan rather than page refreshes.
         </p>
+        <div className="mt-4">
+          <RangePicker basePath="/admin/pro" range={range} allTime />
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
@@ -102,53 +121,30 @@ export default async function AdminPro() {
         title="People"
         note={d.since ? `Recording since ${when(d.since)}.` : undefined}
       >
-        {d.rows.length === 0 ? (
-          <Empty>
-            Nobody has reached the upgrade screen since recording started.
-          </Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-[0.85rem]">
-              <thead>
-                <tr className="border-b border-ink-08 text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">
-                  <th className="py-2 pr-4 font-medium">Person</th>
-                  <th className="py-2 pr-4 font-medium">Plan</th>
-                  <th className="py-2 pr-4 font-medium tabular-nums">Times</th>
-                  <th className="py-2 pr-4 font-medium">From</th>
-                  <th className="py-2 pr-4 font-medium">First</th>
-                  <th className="py-2 font-medium">Last</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.rows.map((p) => (
-                  <tr key={p.userId} className="border-b border-ink-08 last:border-0">
-                    <td className="py-2.5 pr-4">
-                      <span className="block font-medium">{p.name ?? "No name"}</span>
-                      <span className="block text-[0.78rem] text-ink-30">
-                        {p.email ?? "no email on file"}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span
-                        className={
-                          p.plan === "pro" ? "font-medium text-ink" : "text-ink-30"
-                        }
-                      >
-                        {p.plan}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4 tabular-nums">{p.clicks}</td>
-                    <td className="py-2.5 pr-4 text-ink-50">
-                      {p.sources.map((s) => SOURCE_LABEL[s] ?? s).join(", ")}
-                    </td>
-                    <td className="py-2.5 pr-4 text-ink-50">{when(p.firstAt)}</td>
-                    <td className="py-2.5 text-ink-50">{when(p.lastAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          name="pro-interest"
+          empty="Nobody has reached the upgrade screen since recording started."
+          initialSort={{ key: "last", dir: "desc" }}
+          rows={rows.map((p) => ({
+            id: p.userId,
+            person: p.name ?? "No name",
+            email: p.email ?? "no email on file",
+            href: `/admin/users/${p.userId}`,
+            plan: p.plan,
+            clicks: p.clicks,
+            from: p.sources.map((x) => SOURCE_LABEL[x] ?? x).join(", "),
+            first: p.firstAt,
+            last: p.lastAt,
+          }))}
+          columns={[
+            { key: "person", label: "Person", sub: "email", href: "href", max: "max-w-[16rem]", filter: false },
+            { key: "plan", label: "Plan", kind: "badge", tones: { pro: "green", free: "grey" } },
+            { key: "clicks", label: "Times", kind: "number" },
+            { key: "from", label: "From", max: "max-w-[14rem]" },
+            { key: "first", label: "First", kind: "date" },
+            { key: "last", label: "Last", kind: "date" },
+          ]}
+        />
       </Panel>
     </div>
   );

@@ -22,10 +22,13 @@ export function RangePicker({
   basePath,
   range,
   keep = {},
+  allTime = false,
 }: {
   basePath: string;
   range: Range;
   keep?: Record<string, string>;
+  /** Offer "All time" too — for lists, not for charts. */
+  allTime?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -43,6 +46,7 @@ export function RangePicker({
 
   const items = [
     ...RANGES.map((r) => ({ id: r.id as string, label: r.label })),
+    ...(allTime ? [{ id: "all", label: "All time" }] : []),
     { id: "custom", label: range.id === "custom" ? (from === to ? short(from) : `${short(from)} – ${short(to)}`) : "Custom" },
   ];
   const active = pending ? chosen : range.id;

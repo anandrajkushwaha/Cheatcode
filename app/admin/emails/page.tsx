@@ -1,4 +1,5 @@
 import { Panel, Empty } from "@/components/admin/ui";
+import { DataTable } from "@/components/admin/DataTable";
 import { getEmailCampaigns } from "@/lib/admin/email-campaigns";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +10,6 @@ export const dynamic = "force-dynamic";
  * for the people it brought in.
  */
 
-const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
-const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
 export default async function AdminEmails() {
   const camp = await getEmailCampaigns();
@@ -31,38 +30,32 @@ export default async function AdminEmails() {
         ) : camp.rows.length === 0 ? (
           <Empty>No opens or clicks yet. They appear here as soon as someone opens a tracked email.</Empty>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-left text-[0.84rem] tabular-nums">
-              <thead>
-                <tr className="text-[0.68rem] uppercase tracking-[0.12em] text-ink-30">
-                  <th className="pb-2 font-medium">Campaign</th>
-                  <th className="pb-2 font-medium">First seen</th>
-                  <th className="pb-2 text-right font-medium">Opens</th>
-                  <th className="pb-2 text-right font-medium">Clicks</th>
-                  <th className="pb-2 text-right font-medium">Visitors</th>
-                  <th className="pb-2 text-right font-medium">ATS checks</th>
-                  <th className="pb-2 text-right font-medium">Saw popup</th>
-                  <th className="pb-2 text-right font-medium">Tapped ₹49 / ₹99</th>
-                </tr>
-              </thead>
-              <tbody>
-                {camp.rows.map((r) => (
-                  <tr key={r.campaign} className="border-t border-ink-08">
-                    <td className="py-2 pr-3 font-medium">{r.campaign}</td>
-                    <td className="py-2 pr-3 text-ink-50">{r.firstAt ? WHEN.format(new Date(r.firstAt)) : "—"}</td>
-                    <td className="py-2 text-right">{r.opens}</td>
-                    <td className="py-2 text-right">{r.clicks}</td>
-                    <td className="py-2 text-right">{r.visitors}</td>
-                    <td className="py-2 text-right">
-                      {r.atsChecks} <span className="text-[0.72rem] text-ink-30">{pct(r.atsChecks, r.visitors)}</span>
-                    </td>
-                    <td className="py-2 text-right">{r.sawPopup}</td>
-                    <td className="py-2 text-right">{r.tappedUnlock}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            name="email-campaigns"
+            initialSort={{ key: "first", dir: "desc" }}
+            rows={camp.rows.map((r) => ({
+              id: r.campaign,
+              campaign: r.campaign,
+              first: r.firstAt,
+              opens: r.opens,
+              clicks: r.clicks,
+              visitors: r.visitors,
+              ats: r.atsChecks,
+              atsPct: r.visitors ? `${Math.round((r.atsChecks / r.visitors) * 100)}% of visitors` : null,
+              popup: r.sawPopup,
+              tapped: r.tappedUnlock,
+            }))}
+            columns={[
+              { key: "campaign", label: "Campaign" },
+              { key: "first", label: "First seen", kind: "date" },
+              { key: "opens", label: "Opens", kind: "number" },
+              { key: "clicks", label: "Clicks", kind: "number" },
+              { key: "visitors", label: "Visitors", kind: "number" },
+              { key: "ats", label: "ATS checks", kind: "number", sub: "atsPct" },
+              { key: "popup", label: "Saw popup", kind: "number" },
+              { key: "tapped", label: "Tapped ₹49 / ₹99", kind: "number" },
+            ]}
+          />
         )}
       </Panel>
     </div>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Panel, Stat, Empty, BarList } from "@/components/admin/ui";
 import { getPopupReport } from "@/lib/admin/match-popup";
 import { getAtsPaywall } from "@/lib/admin/ats-paywall";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { rangeQuery, resolveRange } from "@/lib/admin/range";
 import { PopupPeople } from "@/components/admin/PopupPeople";
 import { TabSwitch } from "@/components/admin/TabSwitch";
 
@@ -19,27 +21,25 @@ const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", 
 const when = (iso: string) => WHEN.format(new Date(iso));
 const phoneText = (e164: string) => `+91 ${e164.slice(3, 8)} ${e164.slice(8)}`;
 
-const RANGES = [
-  { id: "7", label: "7 days" },
-  { id: "30", label: "30 days" },
-  { id: "all", label: "All time" },
-];
-
 const SOURCES = [
   { id: "all", label: "Both" },
   { id: "resume", label: "After resume download" },
   { id: "ats", label: "After ATS check" },
 ] as const;
 
-export default async function AdminMatchPopup({ searchParams }: { searchParams: Promise<{ days?: string; src?: string }> }) {
-  const { days: raw, src: rawSrc } = await searchParams;
-  const range = RANGES.some((r) => r.id === raw) ? raw! : "30";
-  const src = (SOURCES.find((x) => x.id === rawSrc)?.id ?? "all") as "all" | "resume" | "ats";
-  const [report, paywall] = await Promise.all([
-    getPopupReport(range === "all" ? null : Number(range), src),
-    getAtsPaywall(range === "all" ? 3650 : Number(range)),
-  ]);
-  const link = (q: { days?: string; src?: string }) => `/admin/match-popup?days=${q.days ?? range}&src=${q.src ?? src}`;
+export default async function AdminMatchPopup({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string; src?: string }>;
+}) {
+  const sp = await searchParams;
+  const range = resolveRange({ ...sp, range: sp.range ?? "28d" });
+  const src = (SOURCES.find((x) => x.id === sp.src)?.id ?? "all") as "all" | "resume" | "ats";
+  // The reports count back from now; a custom range reads from its first day.
+  const days =
+    range.id === "all" ? null : range.from ? Math.max(1, Math.ceil((Date.now() - new Date(range.from).getTime()) / 86_400_000)) : range.days;
+  const [report, paywall] = await Promise.all([getPopupReport(days, src), getAtsPaywall(days ?? 3650)]);
+  const link = (q: { src?: string }) => `/admin/match-popup?${rangeQuery(range, { src: q.src ?? src })}`;
 
   if (!report.ok) {
     return (
@@ -82,17 +82,7 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
             </Link>
           ))}
         </div>
-        <div className="flex gap-1.5">
-          {RANGES.map((r) => (
-            <Link
-              key={r.id}
-              href={link({ days: r.id })}
-              className={`rounded-full px-3.5 py-1.5 text-[0.8rem] ${range === r.id ? "bg-ink text-paper" : "border border-ink-15 text-ink-50 hover:text-ink"}`}
-            >
-              {r.label}
-            </Link>
-          ))}
-        </div>
+        <RangePicker basePath="/admin/match-popup" range={range} keep={{ src }} allTime />
         </div>
       </div>
 

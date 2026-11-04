@@ -1,5 +1,7 @@
-import Link from "next/link";
-import { Stat, Empty, num } from "@/components/admin/ui";
+import { Stat, num } from "@/components/admin/ui";
+import { DataTable } from "@/components/admin/DataTable";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { resolveRange } from "@/lib/admin/range";
 import { getPeople } from "@/lib/admin/people";
 
 export const dynamic = "force-dynamic";
@@ -19,16 +21,13 @@ export const dynamic = "force-dynamic";
  * it, and they have the advantage of being true.
  */
 
-function day(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
-}
-
-export default async function AdminPeople() {
+export default async function AdminPeople({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
   const people = await getPeople();
 
   if (!people.ok) {
@@ -39,7 +38,14 @@ export default async function AdminPeople() {
     );
   }
 
-  const { rows, total, last7, paid, truncated, repaired } = people.data;
+  const { total, last7, paid, truncated, repaired } = people.data;
+  // The period's accounts, by when they joined (all of them for "All time").
+  const lo = range.id === "all" ? 0 : range.from ? new Date(range.from).getTime() : Date.now() - range.days * 86_400_000;
+  const hi = range.to ? new Date(range.to).getTime() : Infinity;
+  const rows = people.data.rows.filter((p) => {
+    const t = new Date(p.joinedAt).getTime();
+    return t >= lo && t < hi;
+  });
 
   // Where accounts came from, over everybody listed.
   const bySource = new Map<string, number>();
@@ -57,6 +63,9 @@ export default async function AdminPeople() {
           Everybody with an account, newest first. A row appears the first time
           somebody signs in.
         </p>
+        <div className="mt-4">
+          <RangePicker basePath="/admin/users" range={range} allTime />
+        </div>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -89,70 +98,37 @@ export default async function AdminPeople() {
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-ink-08 p-6">
-        {!rows.length ? (
-          <Empty>Nobody has signed in yet.</Empty>
-        ) : (
-          <div className="-mx-2 overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-left text-[0.84rem]">
-              <thead className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">
-                <tr>
-                  <th className="px-2 pb-2 font-medium">Person</th>
-                  <th className="px-2 pb-2 font-medium">Contact</th>
-                  <th className="px-2 pb-2 font-medium">Joined</th>
-                  <th className="px-2 pb-2 font-medium">Came from</th>
-                  <th className="px-2 pb-2 text-right font-medium">Résumés</th>
-                  <th className="px-2 pb-2 text-right font-medium">Downloads</th>
-                  <th className="px-2 pb-2 font-medium">Plan</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {rows.map((p) => (
-                  <tr key={p.id} className="border-t border-ink-08">
-                    <td className="max-w-[16rem] px-2 py-2.5">
-                      <Link
-                        href={`/admin/users/${p.id}`}
-                        className="block truncate underline-offset-4 hover:underline"
-                      >
-                        {/* A person with no name is not anonymous — they are
-                            identified by whatever they signed in with. Showing
-                            the handle here rather than a dash means the row is
-                            still a person you can recognise and contact. */}
-                        {p.name ?? p.handle}
-                      </Link>
-                    </td>
-                    <td className="max-w-[14rem] px-2 py-2.5 text-ink-50">
-                      <span className="block truncate">{p.email ?? p.phone ?? "—"}</span>
-                      {p.city && <span className="block truncate text-ink-30">{p.city}</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">{day(p.joinedAt)}</td>
-                    <td className="max-w-[12rem] px-2 py-2.5 text-ink-50">
-                      <span className="block truncate" title={p.campaign ?? undefined}>
-                        {p.source ?? "—"}
-                        {p.campaign ? ` · ${p.campaign}` : ""}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-right text-ink-50">{num(p.drafts)}</td>
-                    <td className="px-2 py-2.5 text-right font-medium">{num(p.downloads)}</td>
-                    <td className="px-2 py-2.5">
-                      {p.plan === "free" ? (
-                        <span className="text-ink-30">free</span>
-                      ) : (
-                        <span className="rounded-full border border-ink-15 px-2 py-0.5 text-[0.72rem]">
-                          {p.plan} · {p.planStatus}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
+      <div className="mt-6 rounded-2xl border border-ink-08 bg-paper p-6">
+        <DataTable
+          name="people"
+          empty="Nobody has signed in yet."
+          initialSort={{ key: "joined", dir: "desc" }}
+          rows={rows.map((p) => ({
+            id: p.id,
+            person: p.name ?? p.handle,
+            href: `/admin/users/${p.id}`,
+            contact: p.email ?? p.phone ?? null,
+            city: p.city,
+            joined: p.joinedAt,
+            source: p.source,
+            campaign: p.campaign,
+            drafts: p.drafts,
+            downloads: p.downloads,
+            plan: p.plan === "free" ? "free" : `${p.plan} · ${p.planStatus}`,
+          }))}
+          columns={[
+            { key: "person", label: "Person", href: "href", max: "max-w-[16rem]", filter: false },
+            { key: "contact", label: "Contact", sub: "city", max: "max-w-[15rem]", filter: false },
+            { key: "joined", label: "Joined", kind: "date" },
+            { key: "source", label: "Came from", sub: "campaign", max: "max-w-[12rem]" },
+            { key: "drafts", label: "Résumés", kind: "number" },
+            { key: "downloads", label: "Downloads", kind: "number" },
+            { key: "plan", label: "Plan", kind: "badge", tones: { free: "grey" } },
+          ]}
+        />
         {truncated && (
           <p className="mt-4 text-[0.78rem] text-ink-30">
-            Showing the most recent {num(rows.length)}. There are more.
+            Showing the most recent {num(people.data.rows.length)}. There are more.
           </p>
         )}
       </div>

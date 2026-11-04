@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataTable } from "@/components/admin/DataTable";
 import { Panel, Stat, Empty, num } from "@/components/admin/ui";
 import { auditDesigns } from "@/lib/admin/design-audit";
 import {
@@ -36,7 +37,6 @@ export const dynamic = "force-dynamic";
  * stops that reading as a crash.
  */
 
-const pct = (n: number) => `${(n * 100).toFixed(n >= 0.1 ? 0 : 1)}%`;
 
 function when(iso: string) {
   return new Date(iso).toLocaleString("en-IN", {
@@ -176,37 +176,26 @@ export default async function AdminResume({
               .
             </Empty>
           ) : (
-            <div className="-mx-2 overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-left text-[0.82rem]">
-                <thead className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">
-                  <tr>
-                    <th className="px-2 pb-2 font-medium">Template</th>
-                    <th className="px-2 pb-2 text-right font-medium">Built</th>
-                    <th className="px-2 pb-2 text-right font-medium">Downloads</th>
-                    <th className="px-2 pb-2 text-right font-medium">28d</th>
-                    <th className="px-2 pb-2 text-right font-medium">Share</th>
-                  </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                  {rows.map((r) => (
-                    <tr key={r.id} className="border-t border-ink-08">
-                      <td className="px-2 py-2.5">
-                        <span className="text-ink">{r.name}</span>
-                        {r.layout && (
-                          <span className="ml-2 text-[0.72rem] text-ink-30">{r.layout}</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2.5 text-right text-ink-50">{num(r.drafts)}</td>
-                      <td className="px-2 py-2.5 text-right font-medium">{num(r.downloads)}</td>
-                      <td className="px-2 py-2.5 text-right text-ink-50">{num(r.recent)}</td>
-                      <td className="px-2 py-2.5 text-right text-ink-50">
-                        {r.downloads ? pct(r.share) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              name="templates"
+              initialSort={{ key: "downloads", dir: "desc" }}
+              rows={rows.map((r) => ({
+                id: r.id,
+                name: r.name,
+                layout: r.layout,
+                drafts: r.drafts,
+                downloads: r.downloads,
+                recent: r.recent,
+                share: r.downloads ? Math.round(r.share * 1000) / 10 : null,
+              }))}
+              columns={[
+                { key: "name", label: "Template", sub: "layout", filter: false },
+                { key: "drafts", label: "Built", kind: "number" },
+                { key: "downloads", label: "Downloads", kind: "number" },
+                { key: "recent", label: "28d", kind: "number" },
+                { key: "share", label: "Share %", kind: "number" },
+              ]}
+            />
           )}
           {never.length > 0 && (
             <p className="mt-4 text-[0.78rem] leading-relaxed text-ink-30">
@@ -408,70 +397,31 @@ export default async function AdminResume({
                   : "Nobody has started one yet."}
             </Empty>
           ) : (
-            <div className="-mx-2 overflow-x-auto">
-              <table className="w-full min-w-[52rem] text-left text-[0.82rem]">
-                <thead className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">
-                  <tr>
-                    <th className="px-2 pb-2 font-medium">Email</th>
-                    <th className="px-2 pb-2 font-medium">Name</th>
-                    <th className="px-2 pb-2 font-medium">Résumé</th>
-                    <th className="px-2 pb-2 font-medium">Template</th>
-                    <th className="px-2 pb-2 text-right font-medium">Downloads</th>
-                    <th className="px-2 pb-2 font-medium">Started</th>
-                    {mode !== "building" && (
-                      <th className="px-2 pb-2 font-medium">Last download</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                  {list.data.map((r) => (
-                    <tr key={r.id} className="border-t border-ink-08">
-                      <td className="max-w-[15rem] px-2 py-2.5">
-                        {/* An account with no address shows the number it does
-                            have, marked as a number. Never the number in the
-                            email column — see getResumeList. */}
-                        {r.email ? (
-                          <Link
-                            href={`/admin/users/${r.userId}`}
-                            className="block truncate underline-offset-4 hover:underline"
-                          >
-                            {r.email}
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/users/${r.userId}`}
-                            className="block truncate text-ink-30 underline-offset-4 hover:underline"
-                          >
-                            {r.phone ? `${r.phone} · phone` : "no address"}
-                          </Link>
-                        )}
-                      </td>
-                      <td className="max-w-[10rem] px-2 py-2.5 text-ink-50">
-                        <span className="block truncate">{r.name ?? "—"}</span>
-                      </td>
-                      <td className="max-w-[12rem] px-2 py-2.5 text-ink-50">
-                        <span className="block truncate">{r.title ?? "—"}</span>
-                        {r.isPublic && (
-                          <span className="text-[0.7rem] text-ink-30">shared publicly</span>
-                        )}
-                      </td>
-                      <td className="max-w-[12rem] px-2 py-2.5 text-ink-50">
-                        <span className="block truncate">{r.templateName ?? "—"}</span>
-                      </td>
-                      <td className="px-2 py-2.5 text-right font-medium">
-                        {r.downloads ? num(r.downloads) : <span className="text-ink-30">0</span>}
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">{when(r.createdAt)}</td>
-                      {mode !== "building" && (
-                        <td className="whitespace-nowrap px-2 py-2.5 text-ink-50">
-                          {r.lastDownloadedAt ? when(r.lastDownloadedAt) : <span className="text-ink-30">never</span>}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              name={`resumes-${mode}`}
+              initialSort={{ key: "started", dir: "desc" }}
+              rows={list.data.map((r) => ({
+                id: r.id,
+                email: r.email ?? (r.phone ? `${r.phone} · phone` : "no address"),
+                href: `/admin/users/${r.userId}`,
+                name: r.name,
+                title: r.title,
+                shared: r.isPublic ? "shared publicly" : null,
+                template: r.templateName,
+                downloads: r.downloads,
+                started: r.createdAt,
+                ...(mode !== "building" ? { last: r.lastDownloadedAt } : {}),
+              }))}
+              columns={[
+                { key: "email", label: "Email", href: "href", max: "max-w-[15rem]", filter: false },
+                { key: "name", label: "Name", max: "max-w-[10rem]", filter: false },
+                { key: "title", label: "Résumé", sub: "shared", max: "max-w-[12rem]", filter: false },
+                { key: "template", label: "Template", max: "max-w-[12rem]" },
+                { key: "downloads", label: "Downloads", kind: "number" },
+                { key: "started", label: "Started", kind: "date" },
+                ...(mode !== "building" ? [{ key: "last", label: "Last download", kind: "date" as const }] : []),
+              ]}
+            />
           )}
         </div>
 

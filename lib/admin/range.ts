@@ -11,7 +11,7 @@
 
 export const IST = "Asia/Kolkata";
 
-export type RangeId = "today" | "24h" | "7d" | "28d" | "90d" | "custom";
+export type RangeId = "today" | "24h" | "7d" | "28d" | "90d" | "all" | "custom";
 
 export const RANGES: { id: RangeId; label: string; days: number }[] = [
   { id: "today", label: "Today", days: 1 },
@@ -77,6 +77,9 @@ export function resolveRange(sp: { range?: string; from?: string; to?: string })
     };
   }
 
+  // Lists (people, leads, payments) open on everything; only they offer it.
+  if (sp.range === "all") return { id: "all", label: "All time", days: 3650 };
+
   const found = RANGES.find((r) => r.id === sp.range);
   if (found) return { id: found.id, label: found.label, days: found.days };
   return { id: "7d", label: "7 days", days: 7 };
@@ -116,5 +119,6 @@ export function rangeWords(r: Range) {
   if (r.id === "today") return "today so far";
   if (r.id === "24h") return "the last 24 hours";
   if (r.id === "custom") return r.label;
+  if (r.id === "all") return "all time";
   return `the last ${r.days} days`;
 }

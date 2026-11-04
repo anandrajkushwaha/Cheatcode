@@ -1,11 +1,11 @@
 import Link from "next/link";
+import { DataTable } from "@/components/admin/DataTable";
 import {
   getAdminPosts, getAdminStats, getViewsByPath, type ContentRow,
 } from "@/lib/queries/admin";
-import { formatDate } from "@/components/content/bits";
 import { RangePicker } from "@/components/admin/RangePicker";
 import { resolveRange, rangeWords } from "@/lib/admin/range";
-import { Empty, duration, num } from "@/components/admin/ui";
+import { num } from "@/components/admin/ui";
 
 type Row = {
   id: string; slug: string; title: string; post_type: string;
@@ -108,18 +108,6 @@ export default async function AdminPosts({
     }
     return `/admin/posts?${q}`;
   };
-
-  const Th = ({ id, children }: { id: SortId; children: React.ReactNode }) => (
-    <th className="pb-3 pr-4 text-right font-medium">
-      <Link
-        href={link({ sort: id })}
-        className={`underline-offset-4 hover:underline ${sort === id ? "text-ink" : ""}`}
-      >
-        {children}
-        {sort === id && <span aria-hidden="true"> ↓</span>}
-      </Link>
-    </th>
-  );
 
   const totalViews = rows.reduce((a, r) => a + r.views, 0);
 
@@ -240,69 +228,48 @@ export default async function AdminPosts({
         {num(rows.length)} article{rows.length === 1 ? "" : "s"} · {num(totalViews)} views in this window
       </p>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[960px] text-[0.85rem]">
-          <thead>
-            <tr className="border-b border-ink-15 text-[0.72rem] uppercase tracking-wider text-ink-30">
-              <th className="pb-3 pr-4 text-left font-medium">Title</th>
-              <th className="pb-3 pr-4 text-left font-medium">Topic</th>
-              <Th id="views">Views</Th>
-              <Th id="readers">People</Th>
-              <th className="pb-3 pr-4 text-right font-medium">Landings</th>
-              <Th id="depth">Depth</Th>
-              <th className="pb-3 pr-4 text-right font-medium">Time</th>
-              <Th id="date">Published</Th>
-              <Th id="words">Words</Th>
-              <Th id="quality">Score</Th>
-              <th className="pb-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-08">
-            {rows.map((p) => (
-              <tr key={p.id}>
-                <td className="max-w-[300px] py-3 pr-4">
-                  <Link href={`/blog/${p.slug}`} className="line-clamp-1 underline-offset-4 hover:underline">
-                    {p.title}
-                  </Link>
-                  {(p.scheduled || p.status === "draft") && (
-                    <span className="mt-1 inline-block rounded-full border border-ink-15 px-2 py-0.5 text-[0.68rem] text-ink-50">
-                      {p.status === "draft" ? "draft" : "scheduled"}
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 pr-4 text-ink-50">{p.categoryName ?? "—"}</td>
-                <td className="py-3 pr-4 text-right font-medium tabular-nums">{p.views || "—"}</td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-50">{p.readers || "—"}</td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-50">{p.entries || "—"}</td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-50">
-                  {p.depth ? `${p.depth}%` : "—"}
-                </td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-50">{duration(p.seconds)}</td>
-                <td className="whitespace-nowrap py-3 pr-4 text-right text-ink-50">
-                  {formatDate(p.published_at)}
-                </td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-30">{num(p.word_count ?? 0)}</td>
-                <td className="py-3 pr-4 text-right tabular-nums text-ink-30">{p.quality_score}</td>
-                <td className="py-3 text-right">
-                  <Link
-                    href={`/admin/posts/${p.slug}`}
-                    className="text-[0.8rem] text-ink-30 underline underline-offset-4 hover:text-ink"
-                  >
-                    edit
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && !loadError && (
-          <div className="mt-6">
-            <Empty>
-              {stats.posts > 0
+      <div className="mt-4">
+        {loadError ? null : (
+          <DataTable
+            name="articles"
+            empty={
+              stats.posts > 0
                 ? "Nothing matches those filters."
-                : "No articles in the database yet. Press Re-sync content on the Overview, or write one."}
-            </Empty>
-          </div>
+                : "No articles in the database yet. Press Re-sync content on the Overview, or write one."
+            }
+            initialSort={{ key: "views", dir: "desc" }}
+            rows={rows.map((p) => ({
+              id: p.id,
+              title: p.title,
+              href: `/blog/${p.slug}`,
+              status: p.status === "draft" ? "draft" : p.scheduled ? "scheduled" : "live",
+              topic: p.categoryName,
+              views: p.views,
+              readers: p.readers,
+              entries: p.entries,
+              depth: p.depth || null,
+              seconds: p.seconds || null,
+              published: p.published_at,
+              words: p.word_count ?? 0,
+              score: p.quality_score,
+              edit: "edit",
+              editHref: `/admin/posts/${p.slug}`,
+            }))}
+            columns={[
+              { key: "title", label: "Title", href: "href", max: "max-w-[300px]", filter: false },
+              { key: "status", label: "Status", kind: "badge", tones: { live: "green", draft: "grey", scheduled: "amber" } },
+              { key: "topic", label: "Topic" },
+              { key: "views", label: "Views", kind: "number" },
+              { key: "readers", label: "People", kind: "number" },
+              { key: "entries", label: "Landings", kind: "number" },
+              { key: "depth", label: "Depth %", kind: "number" },
+              { key: "seconds", label: "Time (s)", kind: "number" },
+              { key: "published", label: "Published", kind: "date" },
+              { key: "words", label: "Words", kind: "number" },
+              { key: "score", label: "Score", kind: "number" },
+              { key: "edit", label: "", href: "editHref", filter: false },
+            ]}
+          />
         )}
       </div>
     </>

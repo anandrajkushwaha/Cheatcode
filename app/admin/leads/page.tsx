@@ -1,4 +1,7 @@
-import { Panel, Stat, Empty } from "@/components/admin/ui";
+import { Panel, Stat } from "@/components/admin/ui";
+import { DataTable } from "@/components/admin/DataTable";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { resolveRange } from "@/lib/admin/range";
 import { getAtsLeads } from "@/lib/admin/ats-leads";
 
 export const dynamic = "force-dynamic";
@@ -12,24 +15,17 @@ export const dynamic = "force-dynamic";
  * names and numbers here rather than a count in Meta.
  */
 
-const WHEN = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "Asia/Kolkata",
-});
-
-function when(iso: string) {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : WHEN.format(d);
-}
-
 function phoneText(e164: string) {
   return `+91 ${e164.slice(3, 8)} ${e164.slice(8)}`;
 }
 
-export default async function AdminLeads() {
+export default async function AdminLeads({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
   const result = await getAtsLeads();
 
   if (!result.ok) {
@@ -40,7 +36,14 @@ export default async function AdminLeads() {
     );
   }
 
-  const { leads, checks, truncated } = result;
+  const { checks, truncated } = result;
+  // People whose latest check falls in the period (everyone for "All time").
+  const lo = range.id === "all" ? 0 : range.from ? new Date(range.from).getTime() : Date.now() - range.days * 86_400_000;
+  const hi = range.to ? new Date(range.to).getTime() : Infinity;
+  const leads = result.leads.filter((l) => {
+    const t = new Date(l.lastAt).getTime();
+    return t >= lo && t < hi;
+  });
   const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const last7 = leads.filter((l) => l.firstAt >= week).length;
   const fromMeta = leads.filter((l) => /facebook|instagram|meta/i.test(l.source ?? "")).length;
@@ -65,6 +68,8 @@ export default async function AdminLeads() {
         </a>
       </div>
 
+      <RangePicker basePath="/admin/leads" range={range} allTime />
+
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="People" value={leads.length} hint={`${checks} checks in all`} />
         <Stat label="New, 7d" value={last7} hint="first check this week" />
@@ -76,65 +81,34 @@ export default async function AdminLeads() {
         title="People"
         note={truncated ? "Showing people from the latest 5,000 checks." : undefined}
       >
-        {leads.length === 0 ? (
-          <Empty>
-            Nobody yet. A row appears when someone finishes a check on a resume
-            with an email or phone number on it.
-          </Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-[0.85rem]">
-              <thead>
-                <tr className="border-b border-ink-08 text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">
-                  <th className="py-2 pr-4 font-medium">Name</th>
-                  <th className="py-2 pr-4 font-medium">Phone</th>
-                  <th className="py-2 pr-4 font-medium">Email</th>
-                  <th className="py-2 pr-4 font-medium tabular-nums">Score</th>
-                  <th className="py-2 pr-4 font-medium tabular-nums">Checks</th>
-                  <th className="py-2 pr-4 font-medium">Came from</th>
-                  <th className="py-2 font-medium">Last check</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {leads.map((l) => (
-                  <tr key={l.key} className="border-t border-ink-08 align-top">
-                    <td className="max-w-[14rem] py-2.5 pr-4">
-                      <span className="block truncate">{l.name ?? "—"}</span>
-                      {l.signedIn && <span className="text-[0.72rem] text-ink-30">has account</span>}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4">
-                      {l.phone ? (
-                        <a href={`https://wa.me/${l.phone.slice(1)}`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
-                          {phoneText(l.phone)}
-                        </a>
-                      ) : (
-                        <span className="text-ink-30">—</span>
-                      )}
-                    </td>
-                    <td className="max-w-[16rem] py-2.5 pr-4 text-ink-50">
-                      {l.email ? (
-                        <a href={`mailto:${l.email}`} className="block truncate underline-offset-4 hover:underline">
-                          {l.email}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-4">{l.lastScore ?? "—"}</td>
-                    <td className="py-2.5 pr-4 text-ink-50">{l.checks}</td>
-                    <td className="max-w-[12rem] py-2.5 pr-4 text-ink-50">
-                      <span className="block truncate" title={l.campaign ?? undefined}>
-                        {l.source ?? "—"}
-                        {l.campaign ? ` · ${l.campaign}` : ""}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 text-ink-50">{when(l.lastAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          name="ats-leads"
+          empty="Nobody yet. A row appears when someone finishes a check on a resume with an email or phone number on it."
+          initialSort={{ key: "last", dir: "desc" }}
+          rows={leads.map((l) => ({
+            id: l.key,
+            name: l.name,
+            account: l.signedIn ? "has account" : null,
+            phone: l.phone ? phoneText(l.phone) : null,
+            wa: l.phone ? `https://wa.me/${l.phone.slice(1)}` : null,
+            email: l.email,
+            mail: l.email ? `mailto:${l.email}` : null,
+            score: l.lastScore,
+            checks: l.checks,
+            source: l.source,
+            campaign: l.campaign,
+            last: l.lastAt,
+          }))}
+          columns={[
+            { key: "name", label: "Name", sub: "account", max: "max-w-[14rem]", filter: false },
+            { key: "phone", label: "Phone", href: "wa", external: true, filter: false },
+            { key: "email", label: "Email", href: "mail", external: true, max: "max-w-[16rem]", filter: false },
+            { key: "score", label: "Score", kind: "number" },
+            { key: "checks", label: "Checks", kind: "number" },
+            { key: "source", label: "Came from", sub: "campaign", max: "max-w-[12rem]" },
+            { key: "last", label: "Last check", kind: "date" },
+          ]}
+        />
       </Panel>
     </div>
   );
