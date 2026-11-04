@@ -12,6 +12,8 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
  */
 
 export const ACCENT = "#9be15d";
+/** The line itself: a deep green that reads on the light lime fill. */
+const LINE = "#3f8f1f";
 
 const fmt = (n: number, money = false) =>
   money
@@ -37,7 +39,7 @@ export function Sparkline({ series, className = "", dark = false }: { series: nu
   const w = 100;
   const h = 32;
   const pts = series.map((v, i) => [series.length === 1 ? w : (i / (series.length - 1)) * w, h - (v / max) * (h - 4) - 2] as [number, number]);
-  const line = smoothPath(pts);
+  const line = smoothPath(pts, 1, h - 1);
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={`h-8 w-full ${className}`} aria-hidden="true">
       <defs>
@@ -47,7 +49,7 @@ export function Sparkline({ series, className = "", dark = false }: { series: nu
         </linearGradient>
       </defs>
       {pts.length > 1 && <path d={`${line} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} />}
-      <path d={line} fill="none" stroke={dark ? ACCENT : "#15161a"} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+      <path d={line} fill="none" stroke={dark ? ACCENT : LINE} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
     </svg>
   );
 }
@@ -123,29 +125,28 @@ export type Metric = {
 };
 
 /**
- * A smooth line through the points that never overshoots them (monotone
- * cubic, Fritsch–Carlson): curves like a hand-drawn chart, but a day with
- * zero never dips below the axis and a peak is never drawn higher than it was.
+ * A soft, wave-like line through the points (Catmull–Rom, drawn as cubic
+ * Béziers): every turn is rounded, the way the reference charts flow, rather
+ * than flat runs and sharp knees. Control points are kept inside the chart
+ * (`top`…`bottom`), so a day with zero never dips below the axis.
  */
-export function smoothPath(pts: [number, number][]): string {
+export function smoothPath(pts: [number, number][], top = -Infinity, bottom = Infinity): string {
   const n = pts.length;
   if (n === 0) return "";
   if (n === 1) return `M${pts[0][0]},${pts[0][1]}`;
-  const dx: number[] = [];
-  const slope: number[] = [];
+  const clamp = (v: number) => Math.min(bottom, Math.max(top, v));
+  const f = (v: number) => v.toFixed(1);
+  let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
   for (let i = 0; i < n - 1; i++) {
-    dx.push(pts[i + 1][0] - pts[i][0]);
-    slope.push((pts[i + 1][1] - pts[i][1]) / (dx[i] || 1));
-  }
-  const t: number[] = [slope[0]];
-  for (let i = 1; i < n - 1; i++) {
-    t.push(slope[i - 1] * slope[i] <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / slope[i - 1] + (dx[i] + 2 * dx[i - 1]) / slope[i]));
-  }
-  t.push(slope[n - 2]);
-  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const h = dx[i] / 3;
-    d += ` C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + t[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - t[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = clamp(p1[1] + (p2[1] - p0[1]) / 6);
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = clamp(p2[1] - (p3[1] - p1[1]) / 6);
+    d += ` C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2[0])},${f(p2[1])}`;
   }
   return d;
 }
@@ -198,7 +199,7 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
   const yN = (f: number) => H - f * (H - 16) - 4;
   const y = (v: number) => yN(v / max);
   const pts = norm.map((f, i) => [x(i), yN(f)] as [number, number]);
-  const line = smoothPath(pts);
+  const line = smoothPath(pts, 2, H - 2);
   const total = m?.total ?? series.reduce((a, b) => a + b, 0);
 
   // The metric switch's thumb slides to the chosen metric.
@@ -286,7 +287,7 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
               <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="#15161a" strokeOpacity="0.06" vectorEffect="non-scaling-stroke" />
             ))}
             {pts.length > 1 && <path d={`${line} L${W},${H} L0,${H} Z`} fill={`url(#${id})`} />}
-            <path d={line} fill="none" stroke="#15161a" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={line} fill="none" stroke={LINE} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             {hover !== null && (
               <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="#15161a" strokeOpacity="0.25" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
             )}
@@ -294,14 +295,14 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
           {hover !== null && (
             <>
               <span
-                className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper bg-ink shadow transition-[left,top] duration-150"
+                className="pointer-events-none absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-paper bg-[#3f8f1f] shadow-[0_2px_6px_rgba(0,0,0,0.25)] transition-[left,top] duration-150"
                 style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(series[hover] ?? 0) / H) * 100}%` }}
               />
               <span
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-[0.72rem] font-medium text-paper shadow-lg transition-[left,top] duration-150"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-[calc(100%+14px)] whitespace-nowrap rounded-xl border border-ink-08 bg-paper px-3 py-1.5 text-[0.8rem] text-ink-50 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.25)] transition-[left,top] duration-150"
                 style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(series[hover] ?? 0) / H) * 100}%` }}
               >
-                {fmt(series[hover] ?? 0, m?.money)} · {labels[hover]}
+                <span className="font-semibold text-ink">{fmt(series[hover] ?? 0, m?.money)}</span> {labels[hover]}
               </span>
             </>
           )}
