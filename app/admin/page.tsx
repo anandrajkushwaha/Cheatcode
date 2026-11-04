@@ -53,7 +53,7 @@ export default async function AdminDashboard({
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
-  const range = resolveRange({ ...sp, range: sp.range ?? "today" });
+  const range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const [result, liveRes] = await Promise.all([getOverview(range), getLive()]);
   const live = liveRes.ok
     ? { count: liveRes.count, sessions: liveRes.sessions }
