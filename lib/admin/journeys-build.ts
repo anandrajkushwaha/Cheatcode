@@ -162,6 +162,12 @@ function eventText(e: Event): string | null {
         return `Save popup shown (${String(p.reason ?? "auto")}, ${String(p.fields ?? "?")} fields filled)`;
       case "gate_dismissed":
         return "Closed the save popup";
+      case "unlock_start": {
+        const kind = String(p.kind ?? "");
+        return kind === "ats" ? "Opened ₹49 payment — unlimited ATS checks" : kind === "pass" ? "Opened ₹99 payment — match pass" : "Opened ₹49 payment — job unlock";
+      }
+      case "unlock_paid":
+        return `Paid — ${String(p.kind ?? "unlock")}`;
       case "auto_download":
         return "Signed in from Download — PDF downloading";
       case "error":
@@ -199,6 +205,9 @@ function eventText(e: Event): string | null {
   }
   if (e.event === "tool_compute" && e.label === "resume-ats-checker") {
     if (typeof e.value === "number") return `Got ATS score ${e.value}`;
+    // Not a failure: today's free check was already used, so the score stayed
+    // behind the ₹49 card (lib/tools/ats-gate.ts).
+    if (p.outcome === "locked") return "ATS check done — free check used, ₹49 card shown";
     return `ATS check failed (${String(p.outcome ?? "error")})`;
   }
   if (e.event === "tool_input" && e.label === "resume-ats-checker-choose")
