@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Panel, Stat, Empty, BarList } from "@/components/admin/ui";
 import { getPopupReport } from "@/lib/admin/match-popup";
+import { getAtsPaywall } from "@/lib/admin/ats-paywall";
 import { PopupPeople } from "@/components/admin/PopupPeople";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,10 @@ export const dynamic = "force-dynamic";
  */
 
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+const pctOf = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}% of them` : "—");
+const WHEN = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const when = (iso: string) => WHEN.format(new Date(iso));
+const phoneText = (e164: string) => `+91 ${e164.slice(3, 8)} ${e164.slice(8)}`;
 
 const RANGES = [
   { id: "7", label: "7 days" },
@@ -29,7 +34,10 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
   const { days: raw, src: rawSrc } = await searchParams;
   const range = RANGES.some((r) => r.id === raw) ? raw! : "30";
   const src = (SOURCES.find((x) => x.id === rawSrc)?.id ?? "all") as "all" | "resume" | "ats";
-  const report = await getPopupReport(range === "all" ? null : Number(range), src);
+  const [report, paywall] = await Promise.all([
+    getPopupReport(range === "all" ? null : Number(range), src),
+    getAtsPaywall(range === "all" ? 3650 : Number(range)),
+  ]);
   const link = (q: { days?: string; src?: string }) => `/admin/match-popup?days=${q.days ?? range}&src=${q.src ?? src}`;
 
   if (!report.ok) {
@@ -119,6 +127,75 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
           No popup means the resume had no genuine match (2+ shared skills, 60%+) — or, after a download, the popup had
           already shown in that session.
         </p>
+      </Panel>
+
+      {/* ------------------------------------------------ the ₹49 card */}
+      <Panel
+        title="₹49 ATS card"
+        note="The other ₹49 payment: the ATS checker’s second check of the day, locked until ₹49 for unlimited checks. Same period as above. Steps count people."
+      >
+        {!paywall.ok ? (
+          <Empty>Couldn&apos;t read it: {paywall.error}</Empty>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-5">
+              {[
+                { label: "Used free check", value: paywall.freeChecks, hint: "free checks" },
+                { label: "Saw ₹49 card", value: paywall.people, hint: `${paywall.shows} times shown` },
+                { label: "Tapped See my score", value: paywall.tapped, hint: pctOf(paywall.tapped, paywall.people) },
+                { label: "Opened payment", value: paywall.opened, hint: "after signing in" },
+                { label: "Paid ₹49", value: paywall.paid, hint: `₹${paywall.revenue.toLocaleString("en-IN")} in all` },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-ink-08 p-4">
+                  <p className="text-[0.72rem] leading-snug text-ink-50">{s.label}</p>
+                  <p className="mt-2 text-[1.6rem] font-semibold leading-none tracking-[-0.04em] tabular-nums">{s.value}</p>
+                  <p className="mt-2 text-[0.72rem] text-ink-30">{s.hint}</p>
+                </div>
+              ))}
+            </div>
+            {paywall.rows.length > 0 && (
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-[0.82rem]">
+                  <thead className="text-[0.7rem] uppercase tracking-[0.08em] text-ink-30">
+                    <tr className="border-b border-ink-08">
+                      <th className="py-2 pr-3 font-medium">Person</th>
+                      <th className="py-2 pr-3 font-medium">Card shown</th>
+                      <th className="py-2 pr-3 font-medium">Got to</th>
+                      <th className="py-2 text-right font-medium">Last seen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paywall.rows.map((r) => (
+                      <tr key={r.key} className="border-b border-ink-08">
+                        <td className="py-2.5 pr-3">
+                          <span className="font-medium">{r.email ?? (r.phone ? phoneText(r.phone) : "Unknown")}</span>
+                          {r.email && r.phone && <span className="ml-2 text-ink-30">{phoneText(r.phone)}</span>}
+                        </td>
+                        <td className="py-2.5 pr-3 tabular-nums text-ink-50">{r.shown}×</td>
+                        <td className="py-2.5 pr-3">
+                          <span
+                            className={`inline-block rounded-full px-2 py-0.5 text-[0.72rem] font-medium ${
+                              r.paid
+                                ? "bg-[#e7f6ec] text-[#14532d]"
+                                : r.opened
+                                  ? "bg-[#fff4e0] text-[#7a4b00]"
+                                  : r.signedIn
+                                    ? "bg-[#eef2ff] text-[#3730a3]"
+                                    : "bg-ink-04 text-ink-50"
+                            }`}
+                          >
+                            {r.paid ? "Paid ₹49" : r.opened ? "Opened payment, didn’t pay" : r.signedIn ? "Signed in, didn’t pay" : "Saw the card"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right tabular-nums text-ink-50">{when(r.lastShown)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </Panel>
 
       <Panel title="People">
