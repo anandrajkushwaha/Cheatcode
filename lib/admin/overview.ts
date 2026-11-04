@@ -34,6 +34,8 @@ export type Activity = {
 };
 
 export type Overview = {
+  /** What is being shown and what it is compared with, as instants. */
+  period: { from: string; to: string; prevFrom: string; prevTo: string };
   labels: string[];
   bucket: "hour" | "day";
   kpis: {
@@ -57,17 +59,25 @@ const istParts = (iso: string) => {
   return { day: d.toISOString().slice(0, 10), hour: d.getUTCHours() };
 };
 
+/**
+ * The period and the one it is compared with. Today so far is compared with
+ * yesterday up to the same time — not with the last hours of yesterday, which
+ * is what "the same length just before" would give for a partial day.
+ */
 function window(range: Range) {
   const to = range.to ? new Date(range.to).getTime() : Date.now();
   const from = range.from ? new Date(range.from).getTime() : to - range.days * DAY;
+  if (range.id === "today") return { from, to, prevFrom: from - DAY, prevTo: to - DAY };
   const len = Math.max(to - from, 3600_000);
-  return { from, to, prevFrom: from - len, len };
+  return { from, to, prevFrom: from - len, prevTo: from };
 }
 
 /** The bucket labels for the period: hours for a single day, otherwise IST days. */
 function buckets(from: number, to: number) {
   if (to - from <= DAY + 60_000) {
-    return { bucket: "hour" as const, keys: Array.from({ length: 24 }, (_, h) => String(h)) };
+    // Up to the current hour only: hours still to come are not zeros.
+    const last = to >= Date.now() - 60_000 ? istParts(new Date(to - 1).toISOString()).hour : 23;
+    return { bucket: "hour" as const, keys: Array.from({ length: last + 1 }, (_, h) => String(h)) };
   }
   const keys: string[] = [];
   for (let t = from; t < to; t += DAY) {
@@ -86,7 +96,7 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
   const app = createAppAdminClient();
   if (!site || !app) return { ok: false, error: "Supabase isn't configured." };
 
-  const { from, to, prevFrom } = window(range);
+  const { from, to, prevFrom, prevTo } = window(range);
   const iso = (t: number) => new Date(t).toISOString();
   const lo = iso(prevFrom);
   const hi = iso(to);
@@ -174,6 +184,10 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
     return index.get(bucket === "hour" ? String(p.hour) : p.day);
   };
   const isNow = (at: string) => new Date(at).getTime() >= from;
+  const isBefore = (at: string) => {
+    const t = new Date(at).getTime();
+    return t >= prevFrom && t < prevTo;
+  };
 
   // A KPI from rows: count (or sum) in the period, the period before, and a
   // per-bucket series for the period's chart.
@@ -200,7 +214,7 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
             seenSlot[s].add(id);
             series[s] += 1;
           }
-        } else if (!seenBefore.has(id)) {
+        } else if (isBefore(t) && !seenBefore.has(id)) {
           seenBefore.add(id);
           before += 1;
         }
@@ -211,7 +225,7 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
         now += v;
         const s = slot(t);
         if (s !== undefined) series[s] += v;
-      } else before += v;
+      } else if (isBefore(t)) before += v;
     }
     return { now, before, series };
   }
@@ -305,5 +319,6 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
     alerts.push({ text: `${atsErrors.count} ATS check${atsErrors.count === 1 ? "" : "s"} failed in the last 24 hours`, href: "/admin/journeys", tone: "warn" });
 
   const labels = bucket === "hour" ? keys.map((h) => `${h}:00`) : keys.map((d) => LABEL.format(new Date(`${d}T00:00:00Z`)));
-  return { ok: true, data: { labels, bucket, kpis, funnel, revenueBy, sources, pages, activity, alerts } };
+  const period = { from: iso(from), to: iso(to), prevFrom: iso(prevFrom), prevTo: iso(prevTo) };
+  return { ok: true, data: { period, labels, bucket, kpis, funnel, revenueBy, sources, pages, activity, alerts } };
 }

@@ -90,19 +90,47 @@ function Ranked({
   );
 }
 
-export function DashboardView({ data }: { data: Overview }) {
+export function DashboardView({
+  data,
+  beforeWord,
+}: {
+  data: Overview;
+  beforeWord?: string;
+}) {
   const result = { data };
   return (
     <div className="space-y-4 rounded-[1.75rem] bg-[#f0f0ec] p-3 sm:p-4">
       {/* -------------------------------------------------------- KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="col-span-2 flex lg:col-span-1 [&>*]:flex-1">
-          <KpiCard label="Revenue" money dark {...result.data.kpis.revenue} />
+          <KpiCard
+            beforeWord={beforeWord}
+            label="Revenue"
+            money
+            dark
+            {...result.data.kpis.revenue}
+          />
         </div>
-        <KpiCard label="Visitors" {...result.data.kpis.visitors} />
-        <KpiCard label="Sign-ups" {...result.data.kpis.signups} />
-        <KpiCard label="ATS checks" {...result.data.kpis.atsChecks} />
-        <KpiCard label="Resume downloads" {...result.data.kpis.downloads} />
+        <KpiCard
+          beforeWord={beforeWord}
+          label="Visitors"
+          {...result.data.kpis.visitors}
+        />
+        <KpiCard
+          beforeWord={beforeWord}
+          label="Sign-ups"
+          {...result.data.kpis.signups}
+        />
+        <KpiCard
+          beforeWord={beforeWord}
+          label="ATS checks"
+          {...result.data.kpis.atsChecks}
+        />
+        <KpiCard
+          beforeWord={beforeWord}
+          label="Resume downloads"
+          {...result.data.kpis.downloads}
+        />
       </div>
 
       {/* ----------------------------------------- chart + funnel/alerts */}
