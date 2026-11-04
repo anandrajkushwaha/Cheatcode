@@ -168,8 +168,10 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
                     {paywall.rows.map((r) => (
                       <tr key={r.key} className="border-b border-ink-08">
                         <td className="py-2.5 pr-3">
-                          <span className="font-medium">{r.email ?? (r.phone ? phoneText(r.phone) : "Unknown")}</span>
-                          {r.email && r.phone && <span className="ml-2 text-ink-30">{phoneText(r.phone)}</span>}
+                          <span className="font-medium">{r.name ?? r.email ?? (r.phone ? phoneText(r.phone) : "Unknown")}</span>
+                          <span className="ml-2 text-ink-30">
+                            {[r.name ? r.email : null, r.phone ? phoneText(r.phone) : null].filter(Boolean).join(" · ")}
+                          </span>
                         </td>
                         <td className="py-2.5 pr-3 tabular-nums text-ink-50">{r.shown}×</td>
                         <td className="py-2.5 pr-3">

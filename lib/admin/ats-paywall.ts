@@ -27,6 +27,8 @@ type Check = {
 
 export type PaywallPerson = {
   key: string;
+  /** From the resume's contact block, as saved in ats_leads. */
+  name: string | null;
   email: string | null;
   phone: string | null;
   signedIn: boolean;
@@ -110,6 +112,7 @@ export async function getAtsPaywall(days = 30): Promise<PaywallReport> {
     const k = keyOf(c);
     const p = people.get(k) ?? {
       key: k,
+      name: null,
       email: null,
       phone: null,
       signedIn: false,
@@ -132,6 +135,25 @@ export async function getAtsPaywall(days = 30): Promise<PaywallReport> {
   }
 
   const rows = [...people.values()].sort((a, b) => b.lastShown.localeCompare(a.lastShown));
+
+  // Names, from the leads the checker already saves (by email, else phone).
+  const emails = [...new Set(rows.map((r) => r.email).filter(Boolean))] as string[];
+  const phones = [...new Set(rows.map((r) => r.phone).filter(Boolean))] as string[];
+  if (emails.length || phones.length) {
+    const ors = [
+      emails.length ? `email.in.(${emails.map((e) => `"${e.replace(/"/g, "")}"`).join(",")})` : "",
+      phones.length ? `phone.in.(${phones.map((p) => `"${p}"`).join(",")})` : "",
+    ].filter(Boolean);
+    const { data } = await db.from("ats_leads").select("name,email,phone").or(ors.join(",")).limit(1000);
+    const byEmail = new Map<string, string>();
+    const byPhone = new Map<string, string>();
+    for (const l of (data ?? []) as { name: string | null; email: string | null; phone: string | null }[]) {
+      if (!l.name) continue;
+      if (l.email) byEmail.set(l.email, l.name);
+      if (l.phone) byPhone.set(l.phone, l.name);
+    }
+    for (const r of rows) r.name = (r.email && byEmail.get(r.email)) || (r.phone && byPhone.get(r.phone)) || null;
+  }
   return {
     ok: true,
     days,
