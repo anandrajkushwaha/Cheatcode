@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type NavItem = { href: string; label: string };
+/** `group` heads a run of links in the sidebar (Growth, Users, Revenue…). */
+export type NavItem = { href: string; label: string; group?: string };
 
 /**
  * The admin's own navigation, in two shapes.
@@ -44,19 +45,25 @@ export function AdminNav({ items, variant }: { items: NavItem[]; variant: "sideb
 
   return (
     <nav className="flex flex-col gap-0.5">
-      {items.map((n) => (
-        <Link
-          key={n.href}
-          href={n.href}
-          aria-current={current(n.href) ? "page" : undefined}
-          className={`rounded-lg px-3 py-2 text-[0.84rem] transition-colors ${
-            current(n.href)
-              ? "bg-ink text-paper"
-              : "text-ink-50 hover:bg-ink-04 hover:text-ink"
-          }`}
-        >
-          {n.label}
-        </Link>
+      {items.map((n, i) => (
+        <div key={n.href}>
+          {n.group && n.group !== items[i - 1]?.group && (
+            <p className={`px-3 pb-1.5 text-[0.66rem] font-medium uppercase tracking-[0.14em] text-ink-30 ${i === 0 ? "pt-1" : "pt-4"}`}>
+              {n.group}
+            </p>
+          )}
+          <Link
+            href={n.href}
+            aria-current={current(n.href) ? "page" : undefined}
+            className={`block rounded-lg px-3 py-2 text-[0.84rem] transition-colors ${
+              current(n.href)
+                ? "bg-ink text-paper"
+                : "text-ink-50 hover:bg-ink-04 hover:text-ink"
+            }`}
+          >
+            {n.label}
+          </Link>
+        </div>
       ))}
     </nav>
   );

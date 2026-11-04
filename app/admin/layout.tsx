@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { canOpenPage } from "@/lib/admin/roles";
 import { currentAdmin } from "@/lib/admin/guard";
 import { LogoutButton } from "./LogoutButton";
-import { AdminNav } from "./AdminNav";
+import { AdminNav, type NavItem } from "./AdminNav";
 import { ExcludeThisDevice } from "@/components/admin/ExcludeThisDevice";
 
 export const metadata: Metadata = {
@@ -40,53 +40,39 @@ export const dynamic = "force-dynamic";
  * blog gets written, and deleting it would take a working publishing workflow
  * away in order to tidy a navigation bar.
  */
-const NAV = [
-  { href: "/admin", label: "Dashboard" },
-  // The website: visitors, sources, ad campaigns and the free tools.
-  { href: "/admin/traffic", label: "Traffic" },
-  // Right after Traffic: the same visits, one at a time — the ad funnel and
-  // where each visitor left.
-  { href: "/admin/journeys", label: "Journeys" },
-  // Beside Traffic, and after it: Traffic counts arrivals, this one says
-  // which of our pages they arrived at — and which they never do.
-  { href: "/admin/pages", label: "Pages" },
-  // Résumés before People, because the question "is the product being used"
-  // comes before "by whom" — and the download count on the first tab is the
-  // one number that says the answer is yes.
-  { href: "/admin/resume", label: "Résumés" },
-  // Beside Résumés because it is the same section's permission, and because
-  // an unanswered one is somebody who paid and heard nothing.
-  { href: "/admin/resume-requests", label: "Reviews queue" },
-  { href: "/admin/users", label: "People" },
-  // Beside People: the same kind of list, from the free ATS checker, with or
-  // without an account.
-  { href: "/admin/leads", label: "ATS leads" },
-  // The post-download match popup: who saw it, what they clicked, what they paid.
-  { href: "/admin/match-popup", label: "Match popup" },
-  // Beside the popup it feeds: emails to signed-up people, and who opened,
-  // clicked and paid. Owner-only (not a grantable section): it sends mail.
-  { href: "/admin/emails", label: "Emails" },
-  // After People because it answers the next question: People says how many
-  // signed up, this says who they are — read out of their own résumés.
-  { href: "/admin/user-analytics", label: "User analytics" },
-  // Next to People because it is the same list, filtered to the ones who
-  // tried to pay — which is the only demand signal there is until checkout
-  // exists.
-  { href: "/admin/pro", label: "Pro interest" },
-  // Next to Pro interest because it is the other half of the same page: one
-  // tab counts who reached for the plan, this one edits what they read first.
-  { href: "/admin/reviews", label: "Reviews" },
-  // Next to Articles because it is the same job: pages written here that
-  // exist to be found by somebody who has not heard of us yet.
-  { href: "/admin/govt", label: "Government jobs" },
-  { href: "/admin/bank", label: "Question bank" },
-  { href: "/admin/settings", label: "Settings" },
-  { href: "/admin/posts", label: "Articles" },
-  // Beside Articles: the same kind of job, shorter.
-  { href: "/admin/insights", label: "Insights" },
+const NAV: NavItem[] = [
+  { href: "/admin", label: "Dashboard", group: "Overview" },
+  // The website: visitors, sources, the ad funnel visit by visit, which pages
+  // they read, and the emails that send people back.
+  { href: "/admin/traffic", label: "Traffic", group: "Growth" },
+  { href: "/admin/journeys", label: "Journeys", group: "Growth" },
+  { href: "/admin/pages", label: "Pages", group: "Growth" },
+  // Owner-only (not a grantable section): it sends mail.
+  { href: "/admin/emails", label: "Emails", group: "Growth" },
+  // Who they are: accounts, ATS checker leads with or without one, and what
+  // their résumés say about them.
+  { href: "/admin/users", label: "People", group: "Users" },
+  { href: "/admin/leads", label: "ATS leads", group: "Users" },
+  { href: "/admin/user-analytics", label: "User analytics", group: "Users" },
+  // Money: the post-download / post-ATS match popup with its ₹49 / ₹99
+  // unlocks and the ₹49 ATS card, and who reached for Pro.
+  { href: "/admin/match-popup", label: "Payments & popup", group: "Revenue" },
+  { href: "/admin/pro", label: "Pro interest", group: "Revenue" },
+  // The product in use: résumés made and downloaded, paid reviews waiting on
+  // us, and what the AI costs.
+  { href: "/admin/resume", label: "Résumés", group: "Product" },
+  { href: "/admin/resume-requests", label: "Reviews queue", group: "Product" },
+  { href: "/admin/ai", label: "AI usage", group: "Product" },
+  // Pages written here to be found by people who have not heard of us yet.
+  { href: "/admin/posts", label: "Articles", group: "Content" },
+  { href: "/admin/insights", label: "Insights", group: "Content" },
+  { href: "/admin/govt", label: "Government jobs", group: "Content" },
+  { href: "/admin/bank", label: "Question bank", group: "Content" },
+  { href: "/admin/reviews", label: "Reviews", group: "Content" },
+  { href: "/admin/settings", label: "Settings", group: "Admin" },
   // Last, and owner-only by virtue of not being a grantable section: this is
   // the screen that hands out the others.
-  { href: "/admin/team", label: "Team" },
+  { href: "/admin/team", label: "Team", group: "Admin" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
