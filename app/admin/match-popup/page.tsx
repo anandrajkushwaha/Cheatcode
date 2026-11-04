@@ -3,6 +3,7 @@ import { Panel, Stat, Empty, BarList } from "@/components/admin/ui";
 import { getPopupReport } from "@/lib/admin/match-popup";
 import { getAtsPaywall } from "@/lib/admin/ats-paywall";
 import { PopupPeople } from "@/components/admin/PopupPeople";
+import { TabSwitch } from "@/components/admin/TabSwitch";
 
 export const dynamic = "force-dynamic";
 
@@ -129,11 +130,35 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
         </p>
       </Panel>
 
-      {/* ------------------------------------------------ the ₹49 card */}
-      <Panel
-        title="₹49 ATS card"
-        note="The other ₹49 payment: the ATS checker’s second check of the day, locked until ₹49 for unlimited checks. Same period as above. Steps count people."
-      >
+      {/* People and the ₹49 ATS card: one card, a pill to switch. */}
+      <section className="min-w-0 rounded-2xl border border-ink-08 p-6">
+        <TabSwitch
+          scope="match-popup"
+          tabs={[
+            {
+              id: "people",
+              label: "People",
+              stamps: report.rows.map((r) => r.lastAt),
+              content: (
+                <>
+                  {report.rows.length === 0 ? (
+                    <Empty>Nobody has seen the popup in this period yet.</Empty>
+                  ) : (
+                    <PopupPeople rows={report.rows} />
+                  )}
+                </>
+              ),
+            },
+            {
+              id: "ats-card",
+              label: "₹49 ATS card",
+              stamps: paywall.ok ? paywall.rows.map((r) => r.lastShown) : [],
+              content: (
+                <>
+                  <p className="mb-4 max-w-[80ch] text-[0.8rem] leading-relaxed text-ink-50">
+                    The other ₹49 payment: the ATS checker&apos;s second check of the day, locked until ₹49 for unlimited
+                    checks. Same period as above. Steps count people.
+                  </p>
         {!paywall.ok ? (
           <Empty>Couldn&apos;t read it: {paywall.error}</Empty>
         ) : (
@@ -198,15 +223,12 @@ export default async function AdminMatchPopup({ searchParams }: { searchParams: 
             )}
           </>
         )}
-      </Panel>
-
-      <Panel title="People">
-        {report.rows.length === 0 ? (
-          <Empty>Nobody has seen the popup in this period yet.</Empty>
-        ) : (
-          <PopupPeople rows={report.rows} />
-        )}
-      </Panel>
+                </>
+              ),
+            },
+          ]}
+        />
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Who saw it, by field">
