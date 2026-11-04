@@ -58,23 +58,20 @@ export function AtsPaywall({
           aria-labelledby="ats-paywall-title"
           className="w-full max-w-[24rem] rounded-3xl border border-ink-08 bg-paper p-6 text-center shadow-[0_30px_80px_-30px_rgba(0,0,0,0.35)] sm:p-7"
         >
-          <p className="text-[0.78rem] font-semibold text-[#1a7f37]">✓ Your report is ready</p>
-          <h2 id="ats-paywall-title" className="mt-2 text-[1.45rem] font-semibold leading-tight tracking-[-0.03em]">
-            Is your resume getting rejected before anyone reads it?
+          <p className="text-[0.78rem] font-semibold text-[#1a7f37]">✓ Checked</p>
+          <h2 id="ats-paywall-title" className="mt-2 text-[1.55rem] font-semibold leading-tight tracking-[-0.03em]">
+            Your ATS score is ready
           </h2>
           <p className="mt-2 text-[0.9rem] leading-relaxed text-ink-50">
-            Your score and the exact fixes are one tap away.
+            You&apos;ve used today&apos;s free check. Unlock this score for ₹49.
           </p>
 
           <ul className="mx-auto mt-5 max-w-[17rem] space-y-2 text-left text-[0.88rem]">
             <li className="flex gap-2.5">
-              <span className="text-[#1a7f37]">✓</span> Your ATS score out of 100
+              <span className="text-[#1a7f37]">✓</span> Your score out of 100
             </li>
             <li className="flex gap-2.5">
-              <span className="text-[#1a7f37]">✓</span> What gets your resume filtered out
-            </li>
-            <li className="flex gap-2.5">
-              <span className="text-[#1a7f37]">✓</span> Exactly how to fix each one
+              <span className="text-[#1a7f37]">✓</span> Every fix for your resume
             </li>
             <li className="flex gap-2.5">
               <span className="text-[#1a7f37]">✓</span> Unlimited checks after this
