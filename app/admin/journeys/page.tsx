@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * themselves as a sheet with a filter on every column
  * (components/admin/JourneyTable.tsx) — each row opens to show every page
  * and step in order — and what the visits were on (browser, phone, city). Two rows of pills choose the
- * period and the source; it opens on today and everyone.
+ * period and the source; it opens on the last 7 days and everyone.
  */
 
 const SOURCES: { id: SourceFilter; label: string }[] = [
@@ -99,7 +99,7 @@ export default async function AdminJourneys({
   searchParams: Promise<{ range?: string; from?: string; to?: string; src?: string }>;
 }) {
   const sp = await searchParams;
-  const range: Range = resolveRange({ ...sp, range: sp.range ?? "today" });
+  const range: Range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const src: SourceFilter = sp.src === "paid" || sp.src === "meta" ? sp.src : "all";
   const [result, liveRes] = await Promise.all([getJourneys(range, src), getLive()]);
   const live = liveRes.ok ? { count: liveRes.count, sessions: liveRes.sessions } : null;

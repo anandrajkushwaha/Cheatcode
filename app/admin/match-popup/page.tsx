@@ -33,7 +33,7 @@ export default async function AdminMatchPopup({
   searchParams: Promise<{ range?: string; from?: string; to?: string; src?: string }>;
 }) {
   const sp = await searchParams;
-  const range = resolveRange({ ...sp, range: sp.range ?? "28d" });
+  const range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const src = (SOURCES.find((x) => x.id === sp.src)?.id ?? "all") as "all" | "resume" | "ats";
   // The reports count back from now; a custom range reads from its first day.
   const days =

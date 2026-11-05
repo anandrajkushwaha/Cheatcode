@@ -77,7 +77,7 @@ export function resolveRange(sp: { range?: string; from?: string; to?: string })
     };
   }
 
-  // Lists (people, leads, payments) open on everything; only they offer it.
+  // Lists (people, leads, payments) offer it as a choice; they open on 7 days.
   if (sp.range === "all") return { id: "all", label: "All time", days: 3650 };
 
   const found = RANGES.find((r) => r.id === sp.range);

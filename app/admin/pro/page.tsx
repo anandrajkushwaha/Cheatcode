@@ -53,7 +53,7 @@ export default async function AdminPro({
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
-  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
+  const range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const result = await getProIntent();
 
   if (!result.ok) {

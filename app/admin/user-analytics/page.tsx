@@ -27,7 +27,7 @@ export default async function AdminUserAnalytics({
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
-  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
+  const range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const data = await getUserAnalytics();
 
   if ("missing" in data) {

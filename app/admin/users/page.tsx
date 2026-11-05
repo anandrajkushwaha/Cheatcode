@@ -29,7 +29,7 @@ export default async function AdminPeople({
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
-  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
+  const range = resolveRange({ ...sp, range: sp.range ?? "7d" });
   const people = await getPeople(1000);
 
   if (!people.ok) {
