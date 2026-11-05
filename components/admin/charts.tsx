@@ -128,6 +128,8 @@ export type Metric = {
   series: number[];
   money?: boolean;
   total?: number;
+  /** The period before, bucket for bucket: drawn as a dashed line underneath. */
+  previous?: number[];
 };
 
 /** Animates between two arrays of the same length (0–1 values) over `ms`. */
@@ -164,13 +166,16 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
   const m = metrics.find((x) => x.id === active) ?? metrics[0];
   const series = useMemo(() => m?.series ?? [], [m]);
   const max = useMemo(() => {
-    const top = Math.max(1, ...series);
+    const top = Math.max(1, ...series, ...(m?.previous ?? []));
     // A round ceiling for the axis.
     const step = 10 ** Math.floor(Math.log10(top));
     return Math.ceil(top / step) * step;
   }, [series]);
   // The line glides from one metric to the next instead of jumping.
   const norm = useTween(useMemo(() => series.map((v) => v / max), [series, max]));
+  const prevSeries = useMemo(() => m?.previous ?? [], [m]);
+  const prevNorm = useTween(useMemo(() => series.map((_, i) => (prevSeries[i] ?? 0) / max), [series, prevSeries, max]));
+  const hasPrev = prevSeries.length > 0;
 
   const W = 1000;
   const H = 260;
@@ -179,6 +184,7 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
   const y = (v: number) => yN(v / max);
   const pts = norm.map((f, i) => [x(i), yN(f)] as [number, number]);
   const line = smoothPath(pts, 2, H - 2);
+  const prevLine = hasPrev ? smoothPath(prevNorm.map((f, i) => [x(i), yN(f)] as [number, number]), 2, H - 2) : "";
   const total = m?.total ?? series.reduce((a, b) => a + b, 0);
 
   // The metric switch's thumb slides to the chosen metric.
@@ -266,6 +272,9 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
               <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="#15161a" strokeOpacity="0.06" vectorEffect="non-scaling-stroke" />
             ))}
             {pts.length > 1 && <path d={`${line} L${W},${H} L0,${H} Z`} fill={`url(#${id})`} />}
+            {hasPrev && (
+              <path d={prevLine} fill="none" stroke="#15161a" strokeOpacity="0.4" strokeWidth="1.75" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" />
+            )}
             <path d={line} fill="none" stroke={LINE} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             {hover !== null && (
               <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="#15161a" strokeOpacity="0.25" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
@@ -282,6 +291,9 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
                 style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(series[hover] ?? 0) / H) * 100}%` }}
               >
                 <span className="font-semibold text-ink">{fmt(series[hover] ?? 0, m?.money)}</span> {labels[hover]}
+                {hasPrev && (
+                  <span className="ml-1.5 text-ink-30">· before {fmt(prevSeries[hover] ?? 0, m?.money)}</span>
+                )}
               </span>
             </>
           )}
@@ -302,6 +314,18 @@ export function MetricChart({ labels, metrics }: { labels: string[]; metrics: Me
           ) : null,
         )}
       </div>
+      {hasPrev && (
+        <div className="mt-4 flex gap-5 text-[0.74rem] text-ink-50">
+          <span className="inline-flex items-center gap-2">
+            <span aria-hidden="true" className="h-0.5 w-5 rounded" style={{ background: LINE }} />
+            This period
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span aria-hidden="true" className="h-0 w-5 border-t-2 border-dashed border-ink-30" />
+            Period before
+          </span>
+        </div>
+      )}
     </div>
   );
 }

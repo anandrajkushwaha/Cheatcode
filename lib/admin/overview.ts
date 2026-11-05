@@ -24,7 +24,8 @@ import type { Range } from "@/lib/admin/range";
  * 1,000-row answer (lib/admin/fetch-all.ts).
  */
 
-export type Kpi = { now: number; before: number; series: number[] };
+/** `previous`: the period before, bucket for bucket (a week earlier, or yesterday's same hour). */
+export type Kpi = { now: number; before: number; series: number[]; previous: number[] };
 
 export type Activity = {
   at: string;
@@ -195,6 +196,10 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
   // per-bucket series for the period's chart.
   function kpi<T>(rows: T[], at: (r: T) => string, amount: (r: T) => number = () => 1, distinct?: (r: T) => string | null): Kpi {
     const series = new Array(keys.length).fill(0);
+    const previous = new Array(keys.length).fill(0);
+    // A row from the period before, moved forward onto the matching bucket.
+    const prevSlot = (t: string) => slot(new Date(new Date(t).getTime() + (from - prevFrom)).toISOString());
+    const seenPrevSlot = keys.map(() => new Set<string>());
     let now = 0;
     let before = 0;
     const seenNow = new Set<string>();
@@ -216,9 +221,16 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
             seenSlot[s].add(id);
             series[s] += 1;
           }
-        } else if (isBefore(t) && !seenBefore.has(id)) {
-          seenBefore.add(id);
-          before += 1;
+        } else if (isBefore(t)) {
+          if (!seenBefore.has(id)) {
+            seenBefore.add(id);
+            before += 1;
+          }
+          const s = prevSlot(t);
+          if (s !== undefined && !seenPrevSlot[s].has(id)) {
+            seenPrevSlot[s].add(id);
+            previous[s] += 1;
+          }
         }
         continue;
       }
@@ -227,9 +239,13 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
         now += v;
         const s = slot(t);
         if (s !== undefined) series[s] += v;
-      } else if (isBefore(t)) before += v;
+      } else if (isBefore(t)) {
+        before += v;
+        const s = prevSlot(t);
+        if (s !== undefined) previous[s] += v;
+      }
     }
-    return { now, before, series };
+    return { now, before, series, previous };
   }
 
   const people = views.rows.filter((v) => !isDataCentre(v.city));

@@ -143,27 +143,32 @@ export function DashboardView({
                 id: "visitors",
                 label: "Visitors",
                 series: result.data.kpis.visitors.series,
+                previous: result.data.kpis.visitors.previous,
                 total: result.data.kpis.visitors.now,
               },
               {
                 id: "signups",
                 label: "Sign-ups",
                 series: result.data.kpis.signups.series,
+                previous: result.data.kpis.signups.previous,
               },
               {
                 id: "ats",
                 label: "ATS checks",
                 series: result.data.kpis.atsChecks.series,
+                previous: result.data.kpis.atsChecks.previous,
               },
               {
                 id: "downloads",
                 label: "Downloads",
                 series: result.data.kpis.downloads.series,
+                previous: result.data.kpis.downloads.previous,
               },
               {
                 id: "revenue",
                 label: "Revenue",
                 series: result.data.kpis.revenue.series,
+                previous: result.data.kpis.revenue.previous,
                 money: true,
               },
             ]}
