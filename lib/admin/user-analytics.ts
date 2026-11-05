@@ -480,6 +480,14 @@ export async function getUserAnalytics(
     }
   }
 
+  return { people, ...summarise(people) };
+}
+
+/**
+ * The breakdowns for a set of people — all of them, or those who joined in
+ * a period (the page filters by the date switch, then calls this).
+ */
+export function summarise(people: PersonCard[]): Omit<UserAnalytics, "people"> {
   const tally = (vals: (string | null)[]) => {
     const m = new Map<string, number>();
     for (const v of vals) if (v) m.set(v, (m.get(v) ?? 0) + 1);
@@ -487,9 +495,7 @@ export async function getUserAnalytics(
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count);
   };
-
   return {
-    people,
     stages: tally(people.map((x) => x.careerStage)),
     domains: tally(people.map((x) => x.domain)).slice(0, 10),
     cities: tally(people.map((x) => x.city)).slice(0, 10),

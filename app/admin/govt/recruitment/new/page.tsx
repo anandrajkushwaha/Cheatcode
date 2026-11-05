@@ -11,9 +11,8 @@ export default function NewRecruitment() {
           ← Government jobs
         </Link>
         <h1 className="mt-2 text-[1.3rem] font-semibold tracking-[-0.03em]">New recruitment</h1>
-        <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          This becomes a public page at its own address, and that address never changes afterwards —
-          so the organisation and the name are worth getting right before saving.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          This becomes a public page whose address never changes, so get the organisation and name right first.
         </p>
       </div>
       <ExamForm />

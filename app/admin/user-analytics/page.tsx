@@ -1,6 +1,10 @@
-import { Panel, Stat, Empty, BarList, num } from "@/components/admin/ui";
+import { Panel, Empty, BarList } from "@/components/admin/ui";
 import { PeopleCards } from "@/components/admin/PeopleCards";
-import { getUserAnalytics } from "@/lib/admin/user-analytics";
+import { KpiCard } from "@/components/admin/charts";
+import { RangePicker } from "@/components/admin/RangePicker";
+import { getUserAnalytics, summarise } from "@/lib/admin/user-analytics";
+import { resolveRange } from "@/lib/admin/range";
+import { daily, periodOf, split } from "@/lib/admin/period";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,13 @@ export const dynamic = "force-dynamic";
  * estimate everywhere it appears — there is no date of birth in this product,
  * so it is a graduation year plus twenty-two and nothing more.
  */
-export default async function AdminUserAnalytics() {
+export default async function AdminUserAnalytics({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const range = resolveRange({ ...sp, range: sp.range ?? "all" });
   const data = await getUserAnalytics();
 
   if ("missing" in data) {
@@ -31,41 +41,61 @@ export default async function AdminUserAnalytics() {
     );
   }
 
-  const { people, stages, domains, cities, commonGaps, withResume, sampleOnly, fromDesign } = data;
+  // Everything follows the date switch: the people who joined in the period
+  // (all of them for "All time"), against the same length of time before it.
+  const period = periodOf(range);
+  const joined = (p: (typeof data.people)[number]) => p.joined;
+  const { now: people, before: prev } = split(data.people, joined, period);
+  const { stages, domains, cities, commonGaps, withResume, sampleOnly, fromDesign } = summarise(people);
+  const p0 = summarise(prev);
+  const before = (n: number) => (period.all ? undefined : n);
+  const of = (n: number) => (people.length ? `${Math.round((n / people.length) * 100)}% of them` : undefined);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.02em]">User analytics</h1>
         <p className="mt-1 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Read from what people actually typed — their résumé first, their profile only where
-          the résumé is empty. A field nobody filled shows a dash rather than a guess. Picking
-          a template fills the draft with a sample résumé so there is something to write over —
-          those nine invented people are detected and dropped whole, so none of their names,
-          cities or phone numbers reach this screen. Where somebody designed their résumé on the
-          canvas and took the PDF away, the structured copy stopped being updated — so the name,
-          email and phone are read back off the design itself. Age is the one derived figure and is always
-          marked an estimate: it comes from the graduation year, because nothing here asks for a
-          date of birth.
+          Who signed up, read from their résumé (profile where it is empty). Age is an estimate from the graduation year.
         </p>
+        <div className="mt-4">
+          <RangePicker basePath="/admin/user-analytics" range={range} allTime />
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="People" value={num(people.length)} />
-        <Stat
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          label={period.all ? "People" : "Joined"}
+          dark
+          now={people.length}
+          before={before(prev.length)}
+          beforeWord={period.beforeWord}
+          series={daily(data.people, joined, period)}
+          hint={period.all ? "everyone with an account" : undefined}
+        />
+        <KpiCard
           label="Told us who they are"
-          value={num(withResume)}
-          hint={people.length ? `${Math.round((withResume / people.length) * 100)}% have a résumé with details` : undefined}
+          now={withResume}
+          before={before(p0.withResume)}
+          beforeWord={period.beforeWord}
+          series={daily(people.filter((x) => x.source === "resume"), joined, period)}
+          hint={of(withResume)}
         />
-        <Stat
+        <KpiCard
           label="Recovered from the canvas"
-          value={num(fromDesign)}
-          hint="their résumé exists only as a design — read off it"
+          now={fromDesign}
+          before={before(p0.fromDesign)}
+          beforeWord={period.beforeWord}
+          series={daily(people.filter((x) => x.source === "design"), joined, period)}
+          hint={of(fromDesign)}
         />
-        <Stat
+        <KpiCard
           label="Still on the sample"
-          value={num(sampleOnly)}
-          hint="picked a template, wrote nothing — nothing of theirs is shown"
+          now={sampleOnly}
+          before={before(p0.sampleOnly)}
+          beforeWord={period.beforeWord}
+          series={daily(people.filter((x) => x.source === "sample"), joined, period)}
+          hint={of(sampleOnly)}
         />
       </div>
 
@@ -102,9 +132,9 @@ export default async function AdminUserAnalytics() {
         </Panel>
       </div>
 
-      <Panel title="Everybody" note="Search by name, email, phone, city or role. Open a card to see that person's gaps.">
+      <Panel title="Everybody" note="Search, filter or sort. Open a card's gaps to see what their résumé is missing.">
         {people.length === 0 ? (
-          <Empty>No accounts yet.</Empty>
+          <Empty>Nobody joined in this period.</Empty>
         ) : (
           <PeopleCards people={people} />
         )}

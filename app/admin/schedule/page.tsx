@@ -44,11 +44,9 @@ export default async function AdminSchedule() {
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-[-0.03em]">Schedule</h1>
-      <p className="mt-3 max-w-[68ch] text-[0.9rem] leading-relaxed text-ink-50">
-        Articles already written and sitting in the database with a future publish time.
-        Each one goes live on its own — no cron job, no button. Until its time arrives it is
-        invisible everywhere: not on the blog, not in the sitemap, not to Google.
-      </p>
+      <p className="mt-3 max-w-[80ch] text-[0.9rem] leading-relaxed text-ink-50">
+          Written articles with a future publish time. Each goes live on its own and stays hidden everywhere until then.
+        </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <div className="rounded-[1.25rem] bg-paper p-6">

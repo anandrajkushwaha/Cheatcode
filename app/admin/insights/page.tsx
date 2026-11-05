@@ -38,10 +38,8 @@ export default async function AdminInsights() {
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Insights</h1>
-        <p className="mt-2 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Short news for the app's Insights tab — what is happening in hiring,
-          pay and work rules, and what it means for someone looking for a job.
-          Title, up to 70 words, and a source link if it came from a report.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Short news cards for the app’s Insights tab: hiring, pay and work rules, and what they mean for users.
         </p>
       </div>
 

@@ -18,9 +18,8 @@ export default async function AdminEmails() {
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Emails</h1>
-        <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Emails you send from Gmail with the tracked HTML. Each campaign is counted by its name in the links (for example{" "}
-          <code>resume_match_nov26</code>): opens, clicks, then what those visitors did on the site.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Tracked emails you send from Gmail: opens, clicks, and what those people then did on the site.
         </p>
       </div>
 

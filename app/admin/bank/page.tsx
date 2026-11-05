@@ -26,10 +26,8 @@ export default async function AdminBank() {
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Question bank</h1>
-        <p className="mt-2 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Public interview-question pages, one per role. Drafted by the model,
-          published by you — read one before you publish it, because these are
-          indexed and carry our name.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Public interview-question pages, one per role. The model drafts them; read one before you publish it.
         </p>
       </div>
 

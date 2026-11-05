@@ -63,12 +63,9 @@ export default async function AdminMatchPopup({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Match popup</h1>
-          <p className="mt-2 max-w-[72ch] text-[0.85rem] leading-relaxed text-ink-50">
-            The popup that appears right after a resume download, and after the free ATS check — “N companies want someone
-            with your skills”. Who saw it, what field they are in, what they clicked and what they paid. One row per person,
-            latest first; people who ran the ATS check without signing in are shown with the contact details read from their
-            resume.
-          </p>
+          <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          The match popup after a resume download or ATS check, and the ₹49 ATS card: who saw it, clicked and paid.
+        </p>
         </div>
         <div className="flex flex-col items-end gap-2">
         <div className="flex flex-wrap gap-1.5">

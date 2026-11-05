@@ -80,10 +80,8 @@ export default async function AdminPro({
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Pro interest</h1>
-        <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-          Every time a signed-in person reaches the upgrade screen. Repeat
-          visits inside thirty minutes count once, so this is people reaching
-          for the plan rather than page refreshes.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Signed-in people who reached the upgrade screen. Repeat visits within 30 minutes count once.
         </p>
         <div className="mt-4">
           <RangePicker basePath="/admin/pro" range={range} allTime />

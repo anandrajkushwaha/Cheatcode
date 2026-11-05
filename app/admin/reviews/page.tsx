@@ -26,10 +26,8 @@ export default async function AdminReviews() {
     <div className="space-y-8">
       <div>
         <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Reviews</h1>
-        <p className="mt-2 max-w-[68ch] text-[0.85rem] leading-relaxed text-ink-50">
-          What appears in the testimonial carousel on the Pro page, in this
-          order. Publish only what the person has agreed to — these are their
-          name and words on a page that sells something.
+        <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Testimonials in the Pro page carousel, in this order. Publish only what the person has agreed to.
         </p>
       </div>
 

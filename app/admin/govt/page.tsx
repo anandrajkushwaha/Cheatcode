@@ -67,11 +67,9 @@ export default async function AdminGovt({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">Government jobs</h1>
-          <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-            Everything on <code>/government-jobs</code> is posted from here, and a job is two
-            fields: the title as the board writes it, and the official link. Nothing is public
-            until you press Publish — add a batch, read it back, put it up together.
-          </p>
+          <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Post /government-jobs from here: the board’s title and the official link. Nothing goes live until you press Publish.
+        </p>
         </div>
         <Link
           href="/admin/govt/notice/new?kind=job"

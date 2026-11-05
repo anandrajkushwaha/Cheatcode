@@ -55,11 +55,9 @@ export default async function AdminSettings() {
   return (
     <>
       <h1 className="text-xl font-semibold tracking-[-0.03em] sm:text-2xl">Settings</h1>
-      <p className="mt-1 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-        Which model answers each part of the agent. Saving writes to the database, not to the
-        build, so it takes effect without a deploy — within about thirty seconds, which is how
-        long each running server caches this for.
-      </p>
+      <p className="mt-1 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Which AI model answers each part of the agent. Saving takes effect in about 30 seconds, no deploy needed.
+        </p>
 
       {none && (
         <p className="mt-4 rounded-xl border border-ink-15 px-4 py-3 text-[0.82rem] text-ink-50">

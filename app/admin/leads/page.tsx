@@ -62,11 +62,9 @@ export default async function AdminLeads({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.3rem] font-semibold tracking-[-0.03em]">ATS leads</h1>
-          <p className="mt-2 max-w-[70ch] text-[0.85rem] leading-relaxed text-ink-50">
-            Everyone who ran the free resume ATS checker, signed in or not — the
-            name, phone and email read from their resume. One row per person,
-            newest first.
-          </p>
+          <p className="mt-2 max-w-[80ch] text-[0.85rem] leading-relaxed text-ink-50">
+          Everyone who ran the free ATS checker, signed in or not, with the contact details from their resume.
+        </p>
         </div>
         <a
           href="/admin/leads/csv"
