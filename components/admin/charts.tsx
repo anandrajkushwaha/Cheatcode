@@ -69,7 +69,8 @@ export function KpiCard({
 }: {
   label: string;
   now: number;
-  before: number;
+  /** Leave out for "All time": no earlier period, so no change pill. */
+  before?: number;
   series: number[];
   money?: boolean;
   hint?: string;
@@ -77,7 +78,7 @@ export function KpiCard({
   /** How the comparison period reads: "yesterday", "the 7 days before". */
   beforeWord?: string;
 }) {
-  const c = change(now, before);
+  const c = before === undefined ? null : change(now, before);
   return (
     <div
       className={`flex min-w-0 flex-col justify-between rounded-[1.25rem] p-4 transition-shadow sm:p-5 hover:shadow-[0_12px_30px_-18px_rgba(0,0,0,0.25)] ${
@@ -93,6 +94,7 @@ export function KpiCard({
         <p className="text-[1.9rem] font-semibold leading-none tracking-[-0.04em] tabular-nums">
           {fmt(now, money)}
         </p>
+        {c && (
         <span
           className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.7rem] font-medium tabular-nums ${
             c.up === null
@@ -107,11 +109,12 @@ export function KpiCard({
           {c.up === true ? "↑ " : c.up === false ? "↓ " : ""}
           {c.text}
         </span>
+        )}
       </div>
       <p
         className={`mt-1.5 text-[0.72rem] ${dark ? "text-paper/50" : "text-ink-30"}`}
       >
-        {hint ?? `vs ${fmt(before, money)} ${beforeWord}`}
+        {hint ?? (before === undefined ? "\u00a0" : `vs ${fmt(before, money)} ${beforeWord}`)}
       </p>
       <Sparkline series={series} dark={dark} className="mt-3" />
     </div>

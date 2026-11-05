@@ -1,4 +1,6 @@
-import { Panel, Stat } from "@/components/admin/ui";
+import { Panel } from "@/components/admin/ui";
+import { KpiCard } from "@/components/admin/charts";
+import { daily, periodOf, split } from "@/lib/admin/period";
 import { DataTable } from "@/components/admin/DataTable";
 import { RangePicker } from "@/components/admin/RangePicker";
 import { resolveRange } from "@/lib/admin/range";
@@ -37,17 +39,23 @@ export default async function AdminLeads({
   }
 
   const { checks, truncated } = result;
-  // People whose latest check falls in the period (everyone for "All time").
-  const lo = range.id === "all" ? 0 : range.from ? new Date(range.from).getTime() : Date.now() - range.days * 86_400_000;
-  const hi = range.to ? new Date(range.to).getTime() : Infinity;
-  const leads = result.leads.filter((l) => {
-    const t = new Date(l.lastAt).getTime();
-    return t >= lo && t < hi;
-  });
-  const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const last7 = leads.filter((l) => l.firstAt >= week).length;
-  const fromMeta = leads.filter((l) => /facebook|instagram|meta/i.test(l.source ?? "")).length;
-  const withPhone = leads.filter((l) => l.phone).length;
+  // Cards and table follow the date switch. The table lists people whose
+  // latest check falls in the period; the cards count new leads (first check
+  // in the period) against the same length of time before it.
+  const period = periodOf(range);
+  const last = (l: (typeof result.leads)[number]) => l.lastAt;
+  const first = (l: (typeof result.leads)[number]) => l.firstAt;
+  const leads = split(result.leads, last, period).now;
+  const { now: fresh, before: prevFresh } = split(result.leads, first, period);
+  const before = (n: number) => (period.all ? undefined : n);
+  const isMeta = (l: (typeof result.leads)[number]) => /facebook|instagram|meta/i.test(l.source ?? "");
+  const hasPhone = (l: (typeof result.leads)[number]) => Boolean(l.phone);
+  const scored = (list: typeof fresh) => list.filter((l) => typeof l.lastScore === "number");
+  const avg = (list: typeof fresh) => {
+    const s = scored(list);
+    return s.length ? Math.round(s.reduce((a, l) => a + (l.lastScore ?? 0), 0) / s.length) : 0;
+  };
+  const pctOf = (n: number) => (fresh.length ? `${Math.round((n / fresh.length) * 100)}% of new leads` : undefined);
 
   return (
     <div className="space-y-8">
@@ -70,11 +78,46 @@ export default async function AdminLeads({
 
       <RangePicker basePath="/admin/leads" range={range} allTime />
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="People" value={leads.length} hint={`${checks} checks in all`} />
-        <Stat label="New, 7d" value={last7} hint="first check this week" />
-        <Stat label="With phone" value={withPhone} hint="Indian mobile found" />
-        <Stat label="From Meta" value={fromMeta} hint="Instagram / Facebook" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <KpiCard
+          label={period.all ? "Leads" : "New leads"}
+          dark
+          now={fresh.length}
+          before={before(prevFresh.length)}
+          beforeWord={period.beforeWord}
+          series={daily(result.leads, first, period)}
+          hint={period.all ? `${checks} checks in all` : undefined}
+        />
+        <KpiCard
+          label="Active in period"
+          now={leads.length}
+          series={daily(result.leads, last, period)}
+          hint="latest check in this period"
+        />
+        <KpiCard
+          label="With phone"
+          now={fresh.filter(hasPhone).length}
+          before={before(prevFresh.filter(hasPhone).length)}
+          beforeWord={period.beforeWord}
+          series={daily(fresh.filter(hasPhone), first, period)}
+          hint={pctOf(fresh.filter(hasPhone).length)}
+        />
+        <KpiCard
+          label="From Meta ads"
+          now={fresh.filter(isMeta).length}
+          before={before(prevFresh.filter(isMeta).length)}
+          beforeWord={period.beforeWord}
+          series={daily(fresh.filter(isMeta), first, period)}
+          hint={pctOf(fresh.filter(isMeta).length)}
+        />
+        <KpiCard
+          label="Average score"
+          now={avg(fresh)}
+          before={before(avg(prevFresh))}
+          beforeWord={period.beforeWord}
+          series={daily(scored(fresh), first, period)}
+          hint={period.all ? "latest score per person" : undefined}
+        />
       </div>
 
       <Panel

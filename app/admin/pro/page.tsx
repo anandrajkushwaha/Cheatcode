@@ -2,6 +2,8 @@ import { Panel, Stat } from "@/components/admin/ui";
 import { DataTable } from "@/components/admin/DataTable";
 import { RangePicker } from "@/components/admin/RangePicker";
 import { resolveRange } from "@/lib/admin/range";
+import { KpiCard } from "@/components/admin/charts";
+import { daily, periodOf, split } from "@/lib/admin/period";
 import { getProIntent } from "@/lib/admin/pro-intent";
 
 export const dynamic = "force-dynamic";
@@ -63,13 +65,16 @@ export default async function AdminPro({
   }
 
   const d = result.data;
-  // People whose latest reach for Pro falls in the period.
-  const lo = range.id === "all" ? 0 : range.from ? new Date(range.from).getTime() : Date.now() - range.days * 86_400_000;
-  const hi = range.to ? new Date(range.to).getTime() : Infinity;
-  const rows = d.rows.filter((p) => {
-    const t = new Date(p.lastAt).getTime();
-    return t >= lo && t < hi;
-  });
+  // Cards and table follow the date switch: people whose latest reach for
+  // Pro falls in the period, and first-timers against the period before.
+  const period = periodOf(range);
+  const last = (p: (typeof d.rows)[number]) => p.lastAt;
+  const first = (p: (typeof d.rows)[number]) => p.firstAt;
+  const { now: rows, before: prevRows } = split(d.rows, last, period);
+  const { now: fresh, before: prevFresh } = split(d.rows, first, period);
+  const before = (n: number) => (period.all ? undefined : n);
+  const isPro = (p: (typeof d.rows)[number]) => p.plan === "pro";
+  const repeat = (p: (typeof d.rows)[number]) => p.clicks > 1;
 
   return (
     <div className="space-y-8">
@@ -85,11 +90,40 @@ export default async function AdminPro({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="People" value={d.people} hint="distinct accounts" />
-        <Stat label="Clicks" value={d.clicks} hint="all recorded" />
-        <Stat label="People, 7d" value={d.people7} hint="last week" />
-        <Stat label="Clicks, 7d" value={d.clicks7} hint="last week" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          label="Reached for Pro"
+          dark
+          now={rows.length}
+          before={before(prevRows.length)}
+          beforeWord={period.beforeWord}
+          series={daily(d.rows, last, period)}
+          hint={period.all ? `${d.clicks} visits to the upgrade screen` : undefined}
+        />
+        <KpiCard
+          label="First time"
+          now={fresh.length}
+          before={before(prevFresh.length)}
+          beforeWord={period.beforeWord}
+          series={daily(d.rows, first, period)}
+          hint={period.all ? "people, ever" : undefined}
+        />
+        <KpiCard
+          label="Came back more than once"
+          now={rows.filter(repeat).length}
+          before={before(prevRows.filter(repeat).length)}
+          beforeWord={period.beforeWord}
+          series={daily(rows.filter(repeat), last, period)}
+          hint={rows.length ? `${Math.round((rows.filter(repeat).length / rows.length) * 100)}% of them` : undefined}
+        />
+        <KpiCard
+          label="Now on Pro"
+          now={rows.filter(isPro).length}
+          before={before(prevRows.filter(isPro).length)}
+          beforeWord={period.beforeWord}
+          series={daily(rows.filter(isPro), last, period)}
+          hint={rows.length ? `${Math.round((rows.filter(isPro).length / rows.length) * 100)}% of them` : undefined}
+        />
       </div>
 
       <Panel title="Before this was recorded">
