@@ -37,6 +37,9 @@ export async function getLive(): Promise<{ ok: true; count: number; sessions: st
       latest.set(r.session_id, { at: r.created_at, hidden: r.params?.hidden === true });
     }
   }
-  const sessions = [...latest.entries()].filter(([, s]) => !s.hidden).map(([id]) => id);
+  // A page view alone is not a person: a real tab sends a heartbeat every
+  // minute, crawlers open one page and send nothing.
+  const sentSomething = new Set(((e.data ?? []) as Row[]).map((r) => r.session_id).filter(Boolean) as string[]);
+  const sessions = [...latest.entries()].filter(([id, s]) => !s.hidden && sentSomething.has(id)).map(([id]) => id);
   return { ok: true, count: sessions.length, sessions };
 }

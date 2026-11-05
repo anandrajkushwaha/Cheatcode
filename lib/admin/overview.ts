@@ -104,7 +104,7 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
   const lo = iso(prevFrom);
   const hi = iso(to);
 
-  const [views, ats, profiles, downloads, unlocks, charges, recentLeads, pending, atsErrors] = await Promise.all([
+  const [views, ats, profiles, downloads, unlocks, charges, recentLeads, pending, atsErrors, engaged] = await Promise.all([
     fetchAll<{ visitor_id: string | null; session_id: string | null; source: string | null; path: string; city: string | null; created_at: string }>(
       (a, b) =>
         site
@@ -177,6 +177,20 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
       .eq("label", "resume-ats-checker")
       .eq("params->>outcome", "error")
       .gte("created_at", iso(Date.now() - DAY)),
+    // Every visit that sent any event at all (heartbeat, scroll, time on page,
+    // a tool, a click). Crawlers load one page and send nothing.
+    fetchAll<{ session_id: string | null }>(
+      (a, b) =>
+        site
+          .from("page_events")
+          .select("session_id")
+          .eq("is_bot", false)
+          .gte("created_at", lo)
+          .lt("created_at", hi)
+          .order("id", { ascending: true })
+          .range(a, b),
+      200_000,
+    ),
   ]);
   if (views.error) return { ok: false, error: views.error };
 
@@ -248,7 +262,16 @@ export async function getOverview(range: Range): Promise<{ ok: true; data: Overv
     return { now, before, series, previous };
   }
 
-  const people = views.rows.filter((v) => !isDataCentre(v.city));
+  // A visit counts when it looks like a person: it sent at least one event, or
+  // opened more than one page. Cloud crawlers (Beijing, Singapore… — far
+  // outside the data-centre city list) open one page and send nothing, and
+  // on some days they were nine visits in ten.
+  const active = new Set(engaged.rows.map((e) => e.session_id).filter(Boolean) as string[]);
+  const viewsPerSession = new Map<string, number>();
+  for (const v of views.rows) if (v.session_id) viewsPerSession.set(v.session_id, (viewsPerSession.get(v.session_id) ?? 0) + 1);
+  const human = (v: { session_id: string | null; city: string | null }) =>
+    !isDataCentre(v.city) && !!v.session_id && (active.has(v.session_id) || (viewsPerSession.get(v.session_id) ?? 0) > 1);
+  const people = views.rows.filter(human);
   const atsRows = ats.rows.filter((r) => typeof r.value === "number" || r.params?.outcome === "locked");
   const chargeAmount = (c: { payload: Record<string, unknown> | null }) => {
     const p = c.payload as { payload?: { payment?: { entity?: { amount?: number } } } } | null;

@@ -270,7 +270,10 @@ export function buildJourneys(
   let crawlers = 0;
   for (const [session, s] of bySession) {
     if (!matches(filter, s.first)) continue;
-    if (isDataCentre(s.first.city)) {
+    // Hidden and counted: data-centre cities, and any visit that opened one
+    // page and sent nothing at all (no click, scroll or tool) — how cloud
+    // crawlers from Beijing, Singapore and the like look.
+    if (isDataCentre(s.first.city) || (s.views.length === 1 && s.events.length === 0)) {
       crawlers += 1;
       continue;
     }

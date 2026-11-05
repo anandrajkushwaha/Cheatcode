@@ -50,6 +50,8 @@ const events = [
   ev("a", "scroll_depth", "50", "03"),
   ev("b", "signup_step", "identify", "05", { params: { method: "phone" } }),
   ev("d", "tool_compute", "resume-ats-checker", "08", { value: 55 }),
+  // c reads the article: a real reader always sends something
+  ev("c", "scroll_depth", "/blog/x", "06", { value: 50 }),
 ];
 
 test("funnel counts each step on its own, for the chosen source", () => {
@@ -88,6 +90,14 @@ test("Meta's ad-review data centres are hidden and counted", () => {
   const r = buildJourneys([...views, view("z", "/signup", "09", { city: "Prineville", os: "Linux" })], events, "meta");
   assert.equal(r.total, 3);
   assert.equal(r.crawlers, 1);
+});
+
+test("a one-page visit that sends nothing is a crawler, hidden and counted", () => {
+  const bot = view("bj", "/blog/x", "11", { source: "direct", medium: null, city: "Beijing", os: "Windows", browser: "Chrome" });
+  const r = buildJourneys([...views, bot], events, "all");
+  assert.equal(r.total, 4);
+  assert.equal(r.crawlers, 1);
+  assert.ok(!r.journeys.some((j) => j.session === "bj"));
 });
 
 test("the template-first page fills the same funnel", () => {

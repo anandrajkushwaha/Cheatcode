@@ -165,7 +165,7 @@ export default async function AdminJourneys({
             title="Visits"
             note={`${result.data.total} visit${result.data.total === 1 ? "" : "s"}${
               result.data.total > result.data.journeys.length ? `, latest ${result.data.journeys.length} shown` : ""
-            }${result.data.crawlers ? `. ${result.data.crawlers} more from Meta / cloud data centres (ad review bots) are hidden` : ""}${
+            }${result.data.crawlers ? `. ${result.data.crawlers} more from bots are hidden (cloud data centres, Meta ad review, and one-page visits that sent nothing)` : ""}${
               result.data.truncated ? " (busiest period trimmed — pick a shorter one)" : ""
             }. Filter any column from its header; tap a row to see every step.`}
           >
