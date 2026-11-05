@@ -43,13 +43,25 @@ const ICONS: Record<string, string> = {
   "/admin/team": "M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8zM20 8v6M23 11h-6",
 };
 
-function Icon({ href, on }: { href: string; on: boolean }) {
+/** Each section's own colour: the dot by its name and the active item's accent. */
+const GROUP: Record<string, { dot: string; text: string; icon: string }> = {
+  Overview: { dot: "bg-ink", text: "text-ink", icon: "text-[#9be15d]" },
+  Growth: { dot: "bg-[#3b82f6]", text: "text-[#1d4ed8]", icon: "text-[#93c5fd]" },
+  Users: { dot: "bg-[#8b5cf6]", text: "text-[#6d28d9]", icon: "text-[#c4b5fd]" },
+  Revenue: { dot: "bg-[#22c55e]", text: "text-[#15803d]", icon: "text-[#86efac]" },
+  Product: { dot: "bg-[#f59e0b]", text: "text-[#b45309]", icon: "text-[#fcd34d]" },
+  Content: { dot: "bg-[#ec4899]", text: "text-[#be185d]", icon: "text-[#f9a8d4]" },
+  Admin: { dot: "bg-ink-30", text: "text-ink-50", icon: "text-ink-15" },
+};
+const NO_GROUP = { dot: "bg-ink-30", text: "text-ink-50", icon: "text-[#9be15d]" };
+
+function Icon({ href, on, tone }: { href: string; on: boolean; tone: string }) {
   const d = ICONS[href];
   if (!d) return <span className="size-4" />;
   return (
     <svg
       viewBox="0 0 24 24"
-      className={`size-[1.05rem] shrink-0 transition-colors ${on ? "text-[#9be15d]" : "text-ink-30 group-hover:text-ink"}`}
+      className={`size-[1.05rem] shrink-0 transition-colors ${on ? tone : "text-ink-30 group-hover:text-ink"}`}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.7"
@@ -91,7 +103,12 @@ export function AdminNav({ items, variant }: { items: NavItem[]; variant: "sideb
       {items.map((n, i) => (
         <div key={n.href}>
           {n.group && n.group !== items[i - 1]?.group && (
-            <p className={`px-3 pb-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-ink-30 ${i === 0 ? "pt-1" : "pt-5"}`}>
+            <p
+              className={`flex items-center gap-2 px-3 pb-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] ${
+                (GROUP[n.group] ?? NO_GROUP).text
+              } ${i === 0 ? "pt-1" : "mt-3 border-t border-ink-08 pt-4"}`}
+            >
+              <span aria-hidden="true" className={`size-1.5 rounded-full ${(GROUP[n.group] ?? NO_GROUP).dot}`} />
               {n.group}
             </p>
           )}
@@ -104,7 +121,7 @@ export function AdminNav({ items, variant }: { items: NavItem[]; variant: "sideb
                 : "text-ink-70 hover:bg-ink-04 hover:text-ink"
             }`}
           >
-            <Icon href={n.href} on={current(n.href)} />
+            <Icon href={n.href} on={current(n.href)} tone={(GROUP[n.group ?? ""] ?? NO_GROUP).icon} />
             {n.label}
           </Link>
         </div>

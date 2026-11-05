@@ -99,7 +99,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const nav = NAV.filter((n) => canOpenPage(role, sections, n.href));
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-[#f0f0ec]">
       <ExcludeThisDevice who={role === "owner" ? "owner" : `team ${session.uid}`} />
 
       <div className="flex">

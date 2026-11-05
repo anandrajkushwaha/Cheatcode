@@ -152,7 +152,7 @@ export function InsightsManager({
   return (
     <div className="space-y-8">
       {/* ------------------------------------------------------------ editor */}
-      <section className="rounded-2xl border border-ink-08 bg-paper">
+      <section className="rounded-[1.25rem] bg-paper">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -351,7 +351,7 @@ export function InsightsManager({
 
       {/* ----------------------------------------------------------- traffic */}
       {traffic.ok && (
-        <section className="rounded-2xl border border-ink-08 px-5 py-4">
+        <section className="rounded-[1.25rem] bg-paper px-5 py-4">
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             How insights are doing
           </h2>
@@ -406,7 +406,7 @@ export function InsightsManager({
         {items.length === 0 ? (
           <p className="mt-3 text-[0.85rem] text-ink-50">Nothing written yet.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-ink-08 overflow-hidden rounded-2xl border border-ink-08 bg-paper">
+          <ul className="mt-3 divide-y divide-ink-08 overflow-hidden rounded-[1.25rem] bg-paper">
             {ordered.map((i) => (
               <li key={i.id} className="flex flex-wrap items-start gap-4 px-5 py-4">
                 {i.imageUrl && (

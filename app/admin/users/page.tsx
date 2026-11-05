@@ -82,7 +82,7 @@ export default async function AdminPeople({
       )}
 
       {sources.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-ink-08 p-6">
+        <div className="mt-6 rounded-[1.25rem] bg-paper p-6">
           <p className="text-[0.7rem] uppercase tracking-[0.12em] text-ink-30">Where accounts came from</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {sources.map(([s, n]) => (
@@ -98,7 +98,7 @@ export default async function AdminPeople({
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-ink-08 bg-paper p-6">
+      <div className="mt-6 rounded-[1.25rem] bg-paper p-6">
         <DataTable
           name="people"
           empty="Nobody has signed in yet."

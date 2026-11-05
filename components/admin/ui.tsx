@@ -1,3 +1,4 @@
+import { smoothPath } from "@/lib/admin/smooth";
 import Link from "next/link";
 
 /* ------------------------------------------------------------------ format */
@@ -41,9 +42,9 @@ export function Panel({
   // long article title inside would push the whole page sideways rather than
   // truncating.
   return (
-    <section className={`flex min-w-0 flex-col rounded-2xl border border-ink-08 p-6 ${className}`}>
+    <section className={`flex min-w-0 flex-col rounded-[1.25rem] bg-paper p-5 sm:p-6 ${className}`}>
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
+        <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-ink">
           {title}
         </h2>
         {action && (
@@ -55,7 +56,7 @@ export function Panel({
           </Link>
         )}
       </div>
-      {note && <p className="mt-2 text-[0.78rem] leading-relaxed text-ink-30">{note}</p>}
+      {note && <p className="mt-1.5 text-[0.78rem] leading-relaxed text-ink-50">{note}</p>}
       <div className="mt-5 flex-1">{children}</div>
     </section>
   );
@@ -70,19 +71,20 @@ export function Empty({ children }: { children: React.ReactNode }) {
 function Delta({ now, before }: { now: number; before: number }) {
   // No baseline means no claim. Showing "+100%" against zero is noise.
   if (!before) {
-    return <span className="text-[0.75rem] text-ink-30">no previous period</span>;
+    return <span className="text-[0.74rem] text-ink-30">no previous period</span>;
   }
   const pct = Math.round(((now - before) / before) * 100);
   const flat = Math.abs(pct) < 1;
   return (
-    <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-ink-50">
-      <span aria-hidden="true" className={flat ? "text-ink-30" : "text-ink"}>
-        {flat ? "→" : pct > 0 ? "↑" : "↓"}
+    <span className="inline-flex items-center gap-1.5 text-[0.74rem] text-ink-30">
+      <span
+        className={`rounded-full px-2 py-0.5 font-medium tabular-nums ${
+          flat ? "bg-ink-04 text-ink-50" : pct > 0 ? "bg-[#e7f6ec] text-[#14532d]" : "bg-[#fdecec] text-[#9b1c1c]"
+        }`}
+      >
+        {flat ? "flat" : `${pct > 0 ? "↑" : "↓"} ${Math.abs(pct)}%`}
       </span>
-      <span className="tabular-nums">
-        {flat ? "flat" : `${Math.abs(pct)}%`}
-      </span>
-      <span className="text-ink-30">vs previous</span>
+      vs previous
     </span>
   );
 }
@@ -101,8 +103,8 @@ export function Stat({
   before?: number;
 }) {
   return (
-    <div className="rounded-2xl border border-ink-08 p-5">
-      <p className="text-[0.7rem] uppercase tracking-[0.14em] text-ink-30">{label}</p>
+    <div className="rounded-[1.25rem] bg-paper p-5 transition-shadow hover:shadow-[0_12px_30px_-18px_rgba(0,0,0,0.25)]">
+      <p className="text-[0.8rem] text-ink-50">{label}</p>
       <p className="mt-3 text-[1.85rem] font-semibold leading-none tracking-[-0.04em] tabular-nums">
         {typeof value === "number" ? num(value) : value}
       </p>
@@ -132,34 +134,28 @@ export function BarList({
   const max = Math.max(1, ...rows.map((r) => r.value));
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2.5">
       {rows.map((r) => (
-        <li key={r.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-          <span className="min-w-0">
-            {/* The bar sits behind the label rather than beside it, so a long
-                page path never squeezes the bar down to nothing. */}
-            <span className="relative block overflow-hidden rounded-md px-2.5 py-1.5">
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 rounded-md bg-ink-08"
-                style={{ width: `${(r.value / max) * 100}%` }}
-              />
-              <span className="relative block truncate text-[0.82rem]">
-                {r.href ? (
-                  <Link href={r.href} className="underline-offset-4 hover:underline">
-                    {r.label}
-                  </Link>
-                ) : (
-                  r.label
-                )}
-                {r.sub && <span className="ml-2 text-ink-30">{r.sub}</span>}
-              </span>
+        <li key={r.label}>
+          <div className="flex items-baseline justify-between gap-3 text-[0.82rem]">
+            <span className="min-w-0 truncate" title={r.label}>
+              {r.href ? (
+                <Link href={r.href} className="underline-offset-4 hover:underline">
+                  {r.label}
+                </Link>
+              ) : (
+                r.label
+              )}
+              {r.sub && <span className="ml-2 text-ink-30">{r.sub}</span>}
             </span>
-          </span>
-          <span className="shrink-0 text-right text-[0.8rem] tabular-nums text-ink-50">
-            {num(r.value)}
-            {unit && <span className="ml-1 text-ink-30">{unit}</span>}
-          </span>
+            <span className="shrink-0 tabular-nums text-ink-50">
+              {num(r.value)}
+              {unit && <span className="ml-1 text-ink-30">{unit}</span>}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-04">
+            <div className="h-full rounded-full bg-[#9be15d] transition-[width] duration-500" style={{ width: `${(r.value / max) * 100}%` }} />
+          </div>
         </li>
       ))}
     </ul>
@@ -199,8 +195,9 @@ export function TrendChart({ points }: { points: Point[] }) {
   const x = (i: number) => PAD.left + (i / (points.length - 1)) * iw;
   const y = (v: number) => PAD.top + ih - (v / top) * ih;
 
+  // Soft curves, the same as the Dashboard's charts.
   const line = (key: "views" | "users") =>
-    points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+    smoothPath(points.map((p, i) => [x(i), y(p[key])] as [number, number]), PAD.top, PAD.top + ih);
 
   const area =
     `${line("views")} L${x(points.length - 1).toFixed(1)},${PAD.top + ih} ` +
@@ -239,19 +236,26 @@ export function TrendChart({ points }: { points: Point[] }) {
           </g>
         ))}
 
-        <path d={area} fill="var(--color-ink-04)" />
-        <path d={line("views")} fill="none" stroke="var(--color-ink)" strokeWidth="1.75" />
+        <defs>
+          <linearGradient id="trend-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#9be15d" stopOpacity="0.45" />
+            <stop offset="1" stopColor="#9be15d" stopOpacity="0.03" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#trend-fill)" />
+        <path d={line("views")} fill="none" stroke="#3f8f1f" strokeWidth="2" strokeLinecap="round" />
         <path
           d={line("users")}
           fill="none"
-          stroke="var(--color-ink-30)"
+          stroke="#15161a"
+          strokeOpacity="0.45"
           strokeWidth="1.5"
-          strokeDasharray="3 3"
+          strokeDasharray="4 4"
         />
 
         {points.map((p, i) => (
           <g key={p.day}>
-            <circle cx={x(i)} cy={y(p.views)} r="2.5" fill="var(--color-ink)" />
+            <circle cx={x(i)} cy={y(p.views)} r="3" fill="#3f8f1f" stroke="#fff" strokeWidth="1.5" />
             {/* One string, not several children: React cannot hydrate an SVG
                 <title> that the server rendered as multiple text nodes. */}
             <title>{`${p.day}: ${p.views} views · ${p.users} people`}</title>
@@ -271,7 +275,7 @@ export function TrendChart({ points }: { points: Point[] }) {
 
       <div className="mt-3 flex gap-5 text-[0.75rem] text-ink-50">
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="h-0.5 w-5 rounded bg-ink" />
+          <span aria-hidden="true" className="h-0.5 w-5 rounded bg-[#3f8f1f]" />
           Page views
         </span>
         <span className="inline-flex items-center gap-2">
@@ -389,7 +393,7 @@ export function SplitBar({
         {parts.map((p, i) => (
           <div
             key={p.label}
-            className={i === 0 ? "bg-ink" : i === 1 ? "bg-ink-30" : "bg-ink-15"}
+            className={i === 0 ? "bg-[#3f8f1f]" : i === 1 ? "bg-[#9be15d]" : "bg-ink-15"}
             style={{ width: `${(p.value / total) * 100}%` }}
           />
         ))}
@@ -400,7 +404,7 @@ export function SplitBar({
             <span
               aria-hidden="true"
               className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                i === 0 ? "bg-ink" : i === 1 ? "bg-ink-30" : "bg-ink-15"
+                i === 0 ? "bg-[#3f8f1f]" : i === 1 ? "bg-[#9be15d]" : "bg-ink-15"
               }`}
             />
             <span className="flex-1">{p.label}</span>

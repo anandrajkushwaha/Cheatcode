@@ -251,7 +251,7 @@ export function PostEditor({
 
         {/* -------------------------------------------------------- settings */}
         <aside className="space-y-6">
-          <section className="rounded-2xl border border-ink-08 p-5">
+          <section className="rounded-[1.25rem] bg-paper p-5">
             <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
               Publishing
             </h2>
@@ -291,7 +291,7 @@ export function PostEditor({
             </p>
           </section>
 
-          <section className="rounded-2xl border border-ink-08 p-5">
+          <section className="rounded-[1.25rem] bg-paper p-5">
             <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
               Topic
             </h2>
@@ -307,7 +307,7 @@ export function PostEditor({
             </select>
           </section>
 
-          <section className="rounded-2xl border border-ink-08 p-5">
+          <section className="rounded-[1.25rem] bg-paper p-5">
             <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
               Cover image
             </h2>
@@ -322,7 +322,7 @@ export function PostEditor({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-ink-08 p-5">
+          <section className="rounded-[1.25rem] bg-paper p-5">
             <button
               type="button"
               onClick={() => setShowSeo((v) => !v)}

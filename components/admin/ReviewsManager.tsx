@@ -116,7 +116,7 @@ export function ReviewsManager({ reviews }: { reviews: Review[] }) {
     <div className="space-y-10">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_392px]">
         {/* ------------------------------------------------------------ form */}
-        <section className="rounded-2xl border border-ink-08 p-6">
+        <section className="rounded-[1.25rem] bg-paper p-6">
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             {draft.id ? "Edit review" : "New review"}
           </h2>
@@ -224,7 +224,7 @@ export function ReviewsManager({ reviews }: { reviews: Review[] }) {
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             How it will look
           </h2>
-          <div className="mt-5 rounded-2xl border border-ink-08 bg-ink-04 p-5">
+          <div className="mt-5 rounded-[1.25rem] bg-paper bg-ink-04 p-5">
             <ReviewCard review={preview} />
           </div>
           <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-30">
@@ -254,7 +254,7 @@ export function ReviewsManager({ reviews }: { reviews: Review[] }) {
             {reviews.map((r, i) => (
               <li
                 key={r.id}
-                className="flex flex-wrap items-start gap-4 rounded-2xl border border-ink-08 p-4"
+                className="flex flex-wrap items-start gap-4 rounded-[1.25rem] bg-paper p-4"
               >
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-ink-04 text-[0.72rem] font-medium tabular-nums text-ink-50">
                   {i + 1}

@@ -219,7 +219,7 @@ export function FlagsForm({ initial, features, configured, seen }: Props) {
         Which model answers what
       </h2>
 
-      <div className="rounded-2xl border border-ink-08">
+      <div className="rounded-[1.25rem] bg-paper">
         <ul className="divide-y divide-ink-08">
           {features.map(({ key, label }) => {
             const row = flags.agent[key];
@@ -350,7 +350,7 @@ export function FlagsForm({ initial, features, configured, seen }: Props) {
             the number they were costed with, so history stays reconcilable against an invoice.
           </p>
 
-          <div className="overflow-x-auto rounded-2xl border border-ink-08">
+          <div className="overflow-x-auto rounded-[1.25rem] bg-paper">
             <table className="w-full min-w-[38rem] table-fixed border-collapse text-[0.8rem]">
               <thead>
                 <tr className="border-b border-ink-08 text-left text-[0.7rem] uppercase tracking-[0.08em] text-ink-30">

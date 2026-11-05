@@ -112,7 +112,7 @@ export function CostEstimate({ chosen, voiceOn }: { chosen: Chosen; voiceOn: boo
       {/* -------------------------------------------------- the three numbers */}
       <div className="grid gap-3 sm:grid-cols-3">
         {rows.map((r) => (
-          <div key={r.profile.key} className="rounded-2xl border border-ink-08 p-4">
+          <div key={r.profile.key} className="rounded-[1.25rem] bg-paper p-4">
             <div className="text-[0.82rem] font-medium">{r.profile.label}</div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-[1.6rem] font-semibold tracking-[-0.03em] tabular-nums">
@@ -132,7 +132,7 @@ export function CostEstimate({ chosen, voiceOn }: { chosen: Chosen; voiceOn: boo
 
       {/* ------------------------------------------------- where the money goes */}
       {priced.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-ink-08 p-4 sm:p-5">
+        <div className="mt-4 rounded-[1.25rem] bg-paper p-4 sm:p-5">
           <div className="text-[0.82rem] font-medium">Where a call&apos;s cost goes</div>
           <p className="mt-1 text-[0.74rem] text-ink-30">
             One scale across all three, so the bars are comparable with each other rather than

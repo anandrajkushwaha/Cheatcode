@@ -99,7 +99,7 @@ export function DashboardView({
 }) {
   const result = { data };
   return (
-    <div className="space-y-4 rounded-[1.75rem] bg-[#f0f0ec] p-3 sm:p-4">
+    <div className="space-y-4 ">
       {/* -------------------------------------------------------- KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="col-span-2 flex lg:col-span-1 [&>*]:flex-1">

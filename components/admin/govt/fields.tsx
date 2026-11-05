@@ -118,7 +118,7 @@ export function Group({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-ink-08 p-5 sm:p-6">
+    <section className="rounded-[1.25rem] bg-paper p-5 sm:p-6">
       <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">{title}</h2>
       {note && <p className="mt-2 max-w-[70ch] text-[0.8rem] leading-relaxed text-ink-50">{note}</p>}
       <div className="mt-5 grid gap-5 sm:grid-cols-2">{children}</div>

@@ -101,7 +101,7 @@ function Item({ item }: { item: QueueItem }) {
   const subject = `Your resume review — ${item.targetRole ?? "Cheatcode"}`;
 
   return (
-    <li className="rounded-2xl border border-ink-08 p-5">
+    <li className="rounded-[1.25rem] bg-paper p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[0.92rem] font-semibold">

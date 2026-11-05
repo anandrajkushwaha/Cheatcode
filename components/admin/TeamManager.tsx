@@ -136,7 +136,7 @@ export function TeamManager({
       )}
 
       {/* ------------------------------------------------------- new person */}
-      <section className="rounded-2xl border border-ink-08 p-6">
+      <section className="rounded-[1.25rem] bg-paper p-6">
         <button
           type="button"
           onClick={() => {
@@ -340,7 +340,7 @@ function Member({
     .map((s) => s.label);
 
   return (
-    <li className="rounded-2xl border border-ink-08 p-4">
+    <li className="rounded-[1.25rem] bg-paper p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-[0.9rem] font-semibold">

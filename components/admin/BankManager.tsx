@@ -53,7 +53,7 @@ export function BankManager({ banks }: { banks: Row[] }) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-ink-08 p-6">
+      <section className="rounded-[1.25rem] bg-paper p-6">
         <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
           Draft a new role page
         </h2>
@@ -111,7 +111,7 @@ export function BankManager({ banks }: { banks: Row[] }) {
             {banks.map((b) => (
               <li
                 key={b.id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-ink-08 p-4"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-[1.25rem] bg-paper p-4"
               >
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-[0.88rem] font-semibold">

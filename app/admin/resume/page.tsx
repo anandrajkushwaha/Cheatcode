@@ -341,7 +341,7 @@ export default async function AdminResume({
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-ink-08 p-6">
+      <div className="mt-4 rounded-[1.25rem] bg-paper p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-ink-30">
             Who built what

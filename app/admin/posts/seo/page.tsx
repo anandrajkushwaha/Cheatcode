@@ -69,7 +69,7 @@ export default async function SeoAudit({
           ["Medium", audit.totals.medium],
           ["No issues", clean],
         ].map(([label, n]) => (
-          <div key={label} className="rounded-2xl border border-ink-08 bg-paper p-5">
+          <div key={label} className="rounded-[1.25rem] bg-paper p-5">
             <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">{label}</p>
             <p className="mt-2 text-[1.8rem] font-semibold leading-none tracking-[-0.04em]">{n}</p>
           </div>
@@ -86,7 +86,7 @@ export default async function SeoAudit({
             and neither ranks well. Keep the stronger one, fold the other&apos;s best parts into it,
             and give the weaker one a different keyword.
           </p>
-          <ul className="mt-4 divide-y divide-ink-08 rounded-2xl border border-ink-08 bg-paper">
+          <ul className="mt-4 divide-y divide-ink-08 rounded-[1.25rem] bg-paper">
             {audit.cannibalised.map((g) => (
               <li key={g.keyword} className="px-5 py-3 text-[0.86rem]">
                 <span className="font-medium">{g.keyword}</span>
@@ -124,7 +124,7 @@ export default async function SeoAudit({
         ) : (
           <ul className="mt-4 space-y-3">
             {list.map((p) => (
-              <li key={p.slug} className="rounded-2xl border border-ink-08 bg-paper p-5">
+              <li key={p.slug} className="rounded-[1.25rem] bg-paper p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div className="min-w-0">
                     <Link

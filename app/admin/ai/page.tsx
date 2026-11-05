@@ -252,7 +252,7 @@ export default async function AdminDashboard({
 
 function Setup({ missing, title }: { missing: string; title: string }) {
   return (
-    <div className="rounded-2xl border border-ink-08 p-6 sm:p-8">
+    <div className="rounded-[1.25rem] bg-paper p-6 sm:p-8">
       <h1 className="text-lg font-semibold sm:text-xl">{title}</h1>
       {missing === "SUPABASE_SECRET_KEY" ? (
         <p className="mt-3 max-w-[62ch] text-[0.9rem] leading-relaxed text-ink-50">

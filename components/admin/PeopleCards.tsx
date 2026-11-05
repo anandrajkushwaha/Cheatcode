@@ -88,7 +88,7 @@ export function PeopleCards({ people }: { people: PersonCard[] }) {
         {shown.map((p) => {
           const isOpen = open === p.userId;
           return (
-            <div key={p.userId} className="rounded-2xl border border-ink-08 bg-paper p-4">
+            <div key={p.userId} className="rounded-[1.25rem] bg-paper p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-[0.98rem] font-medium">

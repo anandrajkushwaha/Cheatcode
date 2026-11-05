@@ -121,7 +121,7 @@ export default async function AdminMatchPopup({
       </Panel>
 
       {/* People and the ₹49 ATS card: one card, a pill to switch. */}
-      <section className="min-w-0 rounded-2xl border border-ink-08 p-6">
+      <section className="min-w-0 rounded-[1.25rem] bg-paper p-6">
         <TabSwitch
           scope="match-popup"
           tabs={[

@@ -116,7 +116,7 @@ export default async function AdminGovt({
       </div>
 
       {panel.drafts > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-08 bg-ink-04 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] bg-paper bg-ink-04 px-4 py-3">
           <p className="text-[0.84rem] text-ink-50">
             {panel.drafts} saved and not public yet.
           </p>
@@ -143,7 +143,7 @@ export default async function AdminGovt({
             {panel.notices.map((n) => (
               <li
                 key={n.id}
-                className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-2xl border border-ink-08 px-4 py-3"
+                className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-[1.25rem] bg-paper px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2">
@@ -199,7 +199,7 @@ export default async function AdminGovt({
       </section>
 
       {/* Last, small, and honest about itself. */}
-      <p className="rounded-2xl border border-ink-08 px-4 py-3.5 text-[0.82rem] leading-relaxed text-ink-50">
+      <p className="rounded-[1.25rem] bg-paper px-4 py-3.5 text-[0.82rem] leading-relaxed text-ink-50">
         The automatic monitor is{" "}
         {panel.activeSources === 0 ? (
           <strong className="font-medium">switched off</strong>

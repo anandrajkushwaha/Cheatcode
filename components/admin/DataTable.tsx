@@ -203,7 +203,7 @@ export function DataTable({
       </div>
 
       {/* table */}
-      <div className="max-h-[75vh] overflow-auto rounded-xl border border-ink-08">
+      <div className="max-h-[75vh] overflow-auto rounded-xl border border-ink-08 bg-paper">
         <table className="w-full min-w-[44rem] text-left text-[0.83rem]">
           <thead className="sticky top-0 z-10 bg-[#f7f7f5]">
             <tr>

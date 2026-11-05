@@ -51,13 +51,13 @@ export default async function AdminSchedule() {
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-ink-08 p-6">
+        <div className="rounded-[1.25rem] bg-paper p-6">
           <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">Waiting to publish</p>
           <p className="mt-3 text-[2rem] font-semibold leading-none tracking-[-0.04em]">
             {scheduled.length}
           </p>
         </div>
-        <div className="rounded-2xl border border-ink-08 p-6 sm:col-span-2">
+        <div className="rounded-[1.25rem] bg-paper p-6 sm:col-span-2">
           <p className="text-[0.72rem] uppercase tracking-[0.14em] text-ink-30">Next one out</p>
           {next ? (
             <>

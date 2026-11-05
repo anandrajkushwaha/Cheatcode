@@ -16,7 +16,7 @@ export default function AdminLoading() {
           <div key={i} className="h-8 w-20 animate-pulse rounded-full bg-ink-04" />
         ))}
       </div>
-      <div className="space-y-4 rounded-[1.75rem] bg-[#f0f0ec] p-3 sm:p-4">
+      <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {Array.from({ length: 5 }, (_, i) => (
             <div key={i} className="h-[9.5rem] animate-pulse rounded-[1.25rem] bg-paper" />
