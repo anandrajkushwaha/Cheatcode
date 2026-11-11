@@ -27,7 +27,7 @@ export function AsciiField({ children, shapes, scrollLength = 3 }: Props) {
   }, []);
 
   return (
-    <section ref={sectionRef} className="relative bg-[#05051a]" style={{ height: `${scrollLength * 100}svh` }}>
+    <section ref={sectionRef} className="relative bg-[#10241f]" style={{ height: `${scrollLength * 100}svh` }}>
       <div className="sticky top-0 h-svh w-full overflow-hidden">
         <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
         {children ? (

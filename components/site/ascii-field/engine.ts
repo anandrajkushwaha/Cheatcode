@@ -75,9 +75,9 @@ const FRAME_H = 900;
 const CENTER = { x: 778, y: 415, rx: 330, ry: 360 };
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const BG = "#05051a";
-// Atlas tints. 0–2 blue (dim → bright), 3 lavender, 4 white, 5 scaffold grey.
-const TINTS = ["#3033ee", "#4649ff", "#7072ff", "#b9bbff", "#ffffff", "#4a4d88"];
+const BG = "#10241f";
+// Atlas tints around #63C0AA. 0–2 teal (dim → bright), 3 pale mint, 4 white, 5 scaffold.
+const TINTS = ["#3f9884", "#63c0aa", "#8fe0cb", "#d2f5ec", "#ffffff", "#4b7d71"];
 const T_LAV = 3, T_WHITE = 4, T_GREY = 5;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -305,9 +305,9 @@ export function createAsciiField(
     const R = Math.max(110, 150 * scale); // pointer reach
     if (ptr.onS > 0.01) {
       const g = ctx.createRadialGradient(ptr.sx, ptr.sy, 0, ptr.sx, ptr.sy, R);
-      g.addColorStop(0, `rgba(78,80,255,${0.42 * ptr.onS})`);
-      g.addColorStop(0.35, `rgba(52,54,220,${0.2 * ptr.onS})`);
-      g.addColorStop(1, "rgba(20,20,120,0)");
+      g.addColorStop(0, `rgba(99,192,170,${0.4 * ptr.onS})`);
+      g.addColorStop(0.35, `rgba(70,160,140,${0.18 * ptr.onS})`);
+      g.addColorStop(1, "rgba(40,110,95,0)");
       ctx.fillStyle = g;
       ctx.fillRect(ptr.sx - R, ptr.sy - R, R * 2, R * 2);
     }
@@ -352,7 +352,7 @@ export function createAsciiField(
         let a = 0, tint = 0, gi = glyph[i];
 
         if (cVal[i] > 0.02) {
-          a = cVal[i] * (0.75 + 0.25 * bright[i]);
+          a = cVal[i] * (0.88 + 0.12 * bright[i]);
           const f = Math.max(cFlash[i], hv * 1.4);
           tint = f > 0.6 ? T_WHITE : f > 0.3 ? T_LAV : bright[i] > 0.75 ? 2 : 1;
         } else {
@@ -369,7 +369,7 @@ export function createAsciiField(
             // Solid up top, thinning out only over the lowest part of each column.
             const low = smooth(0.55, 1, depth);
             const thin = sideBright[si] > low * 0.9 ? 1 : 0.3;
-            a = side * sideFade * thin * (0.6 + 0.4 * sideBright[si]) * (1 - low * 0.5);
+            a = side * sideFade * thin * (0.72 + 0.28 * sideBright[si]) * (1 - low * 0.45);
             if (!reduced && now >= sideSwap[si]) {
               sideGlyph[si] = rc();
               sideSwap[si] = now + 2500 + Math.random() * 9000;
@@ -379,7 +379,7 @@ export function createAsciiField(
             if (now - born < 1400 && sideBorn[si] > intro - 0.08) tint = T_LAV; // decode shimmer
           } else if (scaffold[i] > 0) {
             // ---- scaffold around the centre
-            a = scaffold[i] * scaff * 0.2 * intro + hv * 0.9 * (scaffold[i] > 0 ? 1 : 0);
+            a = scaffold[i] * scaff * 0.28 * intro + hv * 0.9 * (scaffold[i] > 0 ? 1 : 0);
             tint = hv > 0.45 ? T_LAV : T_GREY;
           } else if (hv > 0.05 && c % 3 === 0 && r % 3 === 0) {
             // Pointer reveals the lattice in empty space too.
