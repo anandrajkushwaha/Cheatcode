@@ -22,7 +22,7 @@ export type ShapeSet = {
   center: string;
 };
 
-// Traced from the reference's opening frame. The centre one is a placeholder.
+// The side shapes are traced from the reference's opening frame.
 export const SHAPES: ShapeSet = {
   left:
     "M0 427 C40 418 90 405 112 399 C135 386 150 375 160 371 C185 365 200 362 208 361 " +
@@ -42,10 +42,11 @@ export const SHAPES: ShapeSet = {
     "C1215 575 1205 580 1200 584 C1175 640 1150 690 1136 711 C1100 720 1060 725 1040 727 " +
     "L984 727 C981 690 978 650 976 632 C970 610 964 592 960 584 C930 565 900 543 880 529 " +
     "C850 529 830 529 816 529 Z",
-  // Placeholder: a stepped arch. Replace with the real centre shape.
+  // The centre mark: two interlocking pieces, traced from the supplied 98×185 PNG
+  // and scaled to 400 frame units tall around CENTER.
   center:
-    "M640 230 L916 230 L916 600 L846 600 L846 420 L710 420 L710 600 L640 600 Z " +
-    "M720 300 L836 300 L836 360 L720 360 Z",
+    "M791 215 L881.8 266.9 L760.7 336.1 L760.7 472.3 L672.1 422.6 L672.1 284.2 Z " +
+    "M793.1 355.5 L881.8 405.3 L881.8 543.6 L760.7 615 L674.2 560.9 L793.1 491.8 Z",
 };
 
 const FRAME_W = 1600;
