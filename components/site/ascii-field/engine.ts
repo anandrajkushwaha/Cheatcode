@@ -1,8 +1,8 @@
 /**
  * Character-field interaction, framework-free.
  *
- *   - Two shapes made of letters sit on the left and right. Their letters are
- *     fixed to the shape (only a few re-roll now and then), so when the shapes
+ *   - A city skyline made of letters fills the screen, in two halves. Their letters are
+ *     fixed to the buildings (only a few re-roll now and then), so when the shapes
  *     slide apart on scroll the letters travel with them, snapped to the grid.
  *   - In the middle a faint scaffold of letters (every few cells) marks where
  *     the centre shape will be; as you scroll the shape builds in, cell by
@@ -22,26 +22,46 @@ export type ShapeSet = {
   center: string;
 };
 
-// The side shapes are traced from the reference's opening frame.
+// The two halves of a city skyline: towers with setbacks, slanted roofs, antennas and
+// windows punched out (even-odd fill). Generated once and frozen here so it never changes.
 export const SHAPES: ShapeSet = {
   left:
-    "M0 427 C40 418 90 405 112 399 C135 386 150 375 160 371 C185 365 200 362 208 361 " +
-    "C225 350 240 340 248 336 C262 328 274 323 282 322 L370 322 C392 326 410 331 422 334 " +
-    "C450 341 465 345 480 348 C530 354 570 358 588 361 C610 365 625 368 632 371 " +
-    "C655 395 665 410 672 419 C700 440 720 460 732 474 C722 500 710 518 700 530 " +
-    "C708 540 712 548 712 555 C710 575 706 592 704 601 L544 601 C540 585 538 566 536 553 " +
-    "C515 543 495 535 480 529 C450 520 420 511 400 506 C340 508 290 511 264 514 " +
-    "C235 540 212 558 200 569 C185 582 170 593 160 601 C120 625 90 645 72 656 " +
-    "C50 672 40 682 32 688 C20 692 10 694 0 695 Z",
+    "M0 599.8L64 561.4V770H0Z M24.5 675.8h15v25h-15Z M73 662.49h84v107.51h-84Z M92.5 " +
+    "692.49h15v25h-15Z M122.5 692.49h15v25h-15Z M86.4 633.5h57.1v29.9h-57.1Z M95.6 " +
+    "604.6h38.8v29.9h-38.8Z M111 534.6h8v71h-8Z M166 531.4h56v238.6h-56Z M186.5 561.4h15v25h-15Z " +
+    "M186.5 607.4h15v25h-15Z M186.5 653.4h15v25h-15Z M186.5 699.4h15v25h-15Z M205.2 476.4h7v56h-7Z " +
+    "M240 516.5h56v253.5h-56Z M260.5 546.5h15v25h-15Z M260.5 592.5h15v25h-15Z M260.5 638.5h15v25h-15Z " +
+    "M260.5 684.5h15v25h-15Z M256.8 498.5h22.4v19h-22.4Z M279.2 461.5h7v56h-7Z M305 " +
+    "634.28h84v135.72h-84Z M324.5 664.28h15v25h-15Z M354.5 664.28h15v25h-15Z M318.4 " +
+    "597.7h57.1v37.5h-57.1Z M327.6 561.2h38.8v37.5h-38.8Z M403 507L467 545.4V770H403Z M427.5 " +
+    "575.4h15v25h-15Z M427.5 621.4h15v25h-15Z M427.5 667.4h15v25h-15Z M481 442.6h96v327.4h-96Z M506.5 " +
+    "472.6h15v25h-15Z M536.5 472.6h15v25h-15Z M506.5 518.6h15v25h-15Z M536.5 518.6h15v25h-15Z M536.5 " +
+    "564.6h15v25h-15Z M536.5 610.6h15v25h-15Z M506.5 656.6h15v25h-15Z M536.5 656.6h15v25h-15Z M506.5 " +
+    "702.6h15v25h-15Z M536.5 702.6h15v25h-15Z M595 334.5h48v435.5h-48Z M611.5 364.5h15v25h-15Z M611.5 " +
+    "410.5h15v25h-15Z M611.5 456.5h15v25h-15Z M611.5 502.5h15v25h-15Z M611.5 548.5h15v25h-15Z M611.5 " +
+    "686.5h15v25h-15Z M652 409.9h72v360.1h-72Z M680.5 439.9h15v25h-15Z M680.5 485.9h15v25h-15Z M680.5 " +
+    "531.9h15v25h-15Z M680.5 577.9h15v25h-15Z M680.5 623.9h15v25h-15Z M702.4 354.9h7v56h-7Z M742 " +
+    "436.5L800 401.7V770H742Z M763.5 466.5h15v25h-15Z M763.5 512.5h15v25h-15Z M763.5 604.5h15v25h-15Z " +
+    "M763.5 650.5h15v25h-15Z M763.5 696.5h15v25h-15Z",
   right:
-    "M816 506 C840 498 865 490 880 486 C895 480 905 476 912 474 L992 474 C1030 470 1050 465 1064 462 " +
-    "C1080 455 1095 446 1104 442 C1140 435 1165 430 1184 427 C1210 420 1235 414 1248 411 " +
-    "C1300 402 1340 395 1360 391 C1368 382 1372 375 1376 371 C1395 366 1412 361 1424 359 " +
-    "C1460 354 1480 350 1496 348 C1520 343 1540 338 1552 336 C1570 333 1590 329 1600 328 " +
-    "L1600 561 L1392 561 C1340 558 1300 555 1280 553 C1250 560 1235 565 1224 569 " +
-    "C1215 575 1205 580 1200 584 C1175 640 1150 690 1136 711 C1100 720 1060 725 1040 727 " +
-    "L984 727 C981 690 978 650 976 632 C970 610 964 592 960 584 C930 565 900 543 880 529 " +
-    "C850 529 830 529 816 529 Z",
+    "M800 430.3h56v339.7h-56Z M820.5 460.3h15v25h-15Z M820.5 552.3h15v25h-15Z M820.5 598.3h15v25h-15Z " +
+    "M820.5 644.3h15v25h-15Z M820.5 690.3h15v25h-15Z M865 302.9h96v467.1h-96Z M890.5 332.9h15v25h-15Z " +
+    "M920.5 332.9h15v25h-15Z M890.5 378.9h15v25h-15Z M920.5 424.9h15v25h-15Z M890.5 470.9h15v25h-15Z " +
+    "M920.5 470.9h15v25h-15Z M890.5 516.9h15v25h-15Z M920.5 516.9h15v25h-15Z M890.5 562.9h15v25h-15Z " +
+    "M920.5 562.9h15v25h-15Z M920.5 608.9h15v25h-15Z M890.5 654.9h15v25h-15Z M920.5 654.9h15v25h-15Z " +
+    "M890.5 700.9h15v25h-15Z M920.5 700.9h15v25h-15Z M970 332.9h48v437.1h-48Z M986.5 362.9h15v25h-15Z " +
+    "M986.5 408.9h15v25h-15Z M986.5 454.9h15v25h-15Z M986.5 500.9h15v25h-15Z M986.5 546.9h15v25h-15Z " +
+    "M986.5 684.9h15v25h-15Z M1003.6 277.9h7v56h-7Z M1027 570.71h96v199.29h-96Z M1052.5 " +
+    "600.71h15v25h-15Z M1082.5 600.71h15v25h-15Z M1082.5 646.71h15v25h-15Z M1052.5 692.71h15v25h-15Z " +
+    "M1042.4 463.4h65.3v108.3h-65.3Z M1137 413h96v357h-96Z M1162.5 443h15v25h-15Z M1192.5 " +
+    "443h15v25h-15Z M1162.5 489h15v25h-15Z M1192.5 489h15v25h-15Z M1162.5 535h15v25h-15Z M1192.5 " +
+    "535h15v25h-15Z M1162.5 581h15v25h-15Z M1192.5 581h15v25h-15Z M1162.5 627h15v25h-15Z M1192.5 " +
+    "673h15v25h-15Z M1242 532L1298 498.4V770H1242Z M1262.5 562h15v25h-15Z M1262.5 608h15v25h-15Z " +
+    "M1262.5 654h15v25h-15Z M1262.5 700h15v25h-15Z M1312 486.7h72v283.3h-72Z M1340.5 516.7h15v25h-15Z " +
+    "M1340.5 608.7h15v25h-15Z M1340.5 654.7h15v25h-15Z M1340.5 700.7h15v25h-15Z M1333.6 " +
+    "468.7h28.8v19h-28.8Z M1393 507.1L1465 550.3V770H1393Z M1421.5 626.3h15v25h-15Z M1421.5 " +
+    "672.3h15v25h-15Z M1474 542.9L1546 586.1V770H1474Z M1502.5 616.1h15v25h-15Z M1564 " +
+    "615.9h36v154.1h-36Z M1589.2 560.9h7v56h-7Z",
   // The centre mark: two interlocking pieces, traced from the supplied 98×185 PNG
   // and scaled to 400 frame units tall around CENTER.
   center:
@@ -346,8 +366,10 @@ export function createAsciiField(
           }
           if (si >= 0 && sideFade > 0.01 && sideBorn[si] < intro) {
             // Fade and thin out toward each shape's lower edge.
-            const thin = sideBright[si] > depth * 0.9 ? 1 : 0.3;
-            a = side * sideFade * thin * (0.55 + 0.45 * sideBright[si]) * (1 - depth * 0.4);
+            // Solid up top, thinning out only over the lowest part of each column.
+            const low = smooth(0.55, 1, depth);
+            const thin = sideBright[si] > low * 0.9 ? 1 : 0.3;
+            a = side * sideFade * thin * (0.6 + 0.4 * sideBright[si]) * (1 - low * 0.5);
             if (!reduced && now >= sideSwap[si]) {
               sideGlyph[si] = rc();
               sideSwap[si] = now + 2500 + Math.random() * 9000;
