@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AsciiPreviewPage() {
   return (
-    <main className="bg-[#10241f] text-white">
+    <main className="bg-[#061411] text-white">
       <AsciiField>
         <div className="flex flex-wrap items-center justify-center gap-x-14 gap-y-4 font-mono text-xs uppercase tracking-[0.3em] text-white/45">
           <span>Logo 1</span>

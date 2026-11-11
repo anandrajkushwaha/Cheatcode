@@ -75,9 +75,9 @@ const FRAME_H = 900;
 const CENTER = { x: 778, y: 415, rx: 330, ry: 360 };
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const BG = "#10241f";
+const BG = "#061411";
 // Atlas tints around #63C0AA. 0–2 teal (dim → bright), 3 pale mint, 4 white, 5 scaffold.
-const TINTS = ["#3f9884", "#63c0aa", "#8fe0cb", "#d2f5ec", "#ffffff", "#4b7d71"];
+const TINTS = ["#4fb09a", "#6fd0b9", "#a0eedb", "#dcfaf2", "#ffffff", "#3f7568"];
 const T_LAV = 3, T_WHITE = 4, T_GREY = 5;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
