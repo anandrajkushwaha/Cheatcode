@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { AsciiField } from "@/components/site/AsciiField";
+import { AsciiField } from "@/components/site/ascii-field/AsciiField";
 
-// A preview of the character-field hero; not linked from anywhere and not indexed.
+// Preview of the character-field interaction; not linked from anywhere and not indexed.
 export const metadata: Metadata = {
   title: "ASCII field preview",
   robots: { index: false, follow: false },
@@ -10,16 +10,14 @@ export const metadata: Metadata = {
 export default function AsciiPreviewPage() {
   return (
     <main className="bg-[#05051a] text-white">
-      <AsciiField
-        intro={
-          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/60">
-            Cheatcode — move your cursor, then scroll
-          </p>
-        }
-      >
-        <p className="font-display text-xl font-medium tracking-[-0.02em] text-white sm:text-3xl">
-          You have a Cheatcode for your career.
-        </p>
+      <AsciiField>
+        <div className="flex flex-wrap items-center justify-center gap-x-14 gap-y-4 font-mono text-xs uppercase tracking-[0.3em] text-white/45">
+          <span>Logo 1</span>
+          <span>Logo 2</span>
+          <span>Logo 3</span>
+          <span>Logo 4</span>
+          <span>Logo 5</span>
+        </div>
       </AsciiField>
       <section className="flex h-[60svh] items-center justify-center">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-white/40">Next section</p>
