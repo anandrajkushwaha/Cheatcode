@@ -71,7 +71,7 @@ export type GuestState = {
 };
 
 /**
- * The builder without an account (/resume-builder). Nothing is sent to the
+ * The builder without an account (/resume-builder/create). Nothing is sent to the
  * server: every change is handed to `onState` to keep in the browser, and
  * the things that need an account — the PDF — ask `needAccount` instead.
  */

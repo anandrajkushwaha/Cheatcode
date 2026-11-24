@@ -180,8 +180,9 @@ export default function TermsPage() {
 
       <h2>Free tools</h2>
       <p>
-        The ATS checker, the salary calculator and the guides are free and are
-        provided as they are. The ATS score is a checklist, not a verdict from
+        The salary calculator and the guides are free. The ATS checker gives one
+        free check a day; further checks need a one-time ₹49 payment. All of
+        them are provided as they are. The ATS score is a checklist, not a verdict from
         any real applicant tracking system, and the salary figures are estimates
         built on public data. Treat both as a starting point for a decision, not
         as the decision.

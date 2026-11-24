@@ -125,6 +125,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),
+    // The public builder page; its editor (/resume-builder/create) is noindex
+    // and stays out of the sitemap.
+    {
+      url: `${SITE.url}/resume-builder`,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
     {
       url: `${SITE.url}/resume-templates`,
       changeFrequency: "monthly",

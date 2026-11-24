@@ -1,5 +1,5 @@
 /**
- * The resume somebody builds before they have an account (/resume-builder).
+ * The resume somebody builds before they have an account (/resume-builder/create).
  *
  * It opens on the template's sample with the header left blank, so the first
  * thing they type is their own name and number — which is also what the

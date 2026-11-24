@@ -40,9 +40,12 @@ const FAQ = [
   },
 ];
 
+// Template intent ("resume templates", "CV templates"), not tool intent: the
+// "resume builder" and "CV maker" searches belong to /resume-builder, and two
+// pages with the same title would split them.
 export const metadata: Metadata = buildMetadata({
-  title: `Free Resume Builder — ${COUNT} ATS-Friendly Templates, PDF | Cheatcode`,
-  description: `Free resume builder with ${COUNT} ATS-friendly templates for freshers and experienced professionals in India, with or without a photo. Start typing with no sign-up and download a PDF.`,
+  title: `Resume & CV Templates – ${COUNT} Free ATS-Friendly Designs | Cheatcode`,
+  description: `${COUNT} free resume and CV templates — simple, professional, modern and creative, with or without a photo. ATS-friendly designs you can edit online and download as a PDF.`,
   path: "/resume-templates",
 });
 
@@ -56,14 +59,15 @@ export default function ResumeTemplatesPage() {
   return (
     <>
       <div className="container-page pt-10 sm:pt-14">
-        <Breadcrumbs items={[{ href: "/", label: "Home" }, { label: "Free resume templates" }]} />
+        <Breadcrumbs items={[{ href: "/", label: "Home" }, { label: "Resume templates" }]} />
 
         <h1 className="mt-7 max-w-[22ch] text-[clamp(2rem,4.5vw,3.25rem)] font-semibold leading-[1.05]">
-          Free resume templates
+          Free resume &amp; CV templates
         </h1>
         <p className="mt-5 max-w-[60ch] text-lg leading-relaxed text-ink-70">
           {COUNT} ATS-friendly designs for freshers and experienced professionals. Tap one and start
-          typing — your resume builds beside the form, and you download it as a PDF.
+          typing in the <Link href="/resume-builder" className="underline underline-offset-4 hover:text-ink">free resume builder</Link>{" "}
+          — your resume builds beside the form, and you download it as a PDF.
         </p>
         <p className="mt-4 text-[0.8rem] text-ink-30">Free · No sign-up to start · Change the template any time</p>
       </div>
@@ -99,12 +103,20 @@ export default function ResumeTemplatesPage() {
             or a timeline helps you stand out, and none of them costs you anything there.
           </p>
           <p>
-            Not sure how yours will do? Run it through the free{" "}
-            <Link href="/tools/resume-ats-checker">resume ATS checker</Link> once it is done. If you made a
+            Not sure how yours will do? Run it through the{" "}
+            <Link href="/tools/resume-ats-checker">resume ATS checker</Link> once it is done — your first check
+            each day is free. If you made a
             resume elsewhere before, see{" "}
             <Link href="/blog/canva-resume-ats-friendly">whether a Canva resume is ATS friendly</Link> or the{" "}
             <Link href="/blog/google-docs-resume-template">Google Docs resume templates ranked by ATS safety</Link>,
             and compare the <Link href="/blog/free-resume-builder">resume builders that are actually free</Link>.
+          </p>
+
+          <h2>Resume templates or CV templates?</h2>
+          <p>
+            They are the same designs. A CV in the UK, Ireland, India or the UAE is the document a US employer
+            calls a resume, so every template here works for both — choose the look, then name the file
+            whichever way the job ad does.
           </p>
 
           <h2>All {COUNT} templates by style</h2>
@@ -125,13 +137,11 @@ export default function ResumeTemplatesPage() {
       <JsonLd
         data={{
           "@context": "https://schema.org",
-          "@type": "WebApplication",
-          name: "Free Resume Templates and Builder",
+          "@type": "CollectionPage",
+          name: "Resume and CV templates",
           url,
-          applicationCategory: "BusinessApplication",
-          operatingSystem: "Any",
-          description: `${COUNT} free, ATS-friendly resume templates. Fill one in online and download a PDF.`,
-          offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+          description: `${COUNT} free, ATS-friendly resume and CV templates. Fill one in online and download a PDF.`,
+          isPartOf: { "@type": "WebSite", name: SITE.name, url: SITE.url },
           publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },
         }}
       />

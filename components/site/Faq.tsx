@@ -9,7 +9,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "What is free and what costs money?",
-    a: "The resume builder, all 60 templates, PDF downloads with no watermark, the ATS checker, the salary calculator, the job search, the guides and the daily insights are free on every account, with no time limit and no card. Cheatcode Pro is ₹299 a month and adds every job that matches your resume, the AI career agent, AI mock interviews and an expert review of your resume. Matched jobs can also be unlocked one at a time for ₹49, or all of them for 7 days for ₹99.",
+    a: "The resume builder, all 60 templates, PDF downloads with no watermark, the salary calculator, the job search, the guides and the daily insights are free on every account, with no time limit and no card. The ATS checker gives you one free check every day; a one-time ₹49 payment unlocks unlimited checks. Cheatcode Pro is ₹299 a month and adds every job that matches your resume, the AI career agent, AI mock interviews and an expert review of your resume. Matched jobs can also be unlocked one at a time for ₹49, or all of them for 7 days for ₹99.",
   },
   {
     q: "Who is Cheatcode actually for?",

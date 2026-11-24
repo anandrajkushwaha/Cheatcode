@@ -6,7 +6,7 @@ import { EVENTS, track } from "@/lib/analytics/events";
 
 /**
  * The ad's way in: templates first, then the builder — with no account in
- * the way. A tap opens the guest builder (/resume-builder, GuestBuilder.tsx)
+ * the way. A tap opens the guest builder (/resume-builder/create, GuestBuilder.tsx)
  * in that template; the whole resume is written there, kept in the browser,
  * and sign-in is asked for only at Download, after which the PDF downloads
  * on its own and the matching jobs follow.
@@ -17,7 +17,7 @@ import { EVENTS, track } from "@/lib/analytics/events";
 export function BuildResume() {
   function pick(template: string) {
     track(EVENTS.BUILDER_STEP, { label: "template_click", template, where: "build-resume" });
-    window.location.assign(`/resume-builder?template=${encodeURIComponent(template)}`);
+    window.location.assign(`/resume-builder/create?template=${encodeURIComponent(template)}`);
   }
 
   return (

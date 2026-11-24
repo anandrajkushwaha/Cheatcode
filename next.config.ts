@@ -39,6 +39,17 @@ const nextConfig: NextConfig = {
       },
       // An old landing page Google still remembers.
       { source: "/lander", destination: "/", permanent: true },
+      // /resume-builder is now the public landing page and the editor lives at
+      // /resume-builder/create. Every template link used to open the editor as
+      // /resume-builder?template=id — in old bookmarks, shared links, ads and
+      // cached pages — so those keep opening the editor. The query string is
+      // passed through unchanged (template, utm_*, anything else).
+      {
+        source: "/resume-builder",
+        has: [{ type: "query", key: "template" }],
+        destination: "/resume-builder/create",
+        permanent: true,
+      },
       ...Object.keys(MERGED_GUIDES).map((from) => ({
         source: `/blog/${from}`,
         destination: mergedTarget(from)!,

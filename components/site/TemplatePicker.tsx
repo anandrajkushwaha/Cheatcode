@@ -12,7 +12,7 @@ export function TemplatePicker() {
       current={null}
       onPick={(template) => {
         track(EVENTS.BUILDER_STEP, { label: "template_click", template, where: "resume-templates" });
-        router.push(`/resume-builder?template=${template}`);
+        router.push(`/resume-builder/create?template=${template}`);
       }}
     />
   );

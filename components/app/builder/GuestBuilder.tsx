@@ -197,7 +197,7 @@ function GuestSession({ saved }: { saved: Saved }) {
 /**
  * The same sign-in card as /signin — Google, or number / email — in a sheet
  * over the builder. A number/email sign-in saves the resume and opens the
- * editor from here; Google goes away and comes back to /resume-builder, where
+ * editor from here; Google goes away and comes back to /resume-builder/create, where
  * GuestBuilder finds the browser's copy and does the same on arrival.
  */
 function SaveSheet({ state, onClose }: { state: GuestState; onClose: () => void }) {
@@ -221,7 +221,7 @@ function SaveSheet({ state, onClose }: { state: GuestState; onClose: () => void 
           saved to your account, so you can edit it any time.
         </p>
         <SignInForm
-          next="/resume-builder"
+          next="/resume-builder/create"
           initialIdentifier={r.phone || r.email || ""}
           initialName={r.full_name ?? ""}
           initialCity={r.location ?? ""}

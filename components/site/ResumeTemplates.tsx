@@ -12,7 +12,7 @@ import { EVENTS, track } from "@/lib/analytics/events";
  *
  * One of each layout, as the real document (the same DesignPage the builder
  * and the PDF use). A tap opens the builder in that template without an
- * account — the sign-up comes later, once there is a resume worth saving
+ * account (/resume-builder/create) — the sign-up comes later, once there is a resume worth saving
  * (components/app/builder/GuestBuilder.tsx).
  */
 
@@ -24,13 +24,20 @@ const PICKS = (() => {
   return TEMPLATES.filter((t) => !seen.has(t.layout) && seen.add(t.layout)).slice(0, 8);
 })();
 
-export function ResumeTemplates() {
+export function ResumeTemplates({
+  where = "home",
+  heading = "Free resume templates.",
+}: {
+  /** Which page this strip is on, for the template_click event. */
+  where?: string;
+  heading?: string;
+}) {
   return (
     <section className="py-20 sm:py-28" aria-labelledby="free-templates">
       <DesignStyles />
       <div className="container-page">
         <h2 id="free-templates" className="max-w-[22ch] text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.05] tracking-[-0.04em]">
-          Free resume templates.
+          {heading}
           <span className="text-ink-30"> Pick one, start typing.</span>
         </h2>
         <p className="mt-4 max-w-[52ch] text-[1rem] leading-relaxed text-ink-50">
@@ -44,9 +51,9 @@ export function ResumeTemplates() {
           {PICKS.map((t) => (
             <li key={t.id} style={{ width: CARD }}>
               <Link
-                href={`/resume-builder?template=${t.id}`}
+                href={`/resume-builder/create?template=${t.id}`}
                 rel="nofollow"
-                onClick={() => track(EVENTS.BUILDER_STEP, { label: "template_click", template: t.id, where: "home" })}
+                onClick={() => track(EVENTS.BUILDER_STEP, { label: "template_click", template: t.id, where })}
                 className="group block"
               >
                 <span

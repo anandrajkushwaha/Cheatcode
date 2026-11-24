@@ -42,9 +42,9 @@ const FAQ = [
 ];
 
 export const metadata: Metadata = buildMetadata({
-  title: "Free ATS Score Checker — Check Your Resume's ATS Score | Cheatcode",
+  title: "ATS Resume & CV Checker – Check Your ATS Score | Cheatcode",
   description:
-    "Free ATS score checker for your resume: upload it and see what an ATS actually reads, a real parse-based score, and the exact weak points costing you interviews. No signup, and the file is never uploaded.",
+    "Check your resume's ATS score: see what screening software actually reads and the exact weak points costing you interviews. Your first check each day is free, then ₹49 once for unlimited checks. No signup.",
   path: "/tools/resume-ats-checker",
 });
 
@@ -71,7 +71,7 @@ export default function AtsCheckerPage() {
           and the exact lines costing you it.
         </p>
         <p className="mt-4 text-[0.8rem] text-ink-30">
-          Free · No signup · File read in your browser, never uploaded
+          1 free check a day, then ₹49 once for unlimited · No signup · File read in your browser, never uploaded
         </p>
       </div>
 
@@ -159,8 +159,11 @@ export default function AtsCheckerPage() {
           applicationCategory: "BusinessApplication",
           operatingSystem: "Any",
           description:
-            "Free resume ATS checker. Upload a resume and get a parse-based ATS score with the specific weak points to fix. Runs in the browser; nothing is uploaded.",
-          offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+            "Resume ATS checker. Upload a resume and get a parse-based ATS score with the specific weak points to fix. One check a day is free; a one-time ₹49 payment unlocks unlimited checks.",
+          offers: [
+            { "@type": "Offer", name: "One check a day", price: "0", priceCurrency: "INR" },
+            { "@type": "Offer", name: "Unlimited checks (one-time)", price: "49", priceCurrency: "INR" },
+          ],
           publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },
         }}
       />
